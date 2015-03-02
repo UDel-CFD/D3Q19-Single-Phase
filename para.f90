@@ -2,11 +2,11 @@
       use var_inc
       implicit none
 
+      logical dirExist
       integer i,j,k
 
       pi = 4.0*atan(1.0) 
       pi2 = 2.0*pi
-
 ! specify the force magnitude
 !     visc = 0.0032
 !     Rstar = 200.0
@@ -48,15 +48,15 @@
 
       istpload = 170000    !!!!THIS NEEDS TO BE CHANGED WHEN STARTING NEW RUNS
       force_mag = 1.0
-      nsteps = 30000
+      nsteps = 1000
 
 !     nek = nx/3
       nek = int(nx7/2 - 1.5)
 
-!     newrun = .true.
-!     newinitflow = .true.
-      newrun = .false.
-      newinitflow = .false.
+      newrun = .true.
+      newinitflow = .true.
+!      newrun = .false.
+!      newinitflow = .false.
  
       tau = 3.0*visc + 0.5
 
@@ -206,16 +206,63 @@
       rhoepsl = 1.e-05
 
 ! saving and loading directories relevant to flow
-      dircntdflow0 = trim('/glade/scratch/lwang/Particle_Resolved/LBM2Ddd/ChannelP_MRT_zero/cntdflow/')
-      dircntdpart0 = trim('/glade/scratch/lwang/Particle_Resolved/LBM2Ddd/ChannelP_MRT_zero/cntdpart/')
+      dircntdflow0 = trim('/glade/scratch/ngeneva/Particle_Laden_Channel_Flow_Code/')
+      dircntdpart0 = trim('/glade/scratch/ngeneva/Particle_Laden_Channel_Flow_Code/')
 
-      dirgenr = '/glade/scratch/lwang/Particle_Resolved/LBM2Ddd/ChannelP_MRT_zero2/'
+      dirgenr = '/glade/scratch/ngeneva/Particle_Laden_Channel_Flow_Code/'
       dirdiag = trim(dirgenr)//'diag/'
       dirstat = trim(dirgenr)//'stat/'
       dirinitflow = trim(dirgenr)//'initflow/'
       dircntdflow = trim(dirgenr)//'cntdflow/'
       dirflowout = trim(dirgenr)//'flowout/'
       dirmoviedata = trim(dirgenr)//'moviedata/'
+
+! saving and loading directories relevant to particle
+      dircntdpart = trim(dirgenr)//'cntdpart/'
+      dirpartout = trim(dirgenr)//'partout/'
+
+      if(myid==0)then
+        inquire(directory = dirdiag, exist = dirExist)
+        if(.NOT.dirExist)then
+          CALL system('mkdir '// dirdiag);
+        endif
+
+        inquire(directory = dirstat, exist = dirExist)
+        if(.NOT.dirExist)then
+          CALL system('mkdir '// dirstat);
+        endif
+
+        inquire(directory = dirinitflow, exist = dirExist)
+        if(.NOT.dirExist)then
+          CALL system('mkdir '// dirinitflow);
+        endif
+
+        inquire(directory = dircntdflow, exist = dirExist)
+        if(.NOT.dirExist)then
+          CALL system('mkdir '// dircntdflow);
+        endif
+
+        inquire(directory = dirflowout, exist = dirExist)
+        if(.NOT.dirExist)then
+          CALL system('mkdir '// dirflowout);
+        endif
+
+        inquire(directory = dirmoviedata, exist = dirExist)
+        if(.NOT.dirExist)then
+          CALL system('mkdir '// dirmoviedata);
+        endif
+
+        inquire(directory = dircntdpart, exist = dirExist)
+        if(.NOT.dirExist)then
+          CALL system('mkdir '// dircntdpart);
+        endif
+
+        inquire(directory = dirpartout, exist = dirExist)
+        if(.NOT.dirExist)then
+          CALL system('mkdir '// dirpartout);
+        endif
+      endif
+
 ! particle-related parameters
 !      ipart = .false.
        ipart = .true.
@@ -254,9 +301,6 @@
         wwp = (/ww1, ww1, ww1, ww1, ww1, ww1, ww2, ww2, ww2,           &
                 ww2, ww2, ww2, ww2, ww2, ww2, ww2, ww2, ww2/) 
 
-! saving and loading directories relevant to particle
-        dircntdpart = trim(dirgenr)//'cntdpart/'
-        dirpartout = trim(dirgenr)//'partout/'
       end if
 
 ! Computing wave numbers and other values for the forcing

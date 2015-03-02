@@ -19,7 +19,7 @@
       integer,parameter:: npop = 19
       integer,parameter:: iflowseed = 54321
       integer,parameter:: NTAB = 32 
-      integer,parameter:: ndiag = 100, nstat = 1000  , nspec=1000
+      integer,parameter:: ndiag = 100, nstat = 100  , nspec=1000
       integer,parameter:: nflowout = 10000, npartout = 1000
 !     integer,parameter:: ndiag = 10, nstat = 2000  , nspec=2000
 !     integer,parameter:: nflowout = 10000, npartout = 10

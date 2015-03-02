@@ -87,21 +87,20 @@
 
           rhoerr = maxval(abs(rho - rhop))        
 
-          call MPI_ALLREDUCE(rhoerr,rhoerrmax,1,MPI_REAL8,MPI_MAX,      &
-                             MPI_COMM_WORLD,ierr)
-          if(myid == 0 .and. mod(istep,1) == 0)                        &
+          call MPI_ALLREDUCE(rhoerr,rhoerrmax,1,MPI_REAL8, &
+                      MPI_MAX,MPI_COMM_WORLD,ierr)
+
+          if(myid == 0 .and. mod(istep,1) == 0) &
             write(*,*)istep, rhoerrmax 
 
-          if(rhoerrmax <= rhoepsl .or. istep > 15000)then
-            if(myid == 0) write(*,*)'final relaxation => ',            &
+          if(rhoerrmax <= rhoepsl .or. istep > 5000)then
+            if(myid == 0) write(*,*)'final relaxation => ', &
                                     istep, rhoerrmax
             exit
           end if
-
           istep = istep + 1 
 
         end do 
-
 ! Check the maximum density fluctuations relative to rho0 = 1.0
           rhoerr = maxval(rho)        
           call MPI_ALLREDUCE(rhoerr,rhomax,1,MPI_REAL8,MPI_MAX, &
@@ -116,7 +115,7 @@
 
 ! The next line is for checking only
 !       call statistc
-
+        
         call saveinitflow    
         call macrovar 
         istep0 = 0
@@ -172,7 +171,8 @@
 ! Initialise particle center position and velocity
       if(ipart .and. istep == irelease)then
         istep00 = 0
-
+        if(myid.eq.0) write(*,*) 'Releasing beads'
+        
         call initpartpos
 !        call loadinitpartpos
 
@@ -259,7 +259,9 @@
 
 ! save data for continue run
       call savecntdflow
-     call input_outputf(2)
+!save param variables
+      call input_outputf(2)
+!save bead positions
       if(ipart .and. istep > irelease) call savecntdpart    
 
 101   continue
