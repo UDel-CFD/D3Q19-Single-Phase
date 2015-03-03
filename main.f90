@@ -140,6 +140,7 @@
       end if     
 
       ELSE
+      if(myid == 0)write(*,*)'Loading flow...'
 ! load data from same number of processes  
       call loadcntdflow      
 !     call input_outputf(1)
@@ -162,7 +163,7 @@
 
       do istep = istep0+1,istep0+nsteps 
 
-      if(myid.eq.0 .and. mod(istep,100).eq.0)then
+      if(myid.eq.0 .and. mod(istep,5).eq.0)then
       	write(*,*) 'istep= ',istep
       endif
 
@@ -256,13 +257,14 @@
        call MPI_BARRIER(MPI_COMM_WORLD,ierr)
        call MPI_ALLREDUCE(time_diff,time_max,1,MPI_REAL8,  &
                            MPI_MAX,MPI_COMM_WORLD,ierr)
-
+!Probe each processor for final flow comparing
+       call probe
 ! save data for continue run
-      call savecntdflow
+!      call savecntdflow
 !save param variables
-      call input_outputf(2)
+!      call input_outputf(2)
 !save bead positions
-      if(ipart .and. istep > irelease) call savecntdpart    
+!      if(ipart .and. istep > irelease) call savecntdpart    
 
 101   continue
 

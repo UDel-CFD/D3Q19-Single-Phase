@@ -3864,4 +3864,46 @@
       oz = 0.0
 
       end subroutine vortcalc
+!==========================================================================
+!==========================================================================
+      subroutine probe
+      use mpi
+      use var_inc
+      implicit none
+
+      integer id
+      character (len = 120):: fnm
+      real, dimension(nproc) :: uprob, vprob, wprob
+
+      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+
+! gather center velocity data from each process
+! MPI gather automatically puts data in order of rank
+      if(ibnodes(lx/2,ly/2,lz/2).le.0)then
+        CALL MPI_GATHER(ux(lx/2, ly/2, lz/2), 1, MPI_REAL8, uprob, 1, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
+        CALL MPI_GATHER(uy(lx/2, ly/2, lz/2), 1, MPI_REAL8, vprob, 1, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
+        CALL MPI_GATHER(uz(lx/2, ly/2, lz/2), 1, MPI_REAL8, wprob, 1, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
+! give exactly 0 if node is in bead
+      else
+        CALL MPI_GATHER(0.0, 1, MPI_REAL8, uprob, 1, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
+        CALL MPI_GATHER(0.0, 1, MPI_REAL8, vprob, 1, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
+        CALL MPI_GATHER(0.0, 1, MPI_REAL8, wprob, 1, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
+      endif
+
+      if(myid == 0)then !print ut probe data to file
+        fnm = trim(dirprobe)//'probe.dat'
+
+        open(60, file = trim(fnm), status = 'unknown',                 &
+                 form = 'formatted')
+
+        write(60,*) 'Center probe at istep ', istep
+        write(60,*) 'Processor    x-velocity    y-velocity    z-velocity'
+
+        do id = 1,nproc
+          write(60,600) id-1, uprob(id), vprob(id), wprob(id)
+        enddo
+      endif
+
+600   format(2x,1i5,3(1pe16.6))
+      end subroutine probe
 

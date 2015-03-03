@@ -116,7 +116,7 @@
 
 
       character(len=80):: dirgenr, dirinitflow
-      character(len=80):: dirdiag, dirstat   
+      character(len=80):: dirdiag, dirstat, dirprobe   
       character(len=80):: dircntdflow,dircntdflow0,dircntdpart,dircntdpart0
       character(len=80):: dirflowout, dirpartout    
       character(len=80):: dirmoviedata

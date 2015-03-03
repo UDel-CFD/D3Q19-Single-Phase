@@ -46,17 +46,17 @@
 ! it can be any step # at which the "endrunflow" & "endrunpart" data are saved
 ! Note: this variable needs to be manually setup for each continue run
 
-      istpload = 170000    !!!!THIS NEEDS TO BE CHANGED WHEN STARTING NEW RUNS
+      istpload = 1000    !!!!THIS NEEDS TO BE CHANGED WHEN STARTING NEW RUNS
       force_mag = 1.0
-      nsteps = 1000
+      nsteps = 25
 
 !     nek = nx/3
       nek = int(nx7/2 - 1.5)
 
-      newrun = .true.
-      newinitflow = .true.
-!      newrun = .false.
-!      newinitflow = .false.
+!      newrun = .true.
+!      newinitflow = .true.
+      newrun = .false.
+      newinitflow = .false.
  
       tau = 3.0*visc + 0.5
 
@@ -212,6 +212,7 @@
       dirgenr = '/glade/scratch/ngeneva/Particle_Laden_Channel_Flow_Code/'
       dirdiag = trim(dirgenr)//'diag/'
       dirstat = trim(dirgenr)//'stat/'
+      dirprobe = trim(dirgenr)//'probe/'
       dirinitflow = trim(dirgenr)//'initflow/'
       dircntdflow = trim(dirgenr)//'cntdflow/'
       dirflowout = trim(dirgenr)//'flowout/'
@@ -230,6 +231,11 @@
         inquire(directory = dirstat, exist = dirExist)
         if(.NOT.dirExist)then
           CALL system('mkdir '// dirstat);
+        endif
+
+        inquire(directory = dirprobe, exist = dirExist)
+        if(.NOT.dirExist)then
+          CALL system('mkdir '// dirprobe);
         endif
 
         inquire(directory = dirinitflow, exist = dirExist)
