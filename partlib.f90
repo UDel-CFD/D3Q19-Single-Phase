@@ -2484,12 +2484,11 @@
       integer, dimension(msize):: tmp2li, tmp2ri, tmp2ui, tmp2di, tmpsi, tmp0i
       integer, dimension(msize):: tmp2dli, tmp2dri, tmp2uli, tmp2uri
 
-      real xc, yc, zc, mpistart
+      real xc, yc, zc
       real, dimension(3,npart):: yp0 
       real, dimension(21,msize):: tmp2l, tmp2r, tmp2d, tmp2u, tmps, tmp0
       real, dimension(21,msize):: tmp2dl, tmp2dr, tmp2ul, tmp2ur
     
-      mpistart = MPI_WTIME();
       ckpw1 = 0
       ckpw2 = 0
       n2l = 0
@@ -2569,9 +2568,7 @@
         end if
 
       end do
-      redist_sub1_bnch(istep-istpload) = MPI_WTIME() - mpistart
 
-      mpistart = MPI_WTIME();
       if(n2l > 0) call preswap(n2l,id2l,tmp2l,tmp2li)      !8
 
       if(n2r > 0) call preswap(n2r,id2r,tmp2r,tmp2ri)      !4
@@ -2589,7 +2586,6 @@
       if(n2dr > 0) call preswap(n2dr,id2dr,tmp2dr,tmp2dri) !3
 
       if(ns > 0)  call preswap(ns,ids,tmps,tmpsi)          !stay
-      redist_sub2_bnch(istep-istpload) = MPI_WTIME() - mpistart
 
 
       nps = ns
@@ -2605,7 +2601,6 @@
         torqpp(:,1:nps) = tmps(19:21,1:nps)
       end if 
  
-      mpistart = MPI_WTIME();
 ! send tmp2l and tmp2li to the left slab and receive tmp0 and tmp0i from right
       call exchng4(n2l,ntmp0,tmp2li,tmp2l,tmp0i,tmp0,0,-1)
 
@@ -2656,9 +2651,8 @@
 
 ! concatenate tmp0 and tmp0i received from ??? slab, with nps updated
       call concat(ntmp0,tmp0i,tmp0)
-      redist_sub3_bnch(istep-istpload) = MPI_WTIME() - mpistart;
+      
 
-      mpistart = MPI_WTIME();
 ! check nps
       npsflag = 0
       if(nps > msize)then
@@ -2695,13 +2689,11 @@
         if(zc < 0.0) yp(3,ip) = yp(3,ip) + real(nz)
       end do
 
-      open (97, file = trim('part_wall'), status = 'unknown',   &
-      form = 'formatted')
-      write(97,*) istep, ckpw1, ckpw2
-      close (97)
-      redist_sub4_bnch(istep-istpload) = MPI_WTIME() - mpistart;
+!      open (97, file = trim('part_wall'), status = 'unknown',   &
+!      form = 'formatted')
+!      write(97,*) istep, ckpw1, ckpw2
+!      close (97)
 
-      mpistart = MPI_WTIME();
 ! update yp0 
       yp0 = 0.0
 
@@ -2734,7 +2726,6 @@
         call MPI_FINALIZE(ierr)
         stop
       end if
-      redist_sub5_bnch(istep-istpload) = MPI_WTIME() - mpistart;
 
       end subroutine beads_redistribute
 !===========================================================================

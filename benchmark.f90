@@ -118,34 +118,3 @@
      end subroutine benchtotal
 !==========================================================================================
 !==========================================================================================
-     subroutine benchredist
-     use var_inc
-
-     implicit none
-     integer iprc1, iprc2, iprc3, i
-     character (len = 200):: fnm
-
-     iprc1 = myid / 100
-     iprc2 = mod(myid,100) / 10
-     iprc3 = mod(myid,10)
-
-     fnm = trim(dirredist)//'bmredist.' &
-     				//char(iprc1 + 48)//char(iprc2 + 48)//char(iprc3 + 48)
-     if(myid==0)write(*,*) fnm
-     open(60, file = trim(fnm), status = 'unknown',                 &
-                 form = 'formatted')
-
-     do i = 1, nsteps
-     	write(60,600) redist_sub1_bnch(i), redist_sub2_bnch(i), redist_sub3_bnch(i), &
-                redist_sub4_bnch(i), redist_sub5_bnch(i)
-     enddo
-     if(myid==0)then
-     write(*,600)redist_sub1_bnch(3), redist_sub2_bnch(3), redist_sub3_bnch(3), &
-                redist_sub4_bnch(3), redist_sub5_bnch(3)
-     endif
-     close(60)
-
-600   format(2x,5(1f16.10))
-     end subroutine benchredist
-!==========================================================================================
-!==========================================================================================

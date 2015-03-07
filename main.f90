@@ -287,7 +287,7 @@
 !      call input_outputf(2)
 !save bead positions
 !      if(ipart .and. istep > irelease) call savecntdpart    
-      call benchredist
+
 !Record Benchmarks
       call benchflow
       call benchbead
@@ -295,8 +295,6 @@
 
       call benchtotal
 
-
-      
 101   continue
 
       if(myid.eq.0)then

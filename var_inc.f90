@@ -126,10 +126,6 @@
       real, allocatable,dimension(:):: beads_collision_bnch, beads_lubforce_bnch, &
                 beads_move_bnch, beads_redistribute_bnch, beads_links_bnch, beads_filling_bnch
 
-      real, allocatable,dimension(:):: redist_sub1_bnch, redist_sub2_bnch, redist_sub3_bnch, &
-                redist_sub4_bnch, redist_sub5_bnch
-
       character(len=120):: dirbench, dirbenchmatlab, dirbenchbead, dirbenchflow, dirbenchstat
-      character(len=120):: dirredist
 
       end module var_inc
