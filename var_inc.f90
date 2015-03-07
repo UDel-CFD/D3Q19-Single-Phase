@@ -114,12 +114,18 @@
       real,allocatable,dimension(:,:,:):: vx, vy, vz
       real,allocatable,dimension(:,:,:):: wx, wy, wz
 
-
       character(len=80):: dirgenr, dirinitflow
       character(len=80):: dirdiag, dirstat, dirprobe   
       character(len=80):: dircntdflow,dircntdflow0,dircntdpart,dircntdpart0
       character(len=80):: dirflowout, dirpartout    
       character(len=80):: dirmoviedata
 
+!Benchmarking variables
+      real bnchstart
+      real, allocatable,dimension(:):: collision_MRT_bnch, streaming_bnch, macrovar_bnch
+      real, allocatable,dimension(:):: beads_collision_bnch, beads_lubforce_bnch, &
+                beads_move_bnch, beads_redistribute_bnch, beads_links_bnch, beads_filling_bnch
+
+      character(len=80):: dirbench, dirbenchmatlab, dirbenchbead, dirbenchflow, dirbenchstat
 
       end module var_inc

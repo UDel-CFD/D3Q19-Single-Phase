@@ -8,7 +8,7 @@ FCOMP = mpif90 -c ${FFLAG}
 LINK = mpif90 
 LIBS = -lm
 
-OBJ = var_inc.o main.o para.o collision.o streaming.o initial.o partlib.o saveload.o
+OBJ = var_inc.o main.o para.o collision.o streaming.o initial.o partlib.o saveload.o benchmark.o
 #Defines file siffixes we'll use
 .SUFFIXES: .o .f90
 

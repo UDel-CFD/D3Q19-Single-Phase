@@ -50,8 +50,7 @@
       call MPI_COMM_SIZE(MPI_COMM_WORLD,nproc,ierr)      
 
 
-      call para
-      
+      call para  
       call allocarray
 
       IF(newrun)THEN   
@@ -154,13 +153,13 @@
 
       END IF
 
-! main loop
+
 ! Forcing is independent of time so only call once here
         call FORCING
 !       call FORCINGP
 
       time_start = MPI_WTIME()
-
+! main loop
       do istep = istep0+1,istep0+nsteps 
 
       if(myid.eq.0 .and. mod(istep,5).eq.0)then
@@ -194,25 +193,48 @@
 
 !       call FORCING
 !       call FORCINGP
-
+        bnchstart = MPI_WTIME()
         call collision_MRT
+        collision_MRT_bnch(istep-istpload) = MPI_WTIME() - bnchstart
 ! The next two lines are FOR TESTING
 !       call macrovar 
 !       call statistc
 
-        if(ipart .and. istep >= irelease) call beads_collision
+        if(ipart .and. istep >= irelease)then
+         bnchstart = MPI_WTIME()
+         call beads_collision
+         beads_collision_bnch(istep-istpload) = MPI_WTIME() - bnchstart
+        endif
 
+        bnchstart = MPI_WTIME()
         call streaming
+        streaming_bnch(istep-istpload) = MPI_WTIME() - bnchstart
 
         if(ipart .and. istep >= irelease)then
+          bnchstart = MPI_WTIME()
           call beads_lubforce
+          beads_lubforce_bnch(istep-istpload) = MPI_WTIME() - bnchstart
+
+          bnchstart = MPI_WTIME()
           call beads_move
+          beads_move_bnch(istep-istpload) = MPI_WTIME() - bnchstart
+
+          bnchstart = MPI_WTIME()
           call beads_redistribute
+          beads_redistribute_bnch(istep-istpload) = MPI_WTIME() - bnchstart
+
+          bnchstart = MPI_WTIME()
           call beads_links
+          beads_links_bnch(istep-istpload) = MPI_WTIME() - bnchstart
+
+          bnchstart = MPI_WTIME()
           call beads_filling
+          beads_filling_bnch(istep-istpload) = MPI_WTIME() - bnchstart
         end if
 
+        bnchstart = MPI_WTIME()
         call macrovar
+        macrovar_bnch(istep-istpload) = MPI_WTIME() - bnchstart
 ! THE NEXT LINE IS FOR TESTING
 !       call statistc
 
@@ -266,6 +288,12 @@
 !save bead positions
 !      if(ipart .and. istep > irelease) call savecntdpart    
 
+!Record Benchmarks
+      call benchflow
+      call benchbead
+      call benchmatlab
+
+      call benchtotal
 101   continue
 
       if(myid.eq.0)then

@@ -48,7 +48,7 @@
 
       istpload = 1000    !!!!THIS NEEDS TO BE CHANGED WHEN STARTING NEW RUNS
       force_mag = 1.0
-      nsteps = 25
+      nsteps = 50
 
 !     nek = nx/3
       nek = int(nx7/2 - 1.5)
@@ -222,51 +222,27 @@
       dircntdpart = trim(dirgenr)//'cntdpart/'
       dirpartout = trim(dirgenr)//'partout/'
 
+!Benchmarking directories
+	  dirbench = trim(dirgenr)//'benchmark/'
+	  dirbenchmatlab = trim(dirbench)//'matlab/'
+	  dirbenchbead = trim(dirbench)//'bead/'
+	  dirbenchflow = trim(dirbench)//'flow/'
+
       if(myid==0)then
-        inquire(directory = dirdiag, exist = dirExist)
-        if(.NOT.dirExist)then
-          CALL system('mkdir '// dirdiag);
-        endif
+ 		call makedir(dirdiag)
+ 		call makedir(dirstat)
+ 		call makedir(dirprobe)
+ 		call makedir(dirinitflow)
+ 		call makedir(dircntdflow)
+ 		call makedir(dirflowout)
+ 		call makedir(dirmoviedata)
+ 		call makedir(dircntdpart)
+ 		call makedir(dirpartout)
 
-        inquire(directory = dirstat, exist = dirExist)
-        if(.NOT.dirExist)then
-          CALL system('mkdir '// dirstat);
-        endif
-
-        inquire(directory = dirprobe, exist = dirExist)
-        if(.NOT.dirExist)then
-          CALL system('mkdir '// dirprobe);
-        endif
-
-        inquire(directory = dirinitflow, exist = dirExist)
-        if(.NOT.dirExist)then
-          CALL system('mkdir '// dirinitflow);
-        endif
-
-        inquire(directory = dircntdflow, exist = dirExist)
-        if(.NOT.dirExist)then
-          CALL system('mkdir '// dircntdflow);
-        endif
-
-        inquire(directory = dirflowout, exist = dirExist)
-        if(.NOT.dirExist)then
-          CALL system('mkdir '// dirflowout);
-        endif
-
-        inquire(directory = dirmoviedata, exist = dirExist)
-        if(.NOT.dirExist)then
-          CALL system('mkdir '// dirmoviedata);
-        endif
-
-        inquire(directory = dircntdpart, exist = dirExist)
-        if(.NOT.dirExist)then
-          CALL system('mkdir '// dircntdpart);
-        endif
-
-        inquire(directory = dirpartout, exist = dirExist)
-        if(.NOT.dirExist)then
-          CALL system('mkdir '// dirpartout);
-        endif
+ 		call makedir(dirbench)
+ 		call makedir(dirbenchbead)
+ 		call makedir(dirbenchflow)
+ 		call makedir(dirbenchmatlab)
       endif
 
 ! particle-related parameters
@@ -401,12 +377,36 @@
       allocate (isnodes(lx,ly,lz))
       allocate (isnodes0(lx,ly,lz))
 
-
-
       end if
+
+!bench marking
+	  allocate (collision_MRT_bnch(nsteps))
+	  allocate (streaming_bnch(nsteps))
+	  allocate (macrovar_bnch(nsteps))
+
+	  allocate (beads_collision_bnch(nsteps))
+	  allocate (beads_lubforce_bnch(nsteps))
+	  allocate (beads_move_bnch(nsteps))
+	  allocate (beads_redistribute_bnch(nsteps))
+	  allocate (beads_links_bnch(nsteps))
+	  allocate (beads_filling_bnch(nsteps))
 
       end subroutine allocarray
 !==================================================================
+      subroutine makedir (dirPath)
+      use var_inc
+
+      implicit none
+      logical dirExist
+      character(len=80):: dirPath
+
+      inquire(directory = dirPath, exist = dirExist)
+      if(.NOT.dirExist)then
+	   Write(*,*) dirPath//' not found. Creating...'
+       CALL system('mkdir -p '// dirPath);
+      endif
+
+      end subroutine makedir
 
 
 
