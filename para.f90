@@ -48,7 +48,7 @@
 
       istpload = 1000    !!!!THIS NEEDS TO BE CHANGED WHEN STARTING NEW RUNS
       force_mag = 1.0
-      nsteps = 50
+      nsteps = 5
 
 !     nek = nx/3
       nek = int(nx7/2 - 1.5)
@@ -228,6 +228,8 @@
 	  dirbenchbead = trim(dirbench)//'bead/'
 	  dirbenchflow = trim(dirbench)//'flow/'
 
+	  dirredist = trim(dirbenchbead)//'redistribute/'
+
       if(myid==0)then
  		call makedir(dirdiag)
  		call makedir(dirstat)
@@ -243,6 +245,8 @@
  		call makedir(dirbenchbead)
  		call makedir(dirbenchflow)
  		call makedir(dirbenchmatlab)
+
+ 		call makedir(dirredist)
       endif
 
 ! particle-related parameters
@@ -391,6 +395,12 @@
 	  allocate (beads_links_bnch(nsteps))
 	  allocate (beads_filling_bnch(nsteps))
 
+	  allocate (redist_sub1_bnch(nsteps))
+	  allocate (redist_sub2_bnch(nsteps))
+	  allocate (redist_sub3_bnch(nsteps))
+	  allocate (redist_sub4_bnch(nsteps))
+	  allocate (redist_sub5_bnch(nsteps))
+
       end subroutine allocarray
 !==================================================================
       subroutine makedir (dirPath)
@@ -398,12 +408,12 @@
 
       implicit none
       logical dirExist
-      character(len=80):: dirPath
+      character(len=120):: dirPath !Needs to be the same as declared length!
 
-      inquire(directory = dirPath, exist = dirExist)
+      inquire(directory = trim(dirPath), exist = dirExist)
       if(.NOT.dirExist)then
-	   Write(*,*) dirPath//' not found. Creating...'
-       CALL system('mkdir -p '// dirPath);
+	   Write(*,*) trim(dirPath)//' not found. Creating...'
+       CALL system('mkdir -p '// trim(dirPath));
       endif
 
       end subroutine makedir
