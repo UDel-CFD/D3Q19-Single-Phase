@@ -159,10 +159,14 @@
           if(hgap < 0.0)then
             iflag = 1
              if(istep .gt. irelease)then
-              write(*,*)'in ovlpchk hgap<0',hgap,' istep ',istep,' ip,id,ii ',ip,id,ii, &
-                        'myid,nps',myid,nps
-              write(*,*)'xc,yc,zc,ypglb(1,ii),ypglb(2,ii),ypglb(3,ii)=',  &
-                      xc,yc,zc,ypglb(1,ii),ypglb(2,ii),ypglb(3,ii)
+              write(*,'(A20,F14.8)')'In ovlpchk hgap < 0:',hgap
+              write(*,'(A6,I10)')'Istep ',istep
+              write(*,'(A44,3I4)')'Ip(Direction), Id(Bead 1 Id), Ii(Bead 2 Id):',ip,id,ii
+              write(*,'(A41,2I4)')'MyId(Processor), nps(Beads in Processor):',myid,nps
+              write(*,'(A15)')'X Y Z Positions'
+              write(*,'(A7,3(2X,F15.8))')'Bead 1:',xc,yc,zc
+              write(*,'(A7,3(2X,F15.8))')'Bead 2:',ypglb(1,ii),ypglb(2,ii),ypglb(3,ii)
+              write(*,'(A10)')'=========='
              endif
             exit
           end if
@@ -2337,7 +2341,7 @@
 !       write(*,*)'id,fp=',id,fp
        end if
 
-! top wall first
+! top wall
       dist = real(nx) - xd
 ! the truncation distance of lubforce from walls
       hgap = dist - rad
@@ -2721,8 +2725,8 @@
       ovlpcnt = count(ovlpflagt /= 0)
 
       if(ovlpcnt > 0 )then
-       if(myid==0) write(*,*)'in beads_redis ',ovlpcnt,                & 
-         ' particles overlap at istep = ', istep
+        if(myid==0) write(*,*)'in beads_redis ',ovlpcnt,                & 
+          ' particles overlap at istep = ', istep
         call MPI_FINALIZE(ierr)
         stop
       end if

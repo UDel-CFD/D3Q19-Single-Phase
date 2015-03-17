@@ -94,18 +94,18 @@
      implicit none
      integer id
      character (len = 120):: fnm
+     character (len = 25):: filenum
      real, dimension(nproc) :: totalbnch
 
      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      CALL MPI_GATHER(time_diff, 1, MPI_REAL8, totalbnch, 1, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
 
+     write (filenum, "(I10)") nsteps
      if(myid == 0)then !print ut probe data to file
-        fnm = trim(dirbench)//'runtimes.dat'
+        fnm = trim(dirbench)//'runtimes'//trim(adjustl(filenum))//'.dat'
 
         open(60, file = trim(fnm), status = 'unknown',                 &
                  form = 'formatted')
-
-        write(60,500) 'Processor//Mainloop Benchmark'
 
         do id = 1,nproc
           write(60,600) id-1, totalbnch(id)

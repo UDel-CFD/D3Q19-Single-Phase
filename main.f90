@@ -92,7 +92,7 @@
           if(myid == 0 .and. mod(istep,1) == 0) &
             write(*,*)istep, rhoerrmax 
 
-          if(rhoerrmax <= rhoepsl .or. istep > 5000)then
+          if(rhoerrmax <= rhoepsl .or. istep > 15000)then
             if(myid == 0) write(*,*)'final relaxation => ', &
                                     istep, rhoerrmax
             exit
@@ -242,7 +242,10 @@
 !       call diag
 !       call statistc
 
-         if(mod(istep,ndiag) == 0) call diag 
+         if(mod(istep,ndiag) == 0)then
+            call diag
+!            call probe
+         endif
          if(mod(istep,nstat) == 0)  call statistc 
          if(mod(istep,nstat) == 0)  call statistc2
          if(mod(istep,nflowout) == 0) call outputflow 

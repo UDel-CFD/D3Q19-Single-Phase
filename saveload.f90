@@ -3873,6 +3873,7 @@
 
       integer id
       character (len = 120):: fnm
+      character (len = 25):: filenum
       real, dimension(nproc) :: uprob, vprob, wprob
 
       CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
@@ -3891,7 +3892,8 @@
       endif
 
       if(myid == 0)then !print ut probe data to file
-        fnm = trim(dirprobe)//'probe.dat'
+        write (filenum, "(I10)") istep
+        fnm = trim(dirprobe)//'probe'//trim(adjustl(filenum))//'.dat'
 
         open(60, file = trim(fnm), status = 'unknown',                 &
                  form = 'formatted')

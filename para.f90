@@ -11,7 +11,7 @@
 !     visc = 0.0032
 !     Rstar = 200.0
 !     visc = 0.0036
-      visc = 0.0030
+      visc = 0.0036
       Rstar = 180.0
       ustar = 2.0*Rstar*visc/real(nx)
       force_in_y = 2.*rho0*ustar*ustar/real(nx)
@@ -46,9 +46,9 @@
 ! it can be any step # at which the "endrunflow" & "endrunpart" data are saved
 ! Note: this variable needs to be manually setup for each continue run
 
-      istpload = 1000    !!!!THIS NEEDS TO BE CHANGED WHEN STARTING NEW RUNS
+      istpload = 2000    !!!!THIS NEEDS TO BE CHANGED WHEN STARTING NEW RUNS
       force_mag = 1.0
-      nsteps = 50
+      nsteps = 1000
 
 !     nek = nx/3
       nek = int(nx7/2 - 1.5)
@@ -286,7 +286,8 @@
       end if
 
 ! Computing wave numbers and other values for the forcing
-      do i = 1, nx+2, 2
+!What is this even used for?
+      do i = 1, nx, 2
        kxr(i)   = int(i/2)
        kxr(i+1) = kxr(i)
       end do
@@ -313,7 +314,7 @@
       b1r = 0.0
       b2r = 0.0
       b3r = 0.0
-
+      
       end subroutine para
 !==================================================================
 
