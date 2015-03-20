@@ -451,7 +451,8 @@
       write(14) nps, ipglb 
       write(14) ibnodes, ibnodes0
       write(14) isnodes, isnodes0
-      write(14) ilink, mlink, alink 
+      write(14) xlink, ylink, zlink
+      write(14) iplink, mlink, alink
       write(14) ypglb, wp, omgp  
       write(14) yp, thetap    
       write(14) forcepp, torqpp 
@@ -493,7 +494,8 @@
       read(14) nps, ipglb
       read(14) ibnodes, ibnodes0
       read(14) isnodes, isnodes0
-      read(14) ilink, mlink, alink
+      read(14) xlink, ylink, zlink
+      read(14) iplink, mlink, alink
       read(14) ypglb, wp, omgp
       read(14) yp, thetap
       read(14) forcepp, torqpp

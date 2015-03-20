@@ -48,7 +48,7 @@
 
       istpload = 2000    !!!!THIS NEEDS TO BE CHANGED WHEN STARTING NEW RUNS
       force_mag = 1.0
-      nsteps = 1000
+      nsteps = 50
 
 !     nek = nx/3
       nek = int(nx7/2 - 1.5)
@@ -223,26 +223,26 @@
       dirpartout = trim(dirgenr)//'partout/'
 
 !Benchmarking directories
-	  dirbench = trim(dirgenr)//'benchmark/'
-	  dirbenchmatlab = trim(dirbench)//'matlab/'
-	  dirbenchbead = trim(dirbench)//'bead/'
-	  dirbenchflow = trim(dirbench)//'flow/'
+	    dirbench = trim(dirgenr)//'benchmark/'
+	    dirbenchmatlab = trim(dirbench)//'matlab/'
+	    dirbenchbead = trim(dirbench)//'bead/'
+	    dirbenchflow = trim(dirbench)//'flow/'
 
       if(myid==0)then
- 		call makedir(dirdiag)
- 		call makedir(dirstat)
- 		call makedir(dirprobe)
- 		call makedir(dirinitflow)
- 		call makedir(dircntdflow)
- 		call makedir(dirflowout)
- 		call makedir(dirmoviedata)
- 		call makedir(dircntdpart)
- 		call makedir(dirpartout)
+     		call makedir(dirdiag)
+     		call makedir(dirstat)
+     		call makedir(dirprobe)
+     		call makedir(dirinitflow)
+     		call makedir(dircntdflow)
+     		call makedir(dirflowout)
+     		call makedir(dirmoviedata)
+     		call makedir(dircntdpart)
+     		call makedir(dirpartout)
 
- 		call makedir(dirbench)
- 		call makedir(dirbenchbead)
- 		call makedir(dirbenchflow)
- 		call makedir(dirbenchmatlab)
+     		call makedir(dirbench)
+     		call makedir(dirbenchbead)
+     		call makedir(dirbenchflow)
+     		call makedir(dirbenchmatlab)
       endif
 
 ! particle-related parameters
@@ -278,6 +278,8 @@
 
         iseedp = 12345
         msize = int(10.0*real(npart)/real(nproc))
+!Five = number of vertexes a plane crosses in D3Q19
+        maxlink = 5*msize*(4*pi*rad**2)
 !        msize = 5
  
         wwp = (/ww1, ww1, ww1, ww1, ww1, ww1, ww2, ww2, ww2,           &
@@ -371,9 +373,14 @@
       allocate (forcepp(3,msize))
       allocate (torqp(3,npart))
       allocate (torqpp(3,msize))
-      allocate (ilink(1:npop-1,lx,ly,lz))
-      allocate (mlink(1:npop-1,lx,ly,lz))
-      allocate (alink(1:npop-1,lx,ly,lz))
+
+      allocate (xlink(maxlink))
+      allocate (ylink(maxlink))
+      allocate (zlink(maxlink))
+      allocate (iplink(maxlink))
+      allocate (mlink(maxlink))
+      allocate (alink(maxlink))
+
       allocate (ibnodes0(lx,ly,lz))
       allocate (isnodes(lx,ly,lz))
       allocate (isnodes0(lx,ly,lz))

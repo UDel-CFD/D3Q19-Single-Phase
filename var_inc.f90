@@ -42,7 +42,9 @@
 !*********changes
       integer indy, indz, myp, mym, mypzp, mypzm, mymzp, mymzm
 
-      integer iseedp, msize, nps, iyp, kpeak 
+      integer iseedp, msize, nps, iyp, kpeak
+      integer nlink, maxlink !20*pi*r^2
+      
       logical newrun, ipart, newinitflow
 
       real force_in_y,ustar,Rstar,ystar,force_mag
@@ -90,10 +92,12 @@
       integer,allocatable,dimension(:):: ipglb, ovlpflag, ovlpflagt
       integer,allocatable,dimension(:,:,:):: ibnodes, ibnodes0
       integer,allocatable,dimension(:,:,:):: isnodes, isnodes0 
-      integer,allocatable,dimension(:,:,:,:):: ilink, mlink 
 
       real,allocatable,dimension(:,:,:,:):: f
-      real,allocatable,dimension(:,:,:,:):: alink 
+
+      real,allocatable,dimension(:):: xlink, ylink, zlink
+      real,allocatable,dimension(:):: iplink, alink, mlink
+
       real,allocatable,dimension(:,:,:):: rho, rhop
       real,allocatable,dimension(:,:,:):: ux, uy, uz
       real,allocatable,dimension(:,:,:):: ox, oy, oz

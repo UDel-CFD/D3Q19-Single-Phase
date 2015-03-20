@@ -944,24 +944,22 @@
       use var_inc
       implicit none
 
-      integer ip,ippp, i, j, k, ipop, imove, jmove, kmove
+      integer ip,ippp, i, j, k, id, imove, jmove, kmove
       real xc, yc, zc, aa, bb, cc    
       real alpha0, alpha1, alpha     
       real xx0, yy0, zz0, rr0, rr01      
       real xx1, yy1, zz1, rr1, rr11,xxtt   
       real xpnt, ypnt, zpnt, radp2 
 
-      ilink = -1
-      mlink = -1
       ibnodes = -1
       isnodes = -1 
-      alink = 0.0
       radp2 = rad + 2.d0
- 
-      do ip = 1,npart
-        xc = ypglb(1,ip)
-        yc = ypglb(2,ip)
-        zc = ypglb(3,ip)
+      nlink = 1
+
+      do id = 1,npart
+        xc = ypglb(1,id)
+        yc = ypglb(2,id)
+        zc = ypglb(3,id)
  
         do k = 1,lz
           zpnt = dfloat(k) - 0.5d0 + dfloat(indz*lz)
@@ -1005,12 +1003,12 @@
 
           if(rr01 <= 0.d0)then
             ibnodes(i,j,k) = 1 
-            isnodes(i,j,k) = ip
+            isnodes(i,j,k) = id
           else
-            do ipop = 1,npop-1
-              imove = i + cix(ipop) 
-              jmove = j + ciy(ipop) 
-              kmove = k + ciz(ipop) 
+            do ip = 1,npop-1
+              imove = i + cix(ip) 
+              jmove = j + ciy(ip) 
+              kmove = k + ciz(ip) 
 
               xx1 = dfloat(imove) - 0.5d0 - xc
               yy1 = dfloat(jmove) - 0.5d0 - yc + dfloat(indy*ly)
@@ -1030,8 +1028,18 @@
 ! [x1+(x0-x1)*alpha]^2 + [y1+(y0-y1)*alpha]^2 + [z1+(z0-z1)*alpha]^2 = rad^2
 ! then alpha = 1 - alpha
 
-              ilink(ipop,i,j,k) = 1
-              mlink(ipop,i,j,k) = ip
+              nlink = nlink + 1
+              if(nlink.ge.maxlink)then
+                write(*,'(A44,I5)') 'Number of links exceeded array size, mlink: ',mlink
+                stop
+              endif
+
+              xlink(nlink) = i
+              ylink(nlink) = j
+              zlink(nlink) = k
+
+              iplink(nlink) = ip
+              mlink(nlink) = id
 
               aa = rr0 + rr1 - 2.d0*(xx0*xx1 + yy0*yy1 + zz0*zz1)
               bb = xx1*(xx0-xx1) + yy1*(yy0-yy1) + zz1*(zz0-zz1)    
@@ -1040,12 +1048,12 @@
               alpha1 = sqrt(alpha0**2 - cc/aa)    
               alpha = -alpha0 + alpha1
 
-              alpha = 1.d0 - alpha
-              alink(ipop,i,j,k) = alpha
+              alpha = 1.d0 - alpha            
+              alink(nlink) = alpha
 
               if(alpha < 0.d0 .or. alpha > 1.d0)then 
                 write(*,*) 'fault: alpha = ', alpha, ' @ ilink(',      &
-                           ipop, ', ', i, ', ', j, ', ', k, ')' 
+                           ip, ', ', i, ', ', j, ', ', k, ')' 
 !                stop
               end if
 
@@ -1061,7 +1069,6 @@
         END IF
         end do 
       end do 
-
 !      do j = 1,32 
 !       do k = 5,8  
 !        do i = 1,lx 
@@ -1086,8 +1093,8 @@
       use var_inc
       implicit none
 
-      integer id, i, j, k, ii, jj, kk,  ipop, ipp, ix, iy, iz, ilen 
-      integer im1, im2, ip1, jm1, jm2, jp1, km1, km2, kp1   
+      integer id, i, j, k, ii, jj, kk,  ip, ipp, ix, iy, iz, ilen
+      integer im1, im2, ip1, jm1, jm2, jp1, km1, km2, kp1, n
       integer ibm1, ibm2
       real alpha, xc, yc, zc, xx0, yy0, zz0
       real uwx, uwy, uwz, uwpro, ff1, ff2, ff3 
@@ -1380,17 +1387,17 @@
       if9U = 0
       if9D = 0
 
-      do k = 1,lz
-      do j = 1,ly 
-      do i = 1,lx 
+      do n = 1,nlink
 
-      do ipop = 1,npop-1
-        if(ilink(ipop,i,j,k) > 0)then
+        i = xlink(n)
+        j = ylink(n)
+        k = zlink(n)
+        ip = iplink(n)
 
-        id = mlink(ipop,i,j,k) 
-        alpha = alink(ipop,i,j,k) 
+        id = mlink(n)
+        alpha = alink(n)
 
-        ipp = ipopp(ipop)       
+        ipp = ipopp(ip)       
 
         xc = ypglb(1,id) 
         yc = ypglb(2,id) 
@@ -1418,9 +1425,9 @@
         omg2 = omgp(2,id)
         omg3 = omgp(3,id)
 
-        ix = cix(ipop)
-        iy = ciy(ipop)
-        iz = ciz(ipop)
+        ix = cix(ip)
+        iy = ciy(ip)
+        iz = ciz(ip)
 
         im1 = i - ix
         jm1 = j - iy
@@ -1446,7 +1453,7 @@
         yy0 = ypnt + real(iy)*alpha - yc 
         zz0 = zpnt + real(iz)*alpha - zc 
 
-        ff1 = f(ipop,i,j,k)
+        ff1 = f(ip,i,j,k)
 
         uwx = w1 + omg2*zz0 - omg3*yy0
         uwy = w2 + omg3*xx0 - omg1*zz0
@@ -1465,20 +1472,20 @@
           ibm1 = 2
           else
           if(jm1 > ly) then
-          ff2 = tmpfU(ipop,im1,jm1,km1)
+          ff2 = tmpfU(ip,im1,jm1,km1)
           ibm1 = tmpiU(im1,jm1,km1)
           else if (jm1 < 1) then
-          ff2 = tmpfD(ipop,im1,jm1,km1)
+          ff2 = tmpfD(ip,im1,jm1,km1)
           ibm1 = tmpiD(im1,jm1,km1)
           else
             if(km1 > lz) then
-            ff2 = tmpfR(ipop,im1,jm1,km1)
+            ff2 = tmpfR(ip,im1,jm1,km1)
             ibm1 = tmpiR(im1,jm1,km1)
             else if(km1 < 1 ) then
-            ff2 = tmpfL(ipop,im1,jm1,km1)
+            ff2 = tmpfL(ip,im1,jm1,km1)
             ibm1 = tmpiL(im1,jm1,km1)
             else
-              ff2 = f(ipop,im1,jm1,km1)
+              ff2 = f(ip,im1,jm1,km1)
               ibm1 = ibnodes(im1,jm1,km1)
               end if
             end if
@@ -1490,20 +1497,20 @@
           ibm2 = 2
           else
           if(jm2 > ly) then
-          ff3 = tmpfU(ipop,im2,jm2,km2)
+          ff3 = tmpfU(ip,im2,jm2,km2)
           ibm2 = tmpiU(im2,jm2,km2)
           else if (jm2 < 1) then
-          ff3 = tmpfD(ipop,im2,jm2,km2)
+          ff3 = tmpfD(ip,im2,jm2,km2)
           ibm2 = tmpiD(im2,jm2,km2)
           else
             if(km2 > lz) then
-            ff3 = tmpfR(ipop,im2,jm2,km2)
+            ff3 = tmpfR(ip,im2,jm2,km2)
             ibm2 = tmpiR(im2,jm2,km2)
             else if(km2 < 1 ) then
-            ff3 = tmpfL(ipop,im2,jm2,km2)
+            ff3 = tmpfL(ip,im2,jm2,km2)
             ibm2 = tmpiL(im2,jm2,km2)
             else
-            ff3 = f(ipop,im2,jm2,km2)
+            ff3 = f(ip,im2,jm2,km2)
             ibm2 = ibnodes(im2,jm2,km2)
             end if
            end if
@@ -1511,18 +1518,18 @@
 !------------
           if(ibm1 > 0)then
 ! no interpolation, use simple bounce back
-            f9 = ff1 - 6.0*wwp(ipop)*uwpro
+            f9 = ff1 - 6.0*wwp(ip)*uwpro
 
           else if(ibm2 > 0)then
 ! use 2-point interpolation
-            f9 = 2.0*alpha*(ff1 - ff2) + ff2 - 6.0*wwp(ipop)*uwpro
+            f9 = 2.0*alpha*(ff1 - ff2) + ff2 - 6.0*wwp(ip)*uwpro
 
           else
 ! use 3-point interpolation scheme of Lallemand and Luo (2003) JCP
             c1 = alpha*(1.0 + 2.0*alpha)
             c2 = 1.0 - 4.0*alpha*alpha
             c3 = -alpha*(1.0 - 2.0*alpha)
-            f9 = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ipop)*uwpro
+            f9 = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ip)*uwpro
           end if
 
 !          if(id==460 .and. ipop==8 .and. i==197 .and. j==1 .and. k==28 .and. istep==630)then
@@ -1563,14 +1570,14 @@
 ! use 2-point interpolation
             c1 = 0.5 / alpha
             c2 = 1.0 - c1
-            f9 = c1*ff1 + c2*ff2 - 6.0*wwp(ipop)*c1*uwpro
+            f9 = c1*ff1 + c2*ff2 - 6.0*wwp(ip)*c1*uwpro
 
           else
 ! use 3-point interpolation scheme of Lallemand and Luo (2003) JCP
             c1 = 1.0 / alpha / (2.0*alpha + 1.0)
             c2 = (2.0*alpha - 1.0) / alpha
             c3 = 1.0 - c1 - c2
-            f9 = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ipop)*c1*uwpro
+            f9 = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ip)*c1*uwpro
           end if
 
        END IF
@@ -1672,10 +1679,6 @@
         torqp0(2,id) = torqp0(2,id) + dxmom*zz0 - dzmom*xx0 
         torqp0(3,id) = torqp0(3,id) + dymom*xx0 - dxmom*yy0
  
-        end if 
-      end do 
-      end do 
-      end do 
       end do 
 
 

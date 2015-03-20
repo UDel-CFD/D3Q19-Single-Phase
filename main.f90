@@ -305,7 +305,6 @@
 !     write(50,*)' ',time_stream_max_array
       endif
 
-
       call MPI_FINALIZE(ierr)
 
       END PROGRAM main
