@@ -954,7 +954,7 @@
       ibnodes = -1
       isnodes = -1 
       radp2 = rad + 2.d0
-      nlink = 1
+      nlink = 0
 
       do id = 1,npart
         xc = ypglb(1,id)
