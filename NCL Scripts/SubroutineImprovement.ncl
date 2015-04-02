@@ -7,9 +7,9 @@ load "$NCARG_ROOT/lib/ncarg/nclscripts/csm/contributed.ncl"
 begin
 ;Declare processor, subroutine and timestep counts
     numprocesses = 400
-    numtimesteps = 50
+    numtimesteps = 2000
     numsubroutines = 9
-    subroutine = 6 ; Which sub routine you want to compare
+    subroutine = 5 ; Which sub routine you want to compare, see labels below
 
     subroutinelabels = (/"MRT Collison", "Beads Collision", "Streaming", "Beads Lubforce"\
                         ,"Beads Move", "Beads Redistribute", "Beads Links", "Beads Filling"\
@@ -51,8 +51,10 @@ begin
     plotdata(1,:) = processavg(subroutine) ; Average between processes
     plotdata(3,:) = processavg0(subroutine) ; Average between processes
 
-    print(sprintf("%12.9f",processavg(subroutine)))
+    print("Original:")
     print(sprintf("%12.9f",processavg0(subroutine)))
+    print("Optimized:")
+    print(sprintf("%12.9f",processavg(subroutine)))
 ;=========================================
 ;Open gsn workstation
     wks = gsn_open_wks("x11","xy")
@@ -61,8 +63,10 @@ begin
     res                       = True                                            ; plot mods desired
     res@tiMainString          = subroutinelabels(subroutine)+\
                                     " Wall-Clock Times"                         ; plot title
-    res@tiXAxisString         = "MPI Process Number"                            ; Y axis label                                 
-    res@tiYAxisString         = "Wall-clock time (s)"                           ; X axis label 
+    res@tiXAxisString         = "MPI Task Number"                            ; Y axis label                                 
+    res@tiYAxisString         = "Wall-clock time (s)"                           ; X axis label
+    res@gsnCenterString   = "~Z70~nx=199, ny=400, nz=200, 400 MPI Tasks, "\
+                                +"npart=270"                                    ; add center label for description, ~z#~ changes font
 
     res@xyDashPattern     = 0                                                   ; choose solid line
     res@xyMarkLineModes   = (/"Markers","Lines","Markers","Lines"/)             ; choose to use markers or line
@@ -75,8 +79,8 @@ begin
     res@pmLegendDisplayMode    = "Always"                                       ; turn on legend
     res@pmLegendSide           = "Right"                                        ; Change location of
     res@gsnMaximize            = True                                           ; Make window include all of legend
-    res@pmLegendParallelPosF   = 0.5                                            ; move units right
-    res@pmLegendOrthogonalPosF = 0                                              ; move units down 
+    res@pmLegendParallelPosF   = 0.66                                            ; move units right
+    res@pmLegendOrthogonalPosF = 0.1                                              ; move units down 
     res@pmLegendWidthF         = 0.15                                           ; Change width and
     res@pmLegendHeightF        = 0.18                                           ; height of legend.
     res@lgLabelFontHeightF     = .02                                            ; label font height

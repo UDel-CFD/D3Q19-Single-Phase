@@ -43,7 +43,11 @@ begin
 ; Set up plot format and plot data sets
     res                   = True                                    ; plot mods desired
     res@gsnMaximize       = True                                    ; maximize plot
-    res@tiMainString      = "Main Loop Wall-clock time"             ; add title
+    res@tiMainString      = "Main Loop Wall-clock Time"             ; add title
+    res@gsnCenterString   = "~Z70~nx=199, ny=400, nz=200, 400 MPI Tasks, "\
+                                +"npart=270"                        ; add center label for description, ~z#~ changes font
+    res@tiMainJust        ="CenterCenter"                           ; Set title position
+    res@tiMainFontHeightF = 0.025                                   ; set title font
     res@tiXAxisString     = "Time Steps"                            ; X Axis label
     res@tiYAxisString     = "Wall-clock time (s)"                   ; Y axis label
 
@@ -73,13 +77,14 @@ begin
 
     text = "y = " + sprintf("%12.9f",rc) + "x + " + sprintf("%12.9f",rc@yintercept) +\
                 "~C~r = "+sprintf("%12.9f",rc@r2)
-    txt_summer = gsn_add_text(wks,plot,text, 1050, 50.0, txres)
+    txt_summer = gsn_add_text(wks,plot,text, 1200, 50.0, txres)
 
 ; =================================
 ; Add error bars 2*stddev for 95%
     polyres                   = True                       ; marker resources
     polyres@gsMarkerIndex     = 1                          ; index for circle
     polyres@gsMarkerSizeF     = .02                        ; size
+    polyres@gsLineThicknessF  = 3                          ; line thickness
 
     error_bar = new(dimsizes(runtimes),graphic)
     centers   = new(dimsizes(runtimes),graphic) 

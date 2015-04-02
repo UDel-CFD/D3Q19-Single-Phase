@@ -7,7 +7,7 @@ load "$NCARG_ROOT/lib/ncarg/nclscripts/csm/contributed.ncl"
 begin
 ;Declare processor, subroutine and timestep counts
     numprocesses = 400
-    numtimesteps = 50
+    numtimesteps = 2000
     numsubroutines = 9
     subroutinelabels = (/"MRT Collison", "Beads Collision", "Streaming", "Beads Lubforce"\
                         ,"Beads Move", "Beads Redistribute", "Beads Links", "Beads Filling"\
@@ -43,6 +43,8 @@ begin
     res                       = True                                    ; plot mods desired
     res@tiMainString          = "Subroutine Wall-Clock Times"           ; plot title
     res@tiYAxisString         = "Wall-clock time (s)"                   ; Y axis label 
+    res@gsnCenterString   = "~Z70~nx=199, ny=400, nz=200, 400 MPI Tasks, "\
+                                +"npart=270"                            ; add center label for description, ~z#~ changes font
 
     res@gsnXYBarChart         = True                                    ; turn on bar chart
     res@gsnXYBarChartBarWidth = 0.75                                    ; change bar widths
@@ -75,6 +77,7 @@ begin
     polyres                   = True                       ; marker resources
     polyres@gsMarkerIndex     = 1                          ; index for circle
     polyres@gsMarkerSizeF     = .02                        ; size
+    polyres@gsLineThicknessF  = 3                          ; line thickness
 
     error_bar = new(numsubroutines,graphic)
     centers   = new(numsubroutines,graphic) 
