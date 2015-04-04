@@ -95,8 +95,9 @@
 
       real,allocatable,dimension(:,:,:,:):: f
 
-      real,allocatable,dimension(:):: xlink, ylink, zlink
-      real,allocatable,dimension(:):: iplink, alink, mlink
+      integer,allocatable,dimension(:):: xlink, ylink, zlink
+      integer,allocatable,dimension(:):: iplink, mlink
+      real,allocatable,dimension(:):: alink
 
       real,allocatable,dimension(:,:,:):: rho, rhop
       real,allocatable,dimension(:,:,:):: ux, uy, uz

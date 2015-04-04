@@ -1030,7 +1030,7 @@
 
               nlink = nlink + 1
               if(nlink.ge.maxlink)then
-                write(*,'(A44,I5)') 'Number of links exceeded array size, mlink: ',mlink
+                write(*,'(A44,I5)') 'Number of links exceeded array size, maxlink: ',maxlink
                 stop
               endif
 
