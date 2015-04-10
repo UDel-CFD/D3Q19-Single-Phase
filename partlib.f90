@@ -949,138 +949,121 @@
       real alpha0, alpha1, alpha     
       real xx0, yy0, zz0, rr0, rr01      
       real xx1, yy1, zz1, rr1, rr11,xxtt   
-      real xpnt, ypnt, zpnt, radp2 
+      real xpnt, ypnt, zpnt, radp2
+
+      integer nfbeads
+      real alphay, alphaz
+      real,dimension(2*msize):: idfbeads, xfbeads, yfbeads, zfbeads
 
       ibnodes = -1
-      isnodes = -1 
+      isnodes = -1
       radp2 = rad + 2.d0
+      nfbeads = 0
       nlink = 0
+      alphay = dfloat(indy*ly)+ 0.5d0
+      alphaz = dfloat(indz*lz)+ 0.5d0
 
-      do id = 1,npart
-        xc = ypglb(1,id)
+! course search
+      do id=1,npart
         yc = ypglb(2,id)
         zc = ypglb(3,id)
- 
-        do k = 1,lz
-          zpnt = dfloat(k) - 0.5d0 + dfloat(indz*lz)
 
-! use the nearest particle center instead of the real center
-          if((zc - zpnt) > dfloat(nzh)) zc = zc - dfloat(nz)
-          if((zc - zpnt) < -dfloat(nzh)) zc = zc + dfloat(nz)
+        ! use the nearest particle center instead of the real center
+        if((yc - alphay) > dfloat(nyh)) yc = yc - dfloat(ny)
+        if((yc - alphay) < -dfloat(nyh)) yc = yc + dfloat(ny)
+        if((zc - alphaz) > dfloat(nzh)) zc = zc - dfloat(nz)
+        if((zc - alphaz) < -dfloat(nzh)) zc = zc + dfloat(nz)
 
-          zz0 = zpnt - zc
-        IF(abs(zz0) <= radp2)THEN
+        if((alphay+ly+radp2)-yc > 0 .AND. (alphay-radp2)-yc < 0 &
+            .AND. (alphaz+lz+radp2)-zc > 0 .AND. (alphaz-radp2)-zc < 0)then
+          nfbeads = nfbeads + 1
+          idfbeads(nfbeads) = id
+          xfbeads(nfbeads) = ypglb(1,id)
+          yfbeads(nfbeads) = ypglb(2,id)
+          zfbeads(nfbeads) = ypglb(3,id)
+        endif
+      enddo
 
-        do j = 1,ly 
-          ypnt = dfloat(j) - 0.5d0 + dfloat(indy*ly)
+! Fine search
+      do i=1, lx
+        do j=1, ly
+          do k=1, lz
+            xpnt = dfloat(i) - 0.5d0
+            ypnt = dfloat(j) - 1.d0 + alphay
+            zpnt = dfloat(k) - 1.d0 + alphaz
+            do id=1, nfbeads
+              xc = xfbeads(id)
+              yc = yfbeads(id)
+              zc = zfbeads(id)
 
-! use the nearest particle center instead of the real center
-          if((yc - ypnt) > dfloat(nyh)) yc = yc - dfloat(ny)
-          if((yc - ypnt) < -dfloat(nyh)) yc = yc + dfloat(ny)
+              if((yc - ypnt) > dfloat(nyh)) yc = yc - dfloat(ny)
+              if((yc - ypnt) < -dfloat(nyh)) yc = yc + dfloat(ny)
+              if((zc - zpnt) > dfloat(nzh)) zc = zc - dfloat(nz)
+              if((zc - zpnt) < -dfloat(nzh)) zc = zc + dfloat(nz)
 
-          yy0 = ypnt - yc
-! option 1
-!       IF(abs(yy0) <= radp2)THEN
-! option 2
-        IF(sqrt(yy0*yy0+zz0*zz0) <= radp2)THEN
+              yy0 = ypnt - yc
+              xx0 = xpnt - xc
+              zz0 = zpnt - zc
+              rr0 = xx0**2 + yy0**2 + zz0**2
+              
+              if(sqrt(rr0) <= radp2)then
+                rr01 = rr0 - (rad*1.d0)**2
+                if(rr01 <= 0.d0)then
+                  ibnodes(i,j,k) = 1 
+                  isnodes(i,j,k) = idfbeads(id)
+                else
+                  do ip = 1,npop-1
+                    imove = i + cix(ip) 
+                    jmove = j + ciy(ip) 
+                    kmove = k + ciz(ip) 
 
-        do i = 1,lx 
-          xpnt = dfloat(i) - 0.5d0    
+                    xx1 = dfloat(imove) - 0.5d0 - xc
+                    yy1 = dfloat(jmove) - 0.5d0 - yc + dfloat(indy*ly)
+                    zz1 = dfloat(kmove) - 0.5d0 - zc + dfloat(indz*lz)
 
-! use the nearest particle center instead of the real center
-          !if((xc - xpnt) > dfloat(nxh)) xc = xc - dfloat(nx)
-          !if((xc - xpnt) < -dfloat(nxh)) xc = xc + dfloat(nx)
+                    rr1 = xx1**2 + yy1**2 + zz1**2  
+                    rr11 = rr1 - (rad*1.d0)**2  
 
+                    if(rr11 <= 0.d0)then
+                      nlink = nlink + 1
+                      if(nlink.ge.maxlink)then
+                        write(*,'(A44,I5)') 'Number of links exceeded array size, maxlink: ',maxlink
+                        stop
+                      endif
 
+                      xlink(nlink) = i
+                      ylink(nlink) = j
+                      zlink(nlink) = k
 
-          xx0 = xpnt - xc
-! option 1
-!       IF(abs(xx0) <= radp2)THEN
-! option 2
-          rr0 = xx0**2 + yy0**2 + zz0**2 
-         IF(sqrt(rr0) <= radp2)THEN
-          rr01 = rr0 - (rad*1.d0)**2 
+                      iplink(nlink) = ip
+                      mlink(nlink) = idfbeads(id)
 
-          if(rr01 <= 0.d0)then
-            ibnodes(i,j,k) = 1 
-            isnodes(i,j,k) = id
-          else
-            do ip = 1,npop-1
-              imove = i + cix(ip) 
-              jmove = j + ciy(ip) 
-              kmove = k + ciz(ip) 
+                      aa = rr0 + rr1 - 2.d0*(xx0*xx1 + yy0*yy1 + zz0*zz1)
+                      bb = xx1*(xx0-xx1) + yy1*(yy0-yy1) + zz1*(zz0-zz1)    
+                      cc = rr11  
+                      alpha0 = bb/aa 
+                      alpha1 = sqrt(alpha0**2 - cc/aa)    
+                      alpha = -alpha0 + alpha1
 
-              xx1 = dfloat(imove) - 0.5d0 - xc
-              yy1 = dfloat(jmove) - 0.5d0 - yc + dfloat(indy*ly)
-              zz1 = dfloat(kmove) - 0.5d0 - zc + dfloat(indz*lz)
-!              rr1 = sqrt(xx1*xx1 + yy1*yy1 + zz1*zz1)
-              rr1 = xx1**2 + yy1**2 + zz1**2  
-              rr11 = rr1 - (rad*1.d0)**2  
+                      alpha = 1.d0 - alpha            
+                      alink(nlink) = alpha
 
-!          if(imove < 1 .or. imove>nx)then
-!          ilink(ipop,i,j,k)=2
-!          end if
+                      if(alpha < 0.d0 .or. alpha > 1.d0)then 
+                        write(*,*) 'fault: alpha = ', alpha, ' @ ilink(',      &
+                                   ip, ', ', i, ', ', j, ', ', k, ')' 
+                      end if
+                    end if
 
-              if(rr11 <= 0.d0)then
-! note (i,j,k) is the flow-domain point, and (imove,jmove,kmove) the wall node
-! alpha is the percentage of link from wall measured from (i,j,k)
-! alpha = percentage of distance from the flow-domain node to actual wall
-! [x1+(x0-x1)*alpha]^2 + [y1+(y0-y1)*alpha]^2 + [z1+(z0-z1)*alpha]^2 = rad^2
-! then alpha = 1 - alpha
+                  end do
+                end if
+              else
 
-              nlink = nlink + 1
-              if(nlink.ge.maxlink)then
-                write(*,'(A44,I5)') 'Number of links exceeded array size, maxlink: ',maxlink
-                stop
               endif
+            enddo !npart
 
-              xlink(nlink) = i
-              ylink(nlink) = j
-              zlink(nlink) = k
-
-              iplink(nlink) = ip
-              mlink(nlink) = id
-
-              aa = rr0 + rr1 - 2.d0*(xx0*xx1 + yy0*yy1 + zz0*zz1)
-              bb = xx1*(xx0-xx1) + yy1*(yy0-yy1) + zz1*(zz0-zz1)    
-              cc = rr11  
-              alpha0 = bb/aa 
-              alpha1 = sqrt(alpha0**2 - cc/aa)    
-              alpha = -alpha0 + alpha1
-
-              alpha = 1.d0 - alpha            
-              alink(nlink) = alpha
-
-              if(alpha < 0.d0 .or. alpha > 1.d0)then 
-                write(*,*) 'fault: alpha = ', alpha, ' @ ilink(',      &
-                           ip, ', ', i, ', ', j, ', ', k, ')' 
-!                stop
-              end if
-
-              end if
-
-            end do
-          end if
-
-        END IF
-        end do 
-        END IF
-        end do 
-        END IF
-        end do 
-      end do 
-!      do j = 1,32 
-!       do k = 5,8  
-!        do i = 1,lx 
-
-!         if(istep==630 .and. myid == 1)then
-!         write(90,*)' ',ibnodes(i,j,k)
-!          write(90,*)(ilink(ippp,i,j,k),ippp=1,18)
-!         endif
-
-!        enddo
-!       enddo
-!      enddo
+          enddo !z
+        enddo !y
+      enddo !x
 
       end subroutine beads_links
 !===========================================================================
@@ -2886,7 +2869,7 @@
 
       integer id, ix, iy, iz, ipop, ipmx, ii, nghb
       integer i, j, k, ip1, jp1, kp1
-      integer ibp1,ib0p1  
+      integer ibp1,ib0p1
 
       real xc, yc, zc, xpnt, ypnt, zpnt
       real w1, w2, w3, omg1, omg2, omg3
@@ -2931,14 +2914,12 @@
       call exchng5i(ibnodes0(:,:,1),tmpiR0,ibnodes0(:,:,lz),tmpiL0,  &
                     ibnodes0(:,1,:),tmpiU0,ibnodes0(:,ly,:),tmpiD0)
 
-
       do k = 1,lz
       do j = 1,ly
       do i = 1,lx
       IF(ibnodes0(i,j,k) > 0 .and. ibnodes(i,j,k) < 0)THEN
 !     write(*,*)'Start istep,i,j,k='
       id = isnodes0(i,j,k)
-
       xc = ypglbp(1,id)*1.d0      
       yc = ypglbp(2,id)*1.d0    
       zc = ypglbp(3,id)*1.d0   
@@ -3197,7 +3178,6 @@
       end do
       end do
       end do
-
       deallocate(tmpfL)
       deallocate(tmpfR)      
       deallocate(tmpfU)
