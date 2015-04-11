@@ -42,6 +42,8 @@
 !*********changes
       integer indy, indz, myp, mym, mypzp, mypzm, mymzp, mymzm
 
+      integer nbfill, maxbfill
+
       integer iseedp, msize, nps, iyp, kpeak
       integer nlink, maxlink !20*pi*r^2
       
@@ -93,11 +95,14 @@
       integer,allocatable,dimension(:,:,:):: ibnodes, ibnodes0
       integer,allocatable,dimension(:,:,:):: isnodes, isnodes0 
 
+      integer,allocatable,dimension(:):: xbfill, ybfill, zbfill
+      integer,allocatable,dimension(:):: idbfill
+      integer,allocatable,dimension(:,:):: ibnodes0U, ibnodes0D, ibnodes0L, ibnodes0R
+
       real,allocatable,dimension(:,:,:,:):: f
 
-      integer,allocatable,dimension(:):: xlink, ylink, zlink
-      integer,allocatable,dimension(:):: iplink, mlink
-      real,allocatable,dimension(:):: alink
+      real,allocatable,dimension(:):: xlink, ylink, zlink
+      real,allocatable,dimension(:):: iplink, alink, mlink
 
       real,allocatable,dimension(:,:,:):: rho, rhop
       real,allocatable,dimension(:,:,:):: ux, uy, uz

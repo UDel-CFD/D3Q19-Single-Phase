@@ -4,6 +4,7 @@
 
       logical dirExist
       integer i,j,k
+      real vmax
 
       pi = 4.0*atan(1.0) 
       pi2 = 2.0*pi
@@ -223,26 +224,26 @@
       dirpartout = trim(dirgenr)//'partout/'
 
 !Benchmarking directories
-	    dirbench = trim(dirgenr)//'benchmark/'
-	    dirbenchmatlab = trim(dirbench)//'matlab/'
-	    dirbenchbead = trim(dirbench)//'bead/'
-	    dirbenchflow = trim(dirbench)//'flow/'
+      dirbench = trim(dirgenr)//'benchmark/'
+      dirbenchmatlab = trim(dirbench)//'matlab/'
+      dirbenchbead = trim(dirbench)//'bead/'
+      dirbenchflow = trim(dirbench)//'flow/'
 
       if(myid==0)then
-     		call makedir(dirdiag)
-     		call makedir(dirstat)
-     		call makedir(dirprobe)
-     		call makedir(dirinitflow)
-     		call makedir(dircntdflow)
-     		call makedir(dirflowout)
-     		call makedir(dirmoviedata)
-     		call makedir(dircntdpart)
-     		call makedir(dirpartout)
+        call makedir(dirdiag)
+        call makedir(dirstat)
+        call makedir(dirprobe)
+        call makedir(dirinitflow)
+        call makedir(dircntdflow)
+        call makedir(dirflowout)
+        call makedir(dirmoviedata)
+        call makedir(dircntdpart)
+        call makedir(dirpartout)
 
-     		call makedir(dirbench)
-     		call makedir(dirbenchbead)
-     		call makedir(dirbenchflow)
-     		call makedir(dirbenchmatlab)
+        call makedir(dirbench)
+        call makedir(dirbenchbead)
+        call makedir(dirbenchflow)
+        call makedir(dirbenchmatlab)
       endif
 
 ! particle-related parameters
@@ -278,9 +279,14 @@
 
         iseedp = 12345
         msize = int(10.0*real(npart)/real(nproc))
-!Five = number of vertexes a plane crosses in D3Q19
+! max number of node that will require filling
+! umax is determined from poiseuille flow in the y direction
+        vmax = ((force_in_y*force_mag*nx**2)/(8*visc))
+        maxbfill = vmax*msize*(4*pi*rad**2)/2
+        if(myid == 0)write(*,*) maxbfill
+! maximum number of boundary links per local domain
+! Five = avg number of vertexes a plane crosses in D3Q19
         maxlink = 5*msize*(4*pi*rad**2)
-!        msize = 5
  
         wwp = (/ww1, ww1, ww1, ww1, ww1, ww1, ww2, ww2, ww2,           &
                 ww2, ww2, ww2, ww2, ww2, ww2, ww2, ww2, ww2/) 
@@ -385,19 +391,30 @@
       allocate (isnodes(lx,ly,lz))
       allocate (isnodes0(lx,ly,lz))
 
+      allocate (xbfill(maxbfill))
+      allocate (ybfill(maxbfill))
+      allocate (zbfill(maxbfill))
+      allocate (idbfill(maxbfill))
+      allocate (ibnodes0U(lx,lz))
+      allocate (ibnodes0D(lx,lz))
+      allocate (ibnodes0L(lx,ly))
+      allocate (ibnodes0R(lx,ly))
+
+      isnodes = -1
+
       end if
 
 !bench marking
-	  allocate (collision_MRT_bnch(nsteps))
-	  allocate (streaming_bnch(nsteps))
-	  allocate (macrovar_bnch(nsteps))
+    allocate (collision_MRT_bnch(nsteps))
+    allocate (streaming_bnch(nsteps))
+    allocate (macrovar_bnch(nsteps))
 
-	  allocate (beads_collision_bnch(nsteps))
-	  allocate (beads_lubforce_bnch(nsteps))
-	  allocate (beads_move_bnch(nsteps))
-	  allocate (beads_redistribute_bnch(nsteps))
-	  allocate (beads_links_bnch(nsteps))
-	  allocate (beads_filling_bnch(nsteps))
+    allocate (beads_collision_bnch(nsteps))
+    allocate (beads_lubforce_bnch(nsteps))
+    allocate (beads_move_bnch(nsteps))
+    allocate (beads_redistribute_bnch(nsteps))
+    allocate (beads_links_bnch(nsteps))
+    allocate (beads_filling_bnch(nsteps))
 
       end subroutine allocarray
 !==================================================================
@@ -410,11 +427,8 @@
 
       inquire(directory = trim(dirPath), exist = dirExist)
       if(.NOT.dirExist)then
-	   Write(*,*) trim(dirPath)//' not found. Creating...'
+     Write(*,*) trim(dirPath)//' not found. Creating...'
        CALL system('mkdir -p '// trim(dirPath));
       endif
 
       end subroutine makedir
-
-
-

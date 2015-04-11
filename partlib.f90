@@ -952,14 +952,14 @@
       real xpnt, ypnt, zpnt, radp2
 
       integer nfbeads
+      logical bfilled
       real alphay, alphaz
       real,dimension(2*msize):: idfbeads, xfbeads, yfbeads, zfbeads
 
-      ibnodes = -1
-      isnodes = -1
       radp2 = rad + 2.d0
       nfbeads = 0
       nlink = 0
+      nbfill = 0
       alphay = dfloat(indy*ly)+ 0.5d0
       alphaz = dfloat(indz*lz)+ 0.5d0
 
@@ -991,6 +991,8 @@
             xpnt = dfloat(i) - 0.5d0
             ypnt = dfloat(j) - 1.d0 + alphay
             zpnt = dfloat(k) - 1.d0 + alphaz
+            bfilled = .FALSE.
+
             do id=1, nfbeads
               xc = xfbeads(id)
               yc = yfbeads(id)
@@ -1011,6 +1013,7 @@
                 if(rr01 <= 0.d0)then
                   ibnodes(i,j,k) = 1 
                   isnodes(i,j,k) = idfbeads(id)
+                  bfilled = .TRUE.
                 else
                   do ip = 1,npop-1
                     imove = i + cix(ip) 
@@ -1056,10 +1059,24 @@
 
                   end do
                 end if
-              else
-
-              endif
+              endif              
             enddo !npart
+
+            if(bfilled .eq. .FALSE. .AND. ibnodes(i,j,k) > 0)then
+              nbfill = nbfill + 1
+
+              if(nbfill.ge.maxbfill)then
+                write(*,'(A44,I5)') 'Number of fill node exceeded array size, maxbfill: ',maxbfill
+                stop
+              endif
+
+              xbfill(nbfill) = i
+              ybfill(nbfill) = j
+              zbfill(nbfill) = k
+              idbfill(nbfill) = isnodes(i,j,k)
+              ibnodes(i,j,k) = -1
+              isnodes(i,j,k) = -1
+            endif
 
           enddo !z
         enddo !y
@@ -1109,253 +1126,22 @@
 
       real, dimension(3,npart):: fHIp0, torqp0 
 
-!      fnm = '/ptmp/lwang/debug2D/ibnodes0.2D.dat'
-!      fnm1 = '/ptmp/lwang/debug2D/ibnodes1.2D.dat'
-!      fnm5 = '/ptmp/lwang/debug2D/ibnodes5.2D.dat'
-!      fnm6 = '/ptmp/lwang/debug2D/ibnodes6.2D.dat'
-!      fnm7 = '/ptmp/lwang/debug2D/ibnodes7.2D.dat'
-!      fnm8 = '/ptmp/lwang/debug2D/ibnodes8.2D.dat'
-
-!      fnm_a = '/ptmp/lwang/debug2D/fcheck.dat'
-!      fnm_a1 = '/ptmp/lwang/debug2D/fcheck1.dat'
-!      fnm_a2 = '/ptmp/lwang/debug2D/fcheck2.dat'
-!      fnm_a3 = '/ptmp/lwang/debug2D/fcheck3.dat'
-!      fnm_a4 = '/ptmp/lwang/debug2D/fcheck4.dat'
-!      fnm_a5 = '/ptmp/lwang/debug2D/fcheck5.dat'
-!      fnm_a6 = '/ptmp/lwang/debug2D/fcheck6.dat'
-!      fnm_a7 = '/ptmp/lwang/debug2D/fcheck7.dat'
-!      fnm_a8 = '/ptmp/lwang/debug2D/fcheck8.dat'
-
-!      fnm_b = '/ptmp/lwang/debug2D/ibcheck.dat'
-!      fnm_b1 = '/ptmp/lwang/debug2D/ibcheck1.dat'
-!      fnm_b2 = '/ptmp/lwang/debug2D/ibcheck2.dat'
-!      fnm_b3 = '/ptmp/lwang/debug2D/ibcheck3.dat'
-!      fnm_b4 = '/ptmp/lwang/debug2D/ibcheck4.dat'
-!      fnm_b5 = '/ptmp/lwang/debug2D/ibcheck5.dat'
-!      fnm_b6 = '/ptmp/lwang/debug2D/ibcheck6.dat'
-!      fnm_b7 = '/ptmp/lwang/debug2D/ibcheck7.dat'
-!      fnm_b8 = '/ptmp/lwang/debug2D/ibcheck8.dat'
-
-!      fnm20 = '/ptmp/lwang/debug2D/ibnodes20.2D.dat'
-!      fnm21 = '/ptmp/lwang/debug2D/ibnodes21.2D.dat'
-!      fnm25 = '/ptmp/lwang/debug2D/ibnodes25.2D.dat'
-!      fnm26 = '/ptmp/lwang/debug2D/ibnodes26.2D.dat'
-!      fnm27 = '/ptmp/lwang/debug2D/ibnodes27.2D.dat'
-!      fnm28 = '/ptmp/lwang/debug2D/ibnodes28.2D.dat'
-
-
-!      open(10, file = trim(fnm), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(11, file = trim(fnm1), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(15, file = trim(fnm5), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(16, file = trim(fnm6), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(17, file = trim(fnm7), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(18, file = trim(fnm8), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-
-!      open(20, file = trim(fnm_a), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(21, file = trim(fnm_a1), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(22, file = trim(fnm_a2), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(23, file = trim(fnm_a3), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(24, file = trim(fnm_a4), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(25, file = trim(fnm_a5), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(26, file = trim(fnm_a6), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(27, file = trim(fnm_a7), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(28, file = trim(fnm_a8), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-
-!      open(30, file = trim(fnm_b), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(31, file = trim(fnm_b1), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(32, file = trim(fnm_b2), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(33, file = trim(fnm_b3), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(34, file = trim(fnm_b4), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(35, file = trim(fnm_b5), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(36, file = trim(fnm_b6), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(37, file = trim(fnm_b7), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(38, file = trim(fnm_b8), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
- 
-!      open(20, file = trim(fnm20), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(21, file = trim(fnm21), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(25, file = trim(fnm25), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(26, file = trim(fnm26), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(27, file = trim(fnm27), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(28, file = trim(fnm28), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-
-
       allocate(tmpfL(0:npop-1,lx,ly,-1:0))
       allocate(tmpfR(0:npop-1,lx,ly,lz+1:lz+2))
       allocate(tmpfU(0:npop-1,lx,ly+1:ly+2,-1:lz+2))
       allocate(tmpfD(0:npop-1,lx,-1:0,-1:lz+2))
 
 
-!      if(istep.eq.630)then
-!      if(myid.eq.56) write(21,*)' before L',((j,k,f(1,5,j,k),j=1,ly),k=lz-1,lz)
-!      if(myid.eq.8) write(22,*)' before R',((j,k,f(1,5,j,k),j=1,ly),k=1,2)
-!      if(myid.eq.1) write(23,*)' before U',((j,k,f(1,5,j,k),j=1,2),k=1,lz)
-!      if(myid.eq.7) write(24,*)' before D',((j,k,f(1,5,j,k),j=ly-1,ly),k=1,lz)
-
-!      if(myid.eq.57) write(25,*)' before UL',((j,k,f(1,5,j,k),j=1,2),k=lz-1,lz)
-!      if(myid.eq.63) write(26,*)'before DL',((j,k,f(1,5,j,k),j=ly-1,ly),k=lz-1,lz)
-!      if(myid.eq.9) write(27,*)' before UR',((j,k,f(1,5,j,k),j=1,2),k=1,2)
-!      if(myid.eq.15) write(28,*)' before DR',((j,k,f(1,5,j,k),j=ly-1,ly),k=1,2)
-!      if(myid.eq.56) close(21)
-!      if(myid.eq.8) close(22)
-!      if(myid.eq.1) close(23)
-!      if(myid.eq.7) close(24)
-!      if(myid.eq.57) close(25)
-!      if(myid.eq.63) close(26)
-!      if(myid.eq.9) close(27)
-!      if(myid.eq.15) close(28)
-!      end if
-
-   
       call exchng2(f(:,:,:,1:2),tmpfR,f(:,:,:,lz-1:lz),tmpfL,    &
                    f(:,:,1:2,:),tmpfU,f(:,:,ly-1:ly,:),tmpfD)
-
-!      if(istep.eq.630)then
-!      if(myid.eq.0) then
-!      write(20,*)'L',((j,k,tmpfL(1,5,j,k),j=1,ly),k=-1,0)
-!      write(20,*)'R',((j,k,tmpfR(1,5,j,k),j=1,ly),k=lz+1,lz+2)
-!      write(20,*)'U',((j,k,tmpfU(1,5,j,k),j=ly+1,ly+2),k=1,lz)
-!      write(20,*)'D',((j,k,tmpfD(1,5,j,k),j=-1,0),k=1,lz)
-
-!      write(20,*)'UL',((j,k,tmpfU(1,5,j,k),j=ly+1,ly+2),k=-1,0)
-!      write(20,*)'DL',((j,k,tmpfD(1,5,j,k),j=-1,0),k=-1,0)
-!      write(20,*)'UR',((j,k,tmpfU(1,5,j,k),j=ly+1,ly+2),k=lz+1,lz+2)
-!      write(20,*)'DR',((j,k,tmpfD(1,5,j,k),j=-1,0),k=lz+1,lz+2)
-!       close(20)
-!      end if
-!      end if
 
       allocate (tmpiL(lx,ly,-1:0))
       allocate (tmpiR(lx,ly,lz+1:lz+2))
       allocate (tmpiU(lx,ly+1:ly+2,-1:lz+2))
       allocate (tmpiD(lx,-1:0,-1:lz+2))
 
-!       do ii= 1,nx
-!       do jj= 1,ly 
-!       do kk= 1,2 
-!       if(istep==630 .and. myid==53 .and. ii==1 .and. jj==ly-1 .and. kk==25)write(*,*)'Writing out here (1)' 
-!       if(istep==631 .and. myid==35 .and. ii==1 .and. jj==ly-1 .and. kk==25)write(*,*)'Writing out here (1)'
-!       if(istep==630 .and. myid==53)write(10,210) ibnodes(ii,jj,kk),ii,jj,kk
-!       if(istep==631 .and. myid==35)write(20,210) ibnodes(ii,jj,kk),ii,jj,kk
-!       enddo
-!       enddo
-!       enddo
-
-!       do ii = 1,nx
-!       do jj = 1,ly 
-!       do kk = lz+1,lz+2 
-!       if(istep==630 .and. myid==36 .and. ii==1 .and. jj==-1 .and. kk==25)write(*,*)'Writing out here (2)'
-!       if(istep==631 .and. myid==36 .and. ii==1 .and. jj==-1 .and. kk==25)write(*,*)'Writing out here (2)'
-!       if(istep==630 .and. myid==52)write(11,210)tmpiR(ii,jj,kk),ii,jj,kk
-!       if(istep==631 .and. myid==36)write(21,210)tmpiD(ii,jj,kk),ii,jj,kk
-!       enddo
-!       enddo
-!       enddo
-
-!      close(10)
-!      close(11)
-
-
-!     if(myid==0)write(*,*)'I am in collision  (1)'
-!     call MPI_BARRIER(MPI_COMM_WORLD,ierr)
-
-!      if(istep.eq.630)then
-!      if(myid.eq.56) write(31,*)' before L',((j,k,ibnodes(5,j,k),j=1,ly),k=lz-1,lz)
-!      if(myid.eq.8) write(32,*)' before R',((j,k,ibnodes(5,j,k),j=1,ly),k=1,2)
-!      if(myid.eq.1) write(33,*)' before U',((j,k,ibnodes(5,j,k),j=1,2),k=1,lz)
-!      if(myid.eq.7) write(34,*)' before D',((j,k,ibnodes(5,j,k),j=ly-1,ly),k=1,lz)
-
-!      if(myid.eq.57) write(35,*)' before UL',((j,k,ibnodes(5,j,k),j=1,2),k=lz-1,lz)
-!      if(myid.eq.63) write(36,*)' before DL',((j,k,ibnodes(5,j,k),j=ly-1,ly),k=lz-1,lz)
-!      if(myid.eq.9) write(37,*)' before UR',((j,k,ibnodes(5,j,k),j=1,2),k=1,2)
-!      if(myid.eq.15) write(38,*)' before DR',((j,k,ibnodes(5,j,k),j=ly-1,ly),k=1,2)
-
-!!     if(myid.eq.56) close(31)
-!!     if(myid.eq.8) close(32)
-!!     if(myid.eq.1) close(33)
-!!     if(myid.eq.7) close(34)
-!!     if(myid.eq.57) close(35)
-!!     if(myid.eq.63) close(36)
-!!     if(myid.eq.9) close(37)
-!!     if(myid.eq.15) close(38)
-!      end if
-
       call exchng2iNew(ibnodes(:,:,1:2),tmpiR,ibnodes(:,:,lz-1:lz),tmpiL, &
                        ibnodes(:,1:2,:),tmpiU,ibnodes(:,ly-1:ly,:),tmpiD)
-
-!      if(istep.eq.630)then
-!      if(myid.eq.0) then
-!      write(30,*)'L',((j,k,tmpiL(5,j,k),j=1,ly),k=-1,0)
-!      write(30,*)'R',((j,k,tmpiR(5,j,k),j=1,ly),k=lz+1,lz+2)
-!      write(30,*)'U',((j,k,tmpiU(5,j,k),j=ly+1,ly+2),k=1,lz)
-!      write(30,*)'D',((j,k,tmpiD(5,j,k),j=-1,0),k=1,lz)
-
-!      write(30,*)'UL',((j,k,tmpiU(5,j,k),j=ly+1,ly+2),k=-1,0)
-!      write(30,*)'DL',((j,k,tmpiD(5,j,k),j=-1,0),k=-1,0)
-!      write(30,*)'UR',((j,k,tmpiU(5,j,k),j=ly+1,ly+2),k=lz+1,lz+2)
-!      write(30,*)'DR',((j,k,tmpiD(5,j,k),j=-1,0),k=lz+1,lz+2)
-!       close(30)
-!      end if
-!      end if
-
-!       do ii = 1,nx
-!       do jj = 1,ly
-!       do kk = 1,2
-!       if(istep==630 .and. myid==35  .and. ii==1 .and. jj==ly-1 .and. kk==25)write(*,*)'Writing out here (7)'
-!       if(istep==631 .and. myid==35  .and. ii==1 .and. jj==ly-1 .and. kk==25)write(*,*)'Writing out here (7)'
-!       if(istep==630 .and. myid==53)write(15,210)ibnodes(ii,jj,kk),ii,jj,kk
-!       if(istep==631 .and. myid==35)write(25,210)ibnodes(ii,jj,kk),ii,jj,kk
-!       enddo
-!       enddo
-!       enddo
-
-
-!       do ii= 1,nx
-!       do jj= 1,ly 
-!       do kk = lz+1,lz+2 
-!       if(istep==630 .and. myid==52 .and. ii==1 .and. jj==-1 .and. kk==25)write(*,*)'Writing out here (6)'
-!       if(istep==631 .and. myid==36 .and. ii==1 .and. jj==-1 .and. kk==25)write(*,*)'Writing out here (6)'
-!       if(istep==630 .and. myid==52)write(16,210)tmpiR(ii,jj,kk),ii,jj,kk
-!       if(istep==631 .and. myid==36)write(26,210)tmpiD(ii,jj,kk),ii,jj,kk
-!       enddo
-!       enddo
-!       enddo
-
-
-!      close(15)
-!      close(16)
-!      close(25)
-!      close(26)
-
 
       fHIp0 = 0.0
       torqp0 = 0.0
@@ -1565,71 +1351,6 @@
 
        END IF
 
-!       if(id==6393 .and. ipop==10 .and. i==132 .and. j==32 .and. k==26 .and. istep==630)then
-!       write(*,*)'im1,jm1,km1,im2,jm2,km2,ff1,ff2,ff3,f9,ibm1,ibm2,', &
-!                 'alpha,wwp(ipop),uwpro',                             &
-!                  im1,jm1,km1,im2,jm2,km2,ff1,ff2,ff3,f9,ibm1,ibm2,   &
-!                  alpha,wwp(ipop),uwpro
-!       endif
-
-!       do ii= 1,nx
-!       do jj= -1,0
-!       do kk = 25,28 
-!       if(istep==630 .and. myid==36)write(*,*)'Writing out here (8)'
-!       if(istep==630 .and. myid==36)write(17,210)tmpiD(ii,jj,kk),ii,jj,kk
-!       enddo
-!       enddo
-!       enddo
-
-!       do ii = 1,nx
-!       do jj = ly-1,ly
-!       do kk = 25,28 
-!       if(istep==630 .and. myid==35)write(*,*)'Writing out here (9)'
-!       if(istep==630 .and. myid==35)write(18,210)ibnodes(ii,jj,kk),ii,jj,kk
-!       enddo
-!       enddo
-!       enddo
-
-!       close(17)
-!       close(18)
-
-!       if(istep==630 .and. id == 6395)then
-!        write(*,*)'id,ipop,myid,ix,iy,iz,f9,ff1,alpha,i,j,k',  &
-!                   id,ipop,myid,ix,iy,iz,f9,ff1,alpha,i,j,k
-!       endif 
-
-!       if(istep==630 .and. id == 460)then
-!        write(*,*)'id,ipop,myid,ix,iy,iz,f9,ff1,alpha,i,j,k',  &
-!                   id,ipop,myid,ix,iy,iz,f9,ff1,alpha,i,j,k
-!       endif
-
-!       if(istep==631 .and. id == 1)then
-!        write(*,*)'id,ipop,myid,ix,iy,iz,f9,ff1,alpha,i,j,k',  &
-!                   id,ipop,myid,ix,iy,iz,f9,ff1,alpha,i,j,k
-!       endif
-
-!       if(istep==631 .and. id == 2)then
-!        write(*,*)'id,ipop,myid,ix,iy,iz,f9,ff1,alpha,i,j,k',  &
-!                   id,ipop,myid,ix,iy,iz,f9,ff1,alpha,i,j,k
-!       endif
-
-
-!       if(istep==630 .and. id == 632)then
-!        write(*,*)'id,ipop,myid,ix,iy,iz,f9,ff1,alpha,i,j,k',  &
-!                   id,ipop,myid,ix,iy,iz,f9,ff1,alpha,i,j,k
-!       endif
-
-!       if(istep==630 .and. id == 1169)then
-!        write(*,*)'id,ipop,myid,ix,iy,iz,f9,ff1,alpha,i,j,k',  &
-!                   id,ipop,myid,ix,iy,iz,f9,ff1,alpha,i,j,k
-!       endif
-
-!       if(istep==630 .and. id == 1324)then
-!        write(*,*)'id,ipop,myid,ix,iy,iz,f9,ff1,alpha,i,j,k',  &
-!                   id,ipop,myid,ix,iy,iz,f9,ff1,alpha,i,j,k
-!       endif
-
-
           if(jp1 > ly) then
           tmpfU(ipp,ip1,jp1,kp1) = f9
           if9U(ipp,ip1,kp1) = 1
@@ -1663,34 +1384,6 @@
         torqp0(3,id) = torqp0(3,id) + dymom*xx0 - dxmom*yy0
  
       end do 
-
-
-!       do ii= 1,nx
-!       do jj= -1,0
-!       do kk = 25,28
-!       if(istep==630 .and. myid==36 .and. ii==1 .and. jj==-1 .and. kk==25)write(*,*)'Writing out here (8)'
-!       if(istep==631 .and. myid==36 .and. ii==1 .and. jj==-1 .and. kk==25)write(*,*)'Writing out here (8)'
-!       if(istep==630 .and. myid==36)write(17,210)tmpiD(ii,jj,kk),ii,jj,kk
-!       if(istep==631 .and. myid==36)write(27,210)tmpiD(ii,jj,kk),ii,jj,kk
-!       enddo
-!       enddo
-!       enddo
-
-!       do ii = 1,nx
-!       do jj = ly-1,ly
-!       do kk = 25,28
-!       if(istep==630 .and. myid==35 .and. ii==1 .and. jj==ly-1 .and. kk==25)write(*,*)'Writing out here (9)'
-!       if(istep==631 .and. myid==35 .and. ii==1 .and. jj==ly-1 .and. kk==25)write(*,*)'Writing out here (9)'
-!       if(istep==630 .and. myid==35)write(18,210)ibnodes(ii,jj,kk),ii,jj,kk
-!       if(istep==631 .and. myid==35)write(28,210)ibnodes(ii,jj,kk),ii,jj,kk
-!       enddo
-!       enddo
-!       enddo
-
-!       close(17)
-!       close(18)
-!       close(27)
-!       close(28)
 
 
       deallocate(tmpiL)
@@ -2442,7 +2135,6 @@
 
 ! save as previous values for ibnodes and isnodes
       ibnodes0 = ibnodes
-      isnodes0 = isnodes
 
 ! update info. for wp and omgp
       ilen = 3*npart
@@ -2868,7 +2560,7 @@
       implicit none
 
       integer id, ix, iy, iz, ipop, ipmx, ii, nghb
-      integer i, j, k, ip1, jp1, kp1
+      integer i, j, k, ip1, jp1, kp1, n
       integer ibp1,ib0p1
 
       real xc, yc, zc, xpnt, ypnt, zpnt
@@ -2914,45 +2606,46 @@
       call exchng5i(ibnodes0(:,:,1),tmpiR0,ibnodes0(:,:,lz),tmpiL0,  &
                     ibnodes0(:,1,:),tmpiU0,ibnodes0(:,ly,:),tmpiD0)
 
-      do k = 1,lz
-      do j = 1,ly
-      do i = 1,lx
-      IF(ibnodes0(i,j,k) > 0 .and. ibnodes(i,j,k) < 0)THEN
+      do n=1, nbfill
+        id = idbfill(n)
 !     write(*,*)'Start istep,i,j,k='
-      id = isnodes0(i,j,k)
-      xc = ypglbp(1,id)*1.d0      
-      yc = ypglbp(2,id)*1.d0    
-      zc = ypglbp(3,id)*1.d0   
+        xc = ypglbp(1,id)*1.d0      
+        yc = ypglbp(2,id)*1.d0    
+        zc = ypglbp(3,id)*1.d0   
 
-      xpnt = dfloat(i) - 0.5d0 
-      ypnt = dfloat(j) - 0.5d0 + dfloat(indy*ly)   
-      zpnt = dfloat(k) - 0.5d0 + dfloat(indz*lz)
+        i = xbfill(n)
+        j = ybfill(n)
+        k = zbfill(n)
+
+        xpnt = dfloat(i) - 0.5d0 
+        ypnt = dfloat(j) - 0.5d0 + dfloat(indy*ly)   
+        zpnt = dfloat(k) - 0.5d0 + dfloat(indz*lz)
 
 ! use the nearest particle center instead of the real center
 !      if((xc - xpnt) > dfloat(nxh)) xc = xc - dfloat(nx)
 !      if((xc - xpnt) < -dfloat(nxh)) xc = xc + dfloat(nx)
 
-      if((yc - ypnt) > dfloat(nyh)) yc = yc - dfloat(ny)
-      if((yc - ypnt) < -dfloat(nyh)) yc = yc + dfloat(ny)
+        if((yc - ypnt) > dfloat(nyh)) yc = yc - dfloat(ny)
+        if((yc - ypnt) < -dfloat(nyh)) yc = yc + dfloat(ny)
 
-      if((zc - zpnt) > dfloat(nzh)) zc = zc - dfloat(nz)
-      if((zc - zpnt) < -dfloat(nzh)) zc = zc + dfloat(nz)
+        if((zc - zpnt) > dfloat(nzh)) zc = zc - dfloat(nz)
+        if((zc - zpnt) < -dfloat(nzh)) zc = zc + dfloat(nz)
 
-      w1 = -0.5d0*(wp(1,id)*1.d0 + wpp(1,id)*1.d0)
-      w2 = -0.5d0*(wp(2,id)*1.d0 + wpp(2,id)*1.d0)
-      w3 = -0.5d0*(wp(3,id)*1.d0 + wpp(3,id)*1.d0)
-      omg1 = -0.5d0*(omgp(1,id)*1.d0 + omgpp(1,id)*1.d0)
-      omg2 = -0.5d0*(omgp(2,id)*1.d0 + omgpp(2,id)*1.d0)
-      omg3 = -0.5d0*(omgp(3,id)*1.d0 + omgpp(3,id)*1.d0)
+        w1 = -0.5d0*(wp(1,id)*1.d0 + wpp(1,id)*1.d0)
+        w2 = -0.5d0*(wp(2,id)*1.d0 + wpp(2,id)*1.d0)
+        w3 = -0.5d0*(wp(3,id)*1.d0 + wpp(3,id)*1.d0)
+        omg1 = -0.5d0*(omgp(1,id)*1.d0 + omgpp(1,id)*1.d0)
+        omg2 = -0.5d0*(omgp(2,id)*1.d0 + omgpp(2,id)*1.d0)
+        omg3 = -0.5d0*(omgp(3,id)*1.d0 + omgpp(3,id)*1.d0)
 
-      aa = w1*w1 + w2*w2 + w3*w3
-      bb = (xpnt - xc)*w1 + (ypnt - yc)*w2 + (zpnt -zc)*w3 
-      cc = (xpnt - xc)**2 + (ypnt - yc)**2 + (zpnt -zc)**2 - (rad*1.d0)**2 
+        aa = w1*w1 + w2*w2 + w3*w3
+        bb = (xpnt - xc)*w1 + (ypnt - yc)*w2 + (zpnt -zc)*w3 
+        cc = (xpnt - xc)**2 + (ypnt - yc)**2 + (zpnt -zc)**2 - (rad*1.d0)**2 
 
-      ddt0 = bb/aa 
-      ddt1 = sqrt(ddt0**2 - cc/aa) 
-      ddt = -ddt0 + ddt1  
-  
+        ddt0 = bb/aa 
+        ddt1 = sqrt(ddt0**2 - cc/aa) 
+        ddt = -ddt0 + ddt1  
+    
 !     if(ddt < 0.d0 .or. ddt > 1.d0)then
 !        write(*,*) 'fault: ddt = ', ddt, ' @ ibnodes0(', i,            &
 !                   ', ', j, ', ', k, ')'
@@ -2960,223 +2653,220 @@
 !        write(*,*) 'ddt0 = ', ddt0, ' ddt1 = ', ddt1, ' aa = ', aa, ' bb = ', bb, ' cc = ', cc  
 !        stop
 !     end if
-      if(ddt < 0.d0) ddt = 0.d0
-      if(ddt > 1.d0) ddt = 1.d0
+        if(ddt < 0.d0) ddt = 0.d0
+        if(ddt > 1.d0) ddt = 1.d0
 
-      xp1 = xpnt + w1*ddt
-      yp1 = ypnt + w2*ddt
-      zp1 = zpnt + w3*ddt
+        xp1 = xpnt + w1*ddt
+        yp1 = ypnt + w2*ddt
+        zp1 = zpnt + w3*ddt
 
 ! (xp2, yp2, zp2) is the point on the particle surface. It is THROUGH this
 ! point the previous solid node (xpnt, ypnt, zpnt) moves to fluid region.
-      xp2 = xp1 + (omg2*(zp1-zc) - omg3*(yp1-yc))*ddt
-      yp2 = yp1 + (omg3*(xp1-xc) - omg1*(zp1-zc))*ddt
-      zp2 = zp1 + (omg1*(yp1-yc) - omg2*(xp1-xc))*ddt
+        xp2 = xp1 + (omg2*(zp1-zc) - omg3*(yp1-yc))*ddt
+        yp2 = yp1 + (omg3*(xp1-xc) - omg1*(zp1-zc))*ddt
+        zp2 = zp1 + (omg1*(yp1-yc) - omg2*(xp1-xc))*ddt
 
-      xx0 = xp2 - xc
-      yy0 = yp2 - yc
-      zz0 = zp2 - zc
+        xx0 = xp2 - xc
+        yy0 = yp2 - yc
+        zz0 = zp2 - zc
 
 ! Lallemand and Luo, JCP 184, 2003, pp.414
 ! identify ipmx, the discrete velocity direction which maximizes the
 ! quantity n^(hat) dot e_alpha, where n^(hat) is the out-normal vector
 ! of the wall at the point (xp2, yp2, zp2).
-      prod0 = -100.0
-      do ipop = 1,npop-1
-        ix = cix(ipop)
-        iy = ciy(ipop)
-        iz = ciz(ipop)
-        prod = real(ix)*xx0 + real(iy)*yy0 + real(iz)*zz0
-        if(ipop <= 6) prod = prod*sqrt(2.0)
-        if(prod > prod0)then
-          ipmx = ipop
-          prod0 = prod
-        end if
-      end do
+        prod0 = -100.0
+        do ipop = 1,npop-1
+          ix = cix(ipop)
+          iy = ciy(ipop)
+          iz = ciz(ipop)
+          prod = real(ix)*xx0 + real(iy)*yy0 + real(iz)*zz0
+          if(ipop <= 6) prod = prod*sqrt(2.0)
+          if(prod > prod0)then
+            ipmx = ipop
+            prod0 = prod
+          end if
+        end do
 
 
 ! Caiazzo A. progress in CFD, vol. 8, 2008
 ! equilibrium + non-equilibrium refill
 ! first obtain the non-equilibrium part by copying from the neighbouring
 ! fluid node along the ipmx direction
-      ix = cix(ipmx)
-      iy = ciy(ipmx)
-      iz = ciz(ipmx)
-
-      ip1 = i + ix
-      jp1 = j + iy
-      kp1 = k + iz
-
-! periodicity
-!     if(ip1 < 1) ip1 = ip1 + lx
-!     if(ip1 > lx) ip1 = ip1 - lx
-          
-          if(ip1 < 1) then
-          ibp1 = 2
-          ib0p1 = 2
-          else if (ip1 > lx) then
-          ibp1 = 2
-          ib0p1 = 2
-          else
-          if(jp1 > ly) then
-          ibp1 = tmpiU(ip1,kp1)
-          ib0p1 = tmpiU0(ip1,kp1)
-          else if (jp1 < 1) then
-          ibp1 = tmpiD(ip1,kp1)
-          ib0p1 = tmpiD0(ip1,kp1)
-          else
-            if(kp1 > lz) then
-            ibp1 = tmpiR(ip1,jp1)
-            ib0p1 = tmpiR0(ip1,jp1)
-            else if(kp1 < 1 ) then
-            ibp1 = tmpiL(ip1,jp1)
-            ib0p1 = tmpiL0(ip1,jp1)
-            else
-            ibp1 = ibnodes(ip1,jp1,kp1)
-            ib0p1 = ibnodes0(ip1,jp1,kp1)
-            end if
-          end if
-        end if
-!!!!!
-        IF(ibp1 < 0 .and. ib0p1 < 0)THEN
-        rho9 = 0.0 
-        u9 = 0.0
-        v9 = 0.0
-        w9 = 0.0
-      
-          if(jp1 > ly) then
-          f9 = tmpfU(:,ip1,kp1)
-          else if (jp1 < 1) then
-          f9 = tmpfD(:,ip1,kp1)
-          else
-            if(kp1 > lz) then
-            f9 = tmpfR(:,ip1,jp1)
-            else if(kp1 < 1 ) then
-            f9 = tmpfL(:,ip1,jp1)
-            else
-            f9 = f(:,ip1,jp1,kp1)
-            end if
-          end if
- 
-        do ipop = 0,npop-1
-          rho9 = rho9 + f9(ipop)  
-          u9 = u9 + real(cix(ipop))*f9(ipop)    
-          v9 = v9 + real(ciy(ipop))*f9(ipop)   
-          w9 = w9 + real(ciz(ipop))*f9(ipop)   
-        end do
-        call feqpnt(u9,v9,w9,rho9,feq9)
-
-! note: below LHS = f(:,i,j,k), NOT f9(:,i,j,k)
-        f(:,i,j,k) = f9 - feq9
-      ELSE
-        f(:,i,j,k) = 0.0
-      END IF
-
-! now calculate the equilibrium part
-! first obtain the local mean density
-      nghb = 0
-      rho9 = 0.0
-
-      do ipop = 1,npop-1
-        ix = cix(ipop)
-        iy = ciy(ipop)
-        iz = ciz(ipop)
+        ix = cix(ipmx)
+        iy = ciy(ipmx)
+        iz = ciz(ipmx)
 
         ip1 = i + ix
         jp1 = j + iy
         kp1 = k + iz
 
 ! periodicity
-      !  if(ip1 < 1) ip1 = ip1 + lx
-      !  if(ip1 > lx) ip1 = ip1 - lx
-
-        if(ip1 > lx) then
-          ibp1 = 2
-          ib0p1 = 2
-        else if (ip1 < 1) then
-          ibp1 = 2
-          ib0p1 = 2
-        else
-          if(jp1 > ly) then
-          ibp1 = tmpiU(ip1,kp1)
-          ib0p1 = tmpiU0(ip1,kp1)
-          else if (jp1 < 1) then
-          ibp1 = tmpiD(ip1,kp1)
-          ib0p1 = tmpiD0(ip1,kp1)
-          else
-            if(kp1 > lz) then
-            ibp1 = tmpiR(ip1,jp1)
-            ib0p1 = tmpiR0(ip1,jp1)
-            else if(kp1 < 1 ) then
-            ibp1 = tmpiL(ip1,jp1)
-            ib0p1 = tmpiL0(ip1,jp1)
+!     if(ip1 < 1) ip1 = ip1 + lx
+!     if(ip1 > lx) ip1 = ip1 - lx
+            
+            if(ip1 < 1) then
+            ibp1 = 2
+            ib0p1 = 2
+            else if (ip1 > lx) then
+            ibp1 = 2
+            ib0p1 = 2
             else
-            ibp1 = ibnodes(ip1,jp1,kp1)
-            ib0p1 = ibnodes0(ip1,jp1,kp1)
+            if(jp1 > ly) then
+            ibp1 = tmpiU(ip1,kp1)
+            ib0p1 = tmpiU0(ip1,kp1)
+            else if (jp1 < 1) then
+            ibp1 = tmpiD(ip1,kp1)
+            ib0p1 = tmpiD0(ip1,kp1)
+            else
+              if(kp1 > lz) then
+              ibp1 = tmpiR(ip1,jp1)
+              ib0p1 = tmpiR0(ip1,jp1)
+              else if(kp1 < 1 ) then
+              ibp1 = tmpiL(ip1,jp1)
+              ib0p1 = tmpiL0(ip1,jp1)
+              else
+              ibp1 = ibnodes(ip1,jp1,kp1)
+              ib0p1 = ibnodes0(ip1,jp1,kp1)
+              end if
             end if
           end if
-        end if
-
-        IF(ibp1 < 0 .and. ib0p1 < 0)THEN
-          nghb = nghb + 1
-
-
-          if(jp1 > ly) then
-          f9 = tmpfU(:,ip1,kp1)
-          else if (jp1 < 1) then
-          f9 = tmpfD(:,ip1,kp1)
-          else
-            if(kp1 > lz) then
-            f9 = tmpfR(:,ip1,jp1)
-            else if(kp1 < 1 ) then
-            f9 = tmpfL(:,ip1,jp1)
+!!!!!
+          IF(ibp1 < 0 .and. ib0p1 < 0)THEN
+          rho9 = 0.0 
+          u9 = 0.0
+          v9 = 0.0
+          w9 = 0.0
+        
+            if(jp1 > ly) then
+            f9 = tmpfU(:,ip1,kp1)
+            else if (jp1 < 1) then
+            f9 = tmpfD(:,ip1,kp1)
             else
-            f9 = f(:,ip1,jp1,kp1)
+              if(kp1 > lz) then
+              f9 = tmpfR(:,ip1,jp1)
+              else if(kp1 < 1 ) then
+              f9 = tmpfL(:,ip1,jp1)
+              else
+              f9 = f(:,ip1,jp1,kp1)
+              end if
             end if
-          end if
-
-          do ii = 0,npop-1
-            rho9 = rho9 + f9(ii)
+   
+          do ipop = 0,npop-1
+            rho9 = rho9 + f9(ipop)  
+            u9 = u9 + real(cix(ipop))*f9(ipop)    
+            v9 = v9 + real(ciy(ipop))*f9(ipop)   
+            w9 = w9 + real(ciz(ipop))*f9(ipop)   
           end do
-        end if
-      end do
+          call feqpnt(u9,v9,w9,rho9,feq9)
 
-      if(nghb > 0)then
+! note: below LHS = f(:,i,j,k), NOT f9(:,i,j,k)
+          f(:,i,j,k) = f9 - feq9
+        ELSE
+          f(:,i,j,k) = 0.0
+        END IF
+
+! now calculate the equilibrium part
+! first obtain the local mean density
+        nghb = 0
+        rho9 = 0.0
+
+        do ipop = 1,npop-1
+          ix = cix(ipop)
+          iy = ciy(ipop)
+          iz = ciz(ipop)
+
+          ip1 = i + ix
+          jp1 = j + iy
+          kp1 = k + iz
+
+! periodicity
+        !  if(ip1 < 1) ip1 = ip1 + lx
+        !  if(ip1 > lx) ip1 = ip1 - lx
+
+          if(ip1 > lx) then
+            ibp1 = 2
+            ib0p1 = 2
+          else if (ip1 < 1) then
+            ibp1 = 2
+            ib0p1 = 2
+          else
+            if(jp1 > ly) then
+            ibp1 = tmpiU(ip1,kp1)
+            ib0p1 = tmpiU0(ip1,kp1)
+            else if (jp1 < 1) then
+            ibp1 = tmpiD(ip1,kp1)
+            ib0p1 = tmpiD0(ip1,kp1)
+            else
+              if(kp1 > lz) then
+              ibp1 = tmpiR(ip1,jp1)
+              ib0p1 = tmpiR0(ip1,jp1)
+              else if(kp1 < 1 ) then
+              ibp1 = tmpiL(ip1,jp1)
+              ib0p1 = tmpiL0(ip1,jp1)
+              else
+              ibp1 = ibnodes(ip1,jp1,kp1)
+              ib0p1 = ibnodes0(ip1,jp1,kp1)
+              end if
+            end if
+          end if
+
+          IF(ibp1 < 0 .and. ib0p1 < 0)THEN
+            nghb = nghb + 1
+
+
+            if(jp1 > ly) then
+            f9 = tmpfU(:,ip1,kp1)
+            else if (jp1 < 1) then
+            f9 = tmpfD(:,ip1,kp1)
+            else
+              if(kp1 > lz) then
+              f9 = tmpfR(:,ip1,jp1)
+              else if(kp1 < 1 ) then
+              f9 = tmpfL(:,ip1,jp1)
+              else
+              f9 = f(:,ip1,jp1,kp1)
+              end if
+            end if
+
+            do ii = 0,npop-1
+              rho9 = rho9 + f9(ii)
+            end do
+          end if
+        end do
+
+        if(nghb > 0)then
 ! use the locally averaged density if available
-        rho9 = rho9 / real(nghb)
-      ELSE
+          rho9 = rho9 / real(nghb)
+        ELSE
 ! otherwise use the global average density rho0=1.0
-!       rho9 = rho0
-        rho9 = 0.0d0
-      END IF
+  !       rho9 = rho0
+          rho9 = 0.0d0
+        END IF
 
 
 ! then calculate the previous solid node's velocity
-      xx0 = xpnt - xc
-      yy0 = ypnt - yc
-      zz0 = zpnt - zc
+        xx0 = xpnt - xc
+        yy0 = ypnt - yc
+        zz0 = zpnt - zc
 
-      w1 = wp(1,id)
-      w2 = wp(2,id)
-      w3 = wp(3,id)
+        w1 = wp(1,id)
+        w2 = wp(2,id)
+        w3 = wp(3,id)
 
-      omg1 = omgp(1,id)
-      omg2 = omgp(2,id)
-      omg3 = omgp(3,id)
+        omg1 = omgp(1,id)
+        omg2 = omgp(2,id)
+        omg3 = omgp(3,id)
 
-      u9 = w1 + omg2*zz0 - omg3*yy0
-      v9 = w2 + omg3*xx0 - omg1*zz0
-      w9 = w3 + omg1*yy0 - omg2*xx0
+        u9 = w1 + omg2*zz0 - omg3*yy0
+        v9 = w2 + omg3*xx0 - omg1*zz0
+        w9 = w3 + omg1*yy0 - omg2*xx0
 
-      call feqpnt(u9,v9,w9,rho9,feq9)
+        call feqpnt(u9,v9,w9,rho9,feq9)
 
 ! equilibrium + non-equilibrium refill
-      f(:,i,j,k) = f(:,i,j,k) + feq9
+        f(:,i,j,k) = f(:,i,j,k) + feq9
 
 !     write(*,*)'istep,i,j,k,nghb,f(:,i,j,k)=',istep,i,j,k,nghb,f(:,i,j,k)
-      END IF
-      end do
-      end do
       end do
       deallocate(tmpfL)
       deallocate(tmpfR)      
