@@ -49,7 +49,7 @@
 
       istpload = 2000    !!!!THIS NEEDS TO BE CHANGED WHEN STARTING NEW RUNS
       force_mag = 1.0
-      nsteps = 50
+      nsteps = 100
 
 !     nek = nx/3
       nek = int(nx7/2 - 1.5)
@@ -386,6 +386,11 @@
       allocate (iplink(maxlink))
       allocate (mlink(maxlink))
       allocate (alink(maxlink))
+
+      allocate (idfnbeads(2*msize))
+      allocate (xfnbeads(2*msize))
+      allocate (yfnbeads(2*msize))
+      allocate (zfnbeads(2*msize))
 
       allocate (ibnodes0(lx,ly,lz))
       allocate (isnodes(lx,ly,lz))
