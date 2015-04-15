@@ -940,6 +940,8 @@
       end subroutine initpartomg
 !===========================================================================
 
+      !===========================================================================
+
       subroutine beads_links
       use var_inc
       implicit none
@@ -950,11 +952,14 @@
       real xx0, yy0, zz0, rr0, rr01      
       real xx1, yy1, zz1, rr1, rr11,xxtt   
       real xpnt, ypnt, zpnt, radp2
-      real alphay, alphaz
+
+      integer nfbeads
       logical bfilled
+      real alphay, alphaz
+      real,dimension(2*msize):: idfbeads, xfbeads, yfbeads, zfbeads
 
       radp2 = rad + 2.d0
-      nfnbeads = 0
+      nfbeads = 0
       nlink = 0
       nbfill = 0
       alphay = dfloat(indy*ly)+ 0.5d0
@@ -973,11 +978,11 @@
 
         if((alphay+ly+radp2)-yc > 0 .AND. (alphay-radp2)-yc < 0 &
             .AND. (alphaz+lz+radp2)-zc > 0 .AND. (alphaz-radp2)-zc < 0)then
-          nfnbeads = nfnbeads + 1
-          idfnbeads(nfnbeads) = id
-          xfnbeads(nfnbeads) = ypglb(1,id)
-          yfnbeads(nfnbeads) = ypglb(2,id)
-          zfnbeads(nfnbeads) = ypglb(3,id)
+          nfbeads = nfbeads + 1
+          idfbeads(nfbeads) = id
+          xfbeads(nfbeads) = ypglb(1,id)
+          yfbeads(nfbeads) = ypglb(2,id)
+          zfbeads(nfbeads) = ypglb(3,id)
         endif
       enddo
 
@@ -990,28 +995,28 @@
             zpnt = dfloat(k) - 1.d0 + alphaz
             bfilled = .FALSE.
 
-            do id=1, nfnbeads
-              xc = xfnbeads(id)
+            do 111 id=1, nfbeads
+              xc = xfbeads(id)
               xx0 = xpnt - xc
               if(xx0**2 > radp2**2)GO TO 111
 
-              yc = yfnbeads(id)
+              yc = yfbeads(id)
               if((yc - ypnt) > dfloat(nyh)) yc = yc - dfloat(ny)
               if((yc - ypnt) < -dfloat(nyh)) yc = yc + dfloat(ny)
               yy0 = ypnt - yc
               if(xx0**2+yy0**2 > radp2**2)GO TO 111
 
-              zc = zfnbeads(id)
+              zc = zfbeads(id)
               if((zc - zpnt) > dfloat(nzh)) zc = zc - dfloat(nz)
               if((zc - zpnt) < -dfloat(nzh)) zc = zc + dfloat(nz)
               zz0 = zpnt - zc
               rr0 = xx0**2 + yy0**2 + zz0**2
               
-              if(rr0 <= radp2**2)then
+              if(sqrt(rr0) <= radp2)then
                 rr01 = rr0 - (rad*1.d0)**2
                 if(rr01 <= 0.d0)then
                   ibnodes(i,j,k) = 1 
-                  isnodes(i,j,k) = idfnbeads(id)
+                  isnodes(i,j,k) = idfbeads(id)
                   bfilled = .TRUE.
                 else
                   do ip = 1,npop-1
@@ -1038,7 +1043,7 @@
                       zlink(nlink) = k
 
                       iplink(nlink) = ip
-                      mlink(nlink) = idfnbeads(id)
+                      mlink(nlink) = idfbeads(id)
 
                       aa = rr0 + rr1 - 2.d0*(xx0*xx1 + yy0*yy1 + zz0*zz1)
                       bb = xx1*(xx0-xx1) + yy1*(yy0-yy1) + zz1*(zz0-zz1)    
@@ -1058,9 +1063,8 @@
 
                   end do
                 end if
-              endif
-111           continue             
-            enddo !npart
+              endif                      
+111          continue !npart
 
             if(bfilled .eq. .FALSE. .AND. ibnodes(i,j,k) > 0)then
               nbfill = nbfill + 1
@@ -2595,7 +2599,6 @@
       allocate(tmpiU0(lx,0:lz+1))
       allocate(tmpiD0(lx,0:lz+1))
 
-
       call exchng5(f(:,:,:,1),tmpfR,f(:,:,:,lz),tmpfL,          &
                    f(:,:,1,:),tmpfU,f(:,:,ly,:),tmpfD)
 
@@ -2868,6 +2871,7 @@
 
 !     write(*,*)'istep,i,j,k,nghb,f(:,i,j,k)=',istep,i,j,k,nghb,f(:,i,j,k)
       end do
+
       deallocate(tmpfL)
       deallocate(tmpfR)      
       deallocate(tmpfU)

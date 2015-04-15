@@ -42,7 +42,7 @@
 !*********changes
       integer indy, indz, myp, mym, mypzp, mypzm, mymzp, mymzm
 
-      integer nbfill, maxbfill, nfnbeads
+      integer nbfill, maxbfill
 
       integer iseedp, msize, nps, iyp, kpeak
       integer nlink, maxlink !20*pi*r^2
@@ -97,7 +97,6 @@
 
       integer,allocatable,dimension(:):: xbfill, ybfill, zbfill
       integer,allocatable,dimension(:):: idbfill
-      integer,allocatable,dimension(:):: idfnbeads, xfnbeads, yfnbeads, zfnbeads
       integer,allocatable,dimension(:,:):: ibnodes0U, ibnodes0D, ibnodes0L, ibnodes0R
 
       real,allocatable,dimension(:,:,:,:):: f
