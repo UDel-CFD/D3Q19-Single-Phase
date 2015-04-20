@@ -17,7 +17,7 @@ OBJ = var_inc.o main.o para.o collision.o streaming.o initial.o partlib.o savelo
 main: ${OBJ}
 	${LINK} ${FFLAG} ${OBJ} ${LIBS} -o main
 #Delete all .o and other object files
-#	rm -rf ${OBJ} var_inc.mod
+	rm -rf ${OBJ} var_inc.mod
 #Note this forces a recompile everytime
 
 #Type make clean to clean all object and program files

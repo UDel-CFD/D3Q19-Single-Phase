@@ -198,10 +198,10 @@
       mym = indz*nprocY + mod(indy+nprocY-1,nprocY) !left
 
 
-      mypzp = mod(indz+1,nprocZ)*nprocY + mod(indy+1,nprocY) 
-      mypzm = mod(indz+nprocZ-1,nprocZ)*nprocY + mod(indy+1,nprocY)
-      mymzp = mod(indz+1,nprocZ)*nprocY + mod(indy+nprocY-1,nprocY)
-      mymzm = mod(indz+nprocZ-1,nprocZ)*nprocY + mod(indy+nprocY-1,nprocY)
+      mypzp = mod(indz+1,nprocZ)*nprocY + mod(indy+1,nprocY) !top-right corner
+      mypzm = mod(indz+nprocZ-1,nprocZ)*nprocY + mod(indy+1,nprocY) !bottom-right corner
+      mymzp = mod(indz+1,nprocZ)*nprocY + mod(indy+nprocY-1,nprocY) !top-left corner
+      mymzm = mod(indz+nprocZ-1,nprocZ)*nprocY + mod(indy+nprocY-1,nprocY) !bottom-left corner
 
 
       rhoepsl = 1.e-05
@@ -399,6 +399,7 @@
       allocate (ibnodes0D(lx,lz))
       allocate (ibnodes0L(lx,ly))
       allocate (ibnodes0R(lx,ly))
+      allocate (fillMPIrequest(0:nproc,8))
 
       isnodes = -1
 
