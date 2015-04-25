@@ -49,7 +49,7 @@
 
       istpload = 2000    !!!!THIS NEEDS TO BE CHANGED WHEN STARTING NEW RUNS
       force_mag = 1.0
-      nsteps = 50
+      nsteps = 2000
 
 !     nek = nx/3
       nek = int(nx7/2 - 1.5)
@@ -282,7 +282,7 @@
 ! max number of node that will require filling
 ! umax is determined from poiseuille flow in the y direction
         vmax = ((force_in_y*force_mag*nx**2)/(8*visc))
-        maxbfill = vmax*msize*(4*pi*rad**2)/2
+        maxbfill = vmax*msize*(pi*rad**2)
         if(myid == 0)write(*,*) maxbfill
 ! maximum number of boundary links per local domain
 ! Five = avg number of vertexes a plane crosses in D3Q19
