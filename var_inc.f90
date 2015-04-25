@@ -98,7 +98,7 @@
       integer,allocatable,dimension(:):: xbfill, ybfill, zbfill
       integer,allocatable,dimension(:):: idbfill
       logical,allocatable,dimension(:,:):: fillMPIrequest
-      integer,allocatable,dimension(:,:):: ibnodes0U, ibnodes0D, ibnodes0L, ibnodes0R
+      logical,allocatable,dimension(:):: localReqData
 
       real,allocatable,dimension(:,:,:,:):: f
 

@@ -958,7 +958,7 @@
       real alphay, alphaz
       real,dimension(2*msize):: idfbeads, xfbeads, yfbeads, zfbeads
 
-      fillMPIrequest(myid,:) = .FALSE. !Reset fill request data
+      localReqData = .FALSE. !Reset fill request data
       radp2 = rad + 2.d0
       nfbeads = 0
       nlink = 0
@@ -1084,19 +1084,18 @@
 
               !Determine if we need to request any data for filling
               if(k == 1)then
-                fillMPIrequest(myid,2) = .TRUE.
-                if(j == 1) fillMPIrequest(myid,7) = .TRUE.
-                if(j == ly) fillMPIrequest(myid,8) = .TRUE.
+                localReqData(2) = .TRUE.
+                if(j == 1) localReqData(7) = .TRUE.
+                if(j == ly) localReqData(8) = .TRUE.
               else if(k == lz)then
-                fillMPIrequest(myid,1) = .TRUE.
-                if(j == 1) fillMPIrequest(myid,5) = .TRUE.
-                if(j == ly) fillMPIrequest(myid,6) = .TRUE.
+                localReqData(1) = .TRUE.
+                if(j == 1) localReqData(5) = .TRUE.
+                if(j == ly) localReqData(6) = .TRUE.
               else
               endif
-
-              if(j == 1) fillMPIrequest(myid,3) = .TRUE.
-              if(j == ly) fillMPIrequest(myid,4) = .TRUE.
-            endif
+              if(j == 1) localReqData(3) = .TRUE.
+              if(j == ly) localReqData(4) = .TRUE.
+            endif !If needs filling
 
           enddo !z
         enddo !y
@@ -2588,8 +2587,7 @@
       real xp1, yp1, zp1, xp2, yp2, zp2
       real xx0, yy0, zz0, prod0, prod
       real rho9, u9, v9, w9
-!Temporary array for sending filling request data
-      logical, dimension(8):: tempReq
+!Temporary array for sending filling request data      
       logical, dimension(nproc*8):: temp
 
       real, dimension(0:npop-1):: f9, feq9 
@@ -2601,10 +2599,10 @@
 
       integer,allocatable,dimension(:,:):: tmpiL0, tmpiR0   
       integer,allocatable,dimension(:,:):: tmpiU0, tmpiD0
-! Gather all request data
-      tempReq = fillMPIrequest(myid,:)
-      call MPI_ALLGATHER(tempReq, 8, MPI_LOGICAL, temp, 8, MPI_LOGICAL, MPI_COMM_WORLD, ierr)
 
+! Gather all request data
+      call MPI_ALLGATHER(localReqData, 8, MPI_LOGICAL, temp, 8, MPI_LOGICAL, MPI_COMM_WORLD, ierr)
+! Gather dumps into 1d array, lets convert it to a 2d for better intuition
       do n=0, nproc-1
         fillMPIrequest(n,:) = temp(n*8+1:n*8+8)
       enddo
@@ -2632,6 +2630,7 @@
         allocate(tmpiD(lx,ly))
         allocate(tmpiD0(lx,ly))
       endif
+
 ! Send and recieve data for filling
       call exchng5(f(:,:,:,1),tmpfU,f(:,:,:,lz),tmpfD,          &
                    f(:,:,1,:),tmpfR,f(:,:,ly,:),tmpfL)
@@ -2644,7 +2643,6 @@
 
       do n=1, nbfill
         id = idbfill(n)
-!     write(*,*)'Start istep,i,j,k='
         xc = ypglbp(1,id)*1.d0      
         yc = ypglbp(2,id)*1.d0    
         zc = ypglbp(3,id)*1.d0   
@@ -2682,13 +2680,6 @@
         ddt1 = sqrt(ddt0**2 - cc/aa) 
         ddt = -ddt0 + ddt1  
     
-!     if(ddt < 0.d0 .or. ddt > 1.d0)then
-!        write(*,*) 'fault: ddt = ', ddt, ' @ ibnodes0(', i,            &
-!                   ', ', j, ', ', k, ')'
-!        write(*,*) 'ddtt = ', ddtt
-!        write(*,*) 'ddt0 = ', ddt0, ' ddt1 = ', ddt1, ' aa = ', aa, ' bb = ', bb, ' cc = ', cc  
-!        stop
-!     end if
         if(ddt < 0.d0) ddt = 0.d0
         if(ddt > 1.d0) ddt = 1.d0
 
@@ -2901,6 +2892,7 @@
         f(:,i,j,k) = f(:,i,j,k) + feq9
 
 !     write(*,*)'istep,i,j,k,nghb,f(:,i,j,k)=',istep,i,j,k,nghb,f(:,i,j,k)
+! Deallocate our temp arrays we used
       end do
       if(allocated(tmpfU))then
         deallocate(tmpfU)
@@ -2934,7 +2926,6 @@
 !                     5          6       7        8
 !      call exchng5(f(:,:,:,1),tmpfU,f(:,:,:,lz),tmpfD,          &
 !                   f(:,:,1,:),tmpfR,f(:,:,ly,:),tmpfL)
-
 
       integer ileny, ilenz, nreq
       logical utempinit, dtempinit
@@ -2972,7 +2963,7 @@
       endif
       
       if(nreq > 0)then
-      call MPI_WAITALL(nreq,req,status_array,ierr)
+        call MPI_WAITALL(nreq,req,status_array,ierr)
       endif
       nreq = 0
 
@@ -3004,7 +2995,7 @@
       endif
 
       if(nreq > 0)then
-      call MPI_WAITALL(nreq,req,status_array,ierr)
+        call MPI_WAITALL(nreq,req,status_array,ierr)
       endif
 
       end subroutine exchng5
@@ -3030,8 +3021,8 @@
       integer, dimension(lx,0:lz+1):: tmp5il, tmp6i, tmp7il, tmp8i
       integer status_array(MPI_STATUS_SIZE,4), req(4)
 
-      utempinit = .FALSE.
-      dtempinit = .FALSE.
+      utempinit = .FALSE. !boolean if bottom recieve array is initialized
+      dtempinit = .FALSE. !booleans if top recieve array is initialized
       ilenz = lx*ly
       ileny = lx*(lz+2)
       nreq = 0
@@ -3057,15 +3048,12 @@
         nreq = nreq + 1
         call MPI_ISEND(tmp1i,ilenz,MPI_INTEGER,mzm,0,MPI_COMM_WORLD,req(nreq),ierr)
       endif
-!      call MPI_IRECV(tmp2i,ilenz,MPI_INTEGER,mzp,0,MPI_COMM_WORLD,req(1),ierr)
-!      call MPI_IRECV(tmp4i,ilenz,MPI_INTEGER,mzm,1,MPI_COMM_WORLD,req(2),ierr)
-!      call MPI_ISEND(tmp1i,ilenz,MPI_INTEGER,mzm,0,MPI_COMM_WORLD,req(3),ierr)
-!      call MPI_ISEND(tmp3i,ilenz,MPI_INTEGER,mzp,1,MPI_COMM_WORLD,req(4),ierr)
 
       if(nreq > 0)then
         call MPI_WAITALL(nreq,req,status_array,ierr)
       endif
       nreq = 0
+
 !Receiving Left
       if(fillMPIrequest(myid,3))then
         nreq = nreq + 1
@@ -3096,24 +3084,6 @@
       if(nreq > 0)then
         call MPI_WAITALL(nreq,req,status_array,ierr)
       endif
-
-
-      !tmp5il(:,0) = tmp4i(:,1)
-      !tmp5il(:,1:lz) = tmp5i(:,:)
-      !tmp5il(:,lz+1) = tmp2i(:,1)
-
-      !tmp7il(:,0) = tmp4i(:,ly)
-      !tmp7il(:,1:lz) = tmp7i(:,:)
-      !tmp7il(:,lz+1) = tmp2i(:,ly)
-
-      !call MPI_IRECV(tmp6i,ileny,MPI_INTEGER,myp,0,MPI_COMM_WORLD,req(1),ierr)
-      !call MPI_IRECV(tmp8i,ileny,MPI_INTEGER,mym,1,MPI_COMM_WORLD,req(2),ierr)
-      !call MPI_ISEND(tmp5il,ileny,MPI_INTEGER,mym,0,MPI_COMM_WORLD,req(3),ierr)
-      !call MPI_ISEND(tmp7il,ileny,MPI_INTEGER,myp,1,MPI_COMM_WORLD,req(4),ierr)
-
-      !call MPI_WAITALL(4,req,status_array,ierr)
-
-!      call MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
       end subroutine exchng5i
 !===========================================================================

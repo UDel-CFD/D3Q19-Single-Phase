@@ -395,11 +395,8 @@
       allocate (ybfill(maxbfill))
       allocate (zbfill(maxbfill))
       allocate (idbfill(maxbfill))
-      allocate (ibnodes0U(lx,lz))
-      allocate (ibnodes0D(lx,lz))
-      allocate (ibnodes0L(lx,ly))
-      allocate (ibnodes0R(lx,ly))
       allocate (fillMPIrequest(0:nproc,8))
+      allocate (localReqData(8))
 
       isnodes = -1
 
