@@ -4,6 +4,7 @@
 
       logical dirExist
       integer i,j,k
+      real vmax
 
       pi = 4.0*atan(1.0) 
       pi2 = 2.0*pi
@@ -48,7 +49,7 @@
 
       istpload = 2000    !!!!THIS NEEDS TO BE CHANGED WHEN STARTING NEW RUNS
       force_mag = 1.0
-      nsteps = 50
+      nsteps = 2000
 
 !     nek = nx/3
       nek = int(nx7/2 - 1.5)
@@ -197,10 +198,10 @@
       mym = indz*nprocY + mod(indy+nprocY-1,nprocY) !left
 
 
-      mypzp = mod(indz+1,nprocZ)*nprocY + mod(indy+1,nprocY) 
-      mypzm = mod(indz+nprocZ-1,nprocZ)*nprocY + mod(indy+1,nprocY)
-      mymzp = mod(indz+1,nprocZ)*nprocY + mod(indy+nprocY-1,nprocY)
-      mymzm = mod(indz+nprocZ-1,nprocZ)*nprocY + mod(indy+nprocY-1,nprocY)
+      mypzp = mod(indz+1,nprocZ)*nprocY + mod(indy+1,nprocY) !top-right corner
+      mypzm = mod(indz+nprocZ-1,nprocZ)*nprocY + mod(indy+1,nprocY) !bottom-right corner
+      mymzp = mod(indz+1,nprocZ)*nprocY + mod(indy+nprocY-1,nprocY) !top-left corner
+      mymzm = mod(indz+nprocZ-1,nprocZ)*nprocY + mod(indy+nprocY-1,nprocY) !bottom-left corner
 
 
       rhoepsl = 1.e-05
@@ -223,26 +224,26 @@
       dirpartout = trim(dirgenr)//'partout/'
 
 !Benchmarking directories
-	    dirbench = trim(dirgenr)//'benchmark/'
-	    dirbenchmatlab = trim(dirbench)//'matlab/'
-	    dirbenchbead = trim(dirbench)//'bead/'
-	    dirbenchflow = trim(dirbench)//'flow/'
+      dirbench = trim(dirgenr)//'benchmark/'
+      dirbenchmatlab = trim(dirbench)//'matlab/'
+      dirbenchbead = trim(dirbench)//'bead/'
+      dirbenchflow = trim(dirbench)//'flow/'
 
       if(myid==0)then
-     		call makedir(dirdiag)
-     		call makedir(dirstat)
-     		call makedir(dirprobe)
-     		call makedir(dirinitflow)
-     		call makedir(dircntdflow)
-     		call makedir(dirflowout)
-     		call makedir(dirmoviedata)
-     		call makedir(dircntdpart)
-     		call makedir(dirpartout)
+        call makedir(dirdiag)
+        call makedir(dirstat)
+        call makedir(dirprobe)
+        call makedir(dirinitflow)
+        call makedir(dircntdflow)
+        call makedir(dirflowout)
+        call makedir(dirmoviedata)
+        call makedir(dircntdpart)
+        call makedir(dirpartout)
 
-     		call makedir(dirbench)
-     		call makedir(dirbenchbead)
-     		call makedir(dirbenchflow)
-     		call makedir(dirbenchmatlab)
+        call makedir(dirbench)
+        call makedir(dirbenchbead)
+        call makedir(dirbenchflow)
+        call makedir(dirbenchmatlab)
       endif
 
 ! particle-related parameters
@@ -278,9 +279,14 @@
 
         iseedp = 12345
         msize = int(10.0*real(npart)/real(nproc))
-!Five = number of vertexes a plane crosses in D3Q19
+! max number of node that will require filling
+! umax is determined from poiseuille flow in the y direction
+        vmax = ((force_in_y*force_mag*nx**2)/(8*visc))
+        maxbfill = vmax*msize*(pi*rad**2)
+        if(myid == 0)write(*,*) maxbfill
+! maximum number of boundary links per local domain
+! Five = avg number of vertexes a plane crosses in D3Q19
         maxlink = 5*msize*(4*pi*rad**2)
-!        msize = 5
  
         wwp = (/ww1, ww1, ww1, ww1, ww1, ww1, ww2, ww2, ww2,           &
                 ww2, ww2, ww2, ww2, ww2, ww2, ww2, ww2, ww2/) 
@@ -385,19 +391,28 @@
       allocate (isnodes(lx,ly,lz))
       allocate (isnodes0(lx,ly,lz))
 
+      allocate (xbfill(maxbfill))
+      allocate (ybfill(maxbfill))
+      allocate (zbfill(maxbfill))
+      allocate (idbfill(maxbfill))
+      allocate (fillMPIrequest(0:nproc,8))
+      allocate (localReqData(8))
+
+      isnodes = -1
+
       end if
 
 !bench marking
-	  allocate (collision_MRT_bnch(nsteps))
-	  allocate (streaming_bnch(nsteps))
-	  allocate (macrovar_bnch(nsteps))
+    allocate (collision_MRT_bnch(nsteps))
+    allocate (streaming_bnch(nsteps))
+    allocate (macrovar_bnch(nsteps))
 
-	  allocate (beads_collision_bnch(nsteps))
-	  allocate (beads_lubforce_bnch(nsteps))
-	  allocate (beads_move_bnch(nsteps))
-	  allocate (beads_redistribute_bnch(nsteps))
-	  allocate (beads_links_bnch(nsteps))
-	  allocate (beads_filling_bnch(nsteps))
+    allocate (beads_collision_bnch(nsteps))
+    allocate (beads_lubforce_bnch(nsteps))
+    allocate (beads_move_bnch(nsteps))
+    allocate (beads_redistribute_bnch(nsteps))
+    allocate (beads_links_bnch(nsteps))
+    allocate (beads_filling_bnch(nsteps))
 
       end subroutine allocarray
 !==================================================================
@@ -410,11 +425,8 @@
 
       inquire(directory = trim(dirPath), exist = dirExist)
       if(.NOT.dirExist)then
-	   Write(*,*) trim(dirPath)//' not found. Creating...'
+     Write(*,*) trim(dirPath)//' not found. Creating...'
        CALL system('mkdir -p '// trim(dirPath));
       endif
 
       end subroutine makedir
-
-
-

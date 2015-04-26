@@ -667,6 +667,9 @@
       read(14) dwdt, domgdt
       if(myid == 0) read(14) ypglb, wp, omgp
 
+      ibnodes = ibnodes0
+      isnodes = isnodes0
+
       close(14)
 
       call MPI_BARRIER(MPI_COMM_WORLD,ierr)     
