@@ -1226,16 +1226,6 @@
         jp1 = j + iy
         kp1 = k + iz
 
-! periodicity
-!        if(im1 < 1) im1 = im1 + nx 
-!        if(im1 > nx) im1 = im1 - nx 
-
-!        if(im2 < 1) im2 = im2 + nx  
-!        if(im2 > nx) im2 = im2 - nx  
-
-!        if(ip1 < 1) ip1 = ip1 + nx  
-!        if(ip1 > nx) ip1 = ip1 - nx  
-
         xx0 = xpnt + real(ix)*alpha - xc 
         yy0 = ypnt + real(iy)*alpha - yc 
         zz0 = zpnt + real(iz)*alpha - zc 
@@ -1319,11 +1309,6 @@
             f9 = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ip)*uwpro
           end if
 
-!          if(id==460 .and. ipop==8 .and. i==197 .and. j==1 .and. k==28 .and. istep==630)then
-!           write(*,*)'im1,jm1,km1,im2,jm2,km2,ff1,ff2,ff3,ibm1,ibm2,alpha,wwp(ipop),uwpro',  &
-!                      im1,jm1,km1,im2,jm2,km2,ff1,ff2,ff3,ibm1,ibm2,alpha,wwp(ipop),uwpro
-!          endif
-
         ELSE 
 
           ff2 = f(ipp,i,j,k)
@@ -1369,23 +1354,23 @@
 
        END IF
 
-          if(jp1 > ly) then
-          tmpfU(ipp,ip1,jp1,kp1) = f9
-          if9U(ipp,ip1,kp1) = 1
-          else if (jp1 < 1) then
-          tmpfD(ipp,ip1,jp1,kp1) = f9
-          if9D(ipp,ip1,kp1) = 1
+      if(jp1 > ly) then
+        tmpfU(ipp,ip1,jp1,kp1) = f9
+        if9U(ipp,ip1,kp1) = 1
+        else if (jp1 < 1) then
+        tmpfD(ipp,ip1,jp1,kp1) = f9
+        if9D(ipp,ip1,kp1) = 1
+        else
+          if(kp1 > lz) then
+          tmpfR(ipp,ip1,jp1,kp1) = f9
+          if9R(ipp,ip1,jp1) = 1
+          else if(kp1 < 1 ) then
+          tmpfL(ipp,ip1,jp1,kp1) = f9
+          if9L(ipp,ip1,jp1) = 1
           else
-            if(kp1 > lz) then
-            tmpfR(ipp,ip1,jp1,kp1) = f9
-            if9R(ipp,ip1,jp1) = 1
-            else if(kp1 < 1 ) then
-            tmpfL(ipp,ip1,jp1,kp1) = f9
-            if9L(ipp,ip1,jp1) = 1
-            else
-            f(ipp,ip1,jp1,kp1) = f9
-            end if
-          end if
+          f(ipp,ip1,jp1,kp1) = f9
+        end if
+      end if
 
 ! compute force and torque acting on particles
         dff = ff1 + f9
@@ -1437,18 +1422,6 @@
       call MPI_ALLREDUCE(torqp0,torqp,ilen,MPI_REAL8,MPI_SUM,           &
                          MPI_COMM_WORLD,ierr)      
 
-!      if(istep==630)write(*,*)'fHIp(:,292) = ',fHIp(:,292)
-
-!       do i = 1,3
-!        do j = 1,npart
-!         if(fHIp(i,j) .gt. 100)then
-!          if(myid==0)write(*,*)'istep, fHIp(i,j) = ',istep,fHIp(i,j),i,j 
-!         endif
-!        enddo
-!       enddo
-
-
-!210   format(2x,4i5)
       end subroutine beads_collision
 !===========================================================================
       subroutine exchng2(tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8)
@@ -1526,47 +1499,12 @@
       integer, dimension(lx,ly,2):: tmp1i, tmp2i, tmp3i, tmp4i
       integer, dimension(lx,2,lz):: tmp5i, tmp7i
       integer, dimension(lx,2,-1:lz+2):: tmp5il, tmp6i, tmp7il, tmp8i
-!      character (len = 100):: fnm2,fnm3,fnm4
-!      character (len = 100):: fnm22,fnm23,fnm24
 
       integer error,status_array(MPI_STATUS_SIZE,4), req(4)
       integer err1,err2,err3,err4,err5,err6,err7,err8,err9,err10,err11,err12
 
-!      fnm2 = '/ptmp/lwang/debug2D/ibnodes2.2D.dat'
-!      fnm3 = '/ptmp/lwang/debug2D/ibnodes3.2D.dat'
-!      fnm4 = '/ptmp/lwang/debug2D/ibnodes4.2D.dat'
-     
-!      fnm22 = '/ptmp/lwang/debug2D/ibnodes22.2D.dat'
-!      fnm23 = '/ptmp/lwang/debug2D/ibnodes23.2D.dat'
-!      fnm24 = '/ptmp/lwang/debug2D/ibnodes24.2D.dat'
-
-!      open(12, file = trim(fnm2), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(13, file = trim(fnm3), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(14, file = trim(fnm4), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-
-!      open(22, file = trim(fnm22), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(23, file = trim(fnm23), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(24, file = trim(fnm24), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-
       ilenz = lx*ly*2
       ileny = lx*(lz+4)*2
-
-!      call MPI_IRECV(tmp2i,ilenz,MPI_INTEGER,mzp,2,MPI_COMM_WORLD,req(1),err1)
-!      call MPI_ISEND(tmp1i,ilenz,MPI_INTEGER,mzm,2,MPI_COMM_WORLD,req(2),err1)
-!      call MPI_WAITALL(2,req,status_array,err2)
-!      call MPI_IRECV(tmp4i,ilenz,MPI_INTEGER,mzm,3,MPI_COMM_WORLD,req(1),err4)
-!      call MPI_ISEND(tmp3i,ilenz,MPI_INTEGER,mzp,3,MPI_COMM_WORLD,req(2),err4)
-!      call MPI_WAITALL(2,req,status_array,err5)
-
-!Graeme's idea for blocking recv
-!     tmp1i            tmp2i tmp3i                tmp4i
-!     ibnodes(:,:,1:2) tmpiR ibnodes(:,:,lz-1:lz) tmpiL
 
       if(myid==0)write(*,*)'I am at second MPI_ISEND (1)'
       call MPI_ISEND(tmp3i,ilenz,MPI_INTEGER,mzp,3,MPI_COMM_WORLD,req(1),err2)
@@ -1609,40 +1547,6 @@
       tmp7il(:,2,lz+1) = tmp2i(:,ly,1)
       tmp7il(:,2,lz+2) = tmp2i(:,ly,2)
 
-!      do ii = 1,nx
-!      do jj = 1,2
-!      do kk = 25,28 
-!       if(istep==630 .and. myid==35 .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (3)'
-!       if(istep==631 .and. myid==35 .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (3)'
-!       if(istep==630 .and. myid==35)write(12,211)tmp7i(ii,jj,kk),ii,jj,kk
-!       if(istep==631 .and. myid==35)write(22,211)tmp7i(ii,jj,kk),ii,jj,kk
-!      enddo
-!      enddo
-!      enddo
-
-!      do ii = 1,nx
-!      do jj = 1,2
-!      do kk = 25,28 
-!       if(istep==630 .and. myid==35 .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (4)'
-!       if(istep==631 .and. myid==35 .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (4)'
-!       if(istep==630 .and. myid==35)write(13,211)tmp7il(ii,jj,kk),ii,jj,kk
-!       if(istep==631 .and. myid==35)write(23,211)tmp7il(ii,jj,kk),ii,jj,kk
-!      enddo
-!      enddo
-!      enddo
-
-!      close(12)
-!      close(13)
-!      close(23)
-!      close(24)
-
-!      call MPI_IRECV(tmp6i,ileny,MPI_INTEGER,myp,4,MPI_COMM_WORLD,req(1),err7)
-!      call MPI_ISEND(tmp5il,ileny,MPI_INTEGER,mym,4,MPI_COMM_WORLD,req(2),err7)
-!      call MPI_WAITALL(2,req,status_array,err8)
-!      call MPI_IRECV(tmp8i,ileny,MPI_INTEGER,mym,5,MPI_COMM_WORLD,req(1),err10)
-!      call MPI_ISEND(tmp7il,ileny,MPI_INTEGER,myp,5,MPI_COMM_WORLD,req(2),err10)
-!      call MPI_WAITALL(2,req,status_array,err11)
-
       call MPI_BARRIER(MPI_COMM_WORLD,err6)
 
       if(myid==0)write(*,*)'I am in exchng2i(2),ileny,size(tmp5il)',  &
@@ -1659,20 +1563,6 @@
       call MPI_BARRIER(MPI_COMM_WORLD,err12)
 
       if(myid==0)write(*,*)'I am in exchng2i (3)'
-
-!      do ii = 1,nx
-!      do jj = 1,2
-!      do kk = 25,28 
-!       if(istep==630 .and. myid==36  .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (5)'
-!       if(istep==631 .and. myid==36  .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (5)'
-!       if(istep==630 .and. myid==36)write(14,211)tmp8i(ii,jj,kk)
-!       if(istep==631 .and. myid==36)write(24,211)tmp8i(ii,jj,kk)
-!      enddo
-!      enddo
-!      enddo
-
-!      close(14)
-!      close(24)
 
 211   format(2x,4i5)
       end subroutine exchng2i
@@ -1698,46 +1588,8 @@
 !     integer reqSendL,reqSendR,reqSendU,reqSendD,reqRecvL,reqRecvR,reqRecvU,reqRecvD
       integer status_array(MPI_STATUS_SIZE,4),req(4)
 
-!      character (len = 100):: fnm2,fnm3,fnm4
-!      character (len = 100):: fnm22,fnm23,fnm24
-
-!      fnm2 = '/ptmp/lwang/debug2D/ibnodes2.2D.dat'
-!      fnm3 = '/ptmp/lwang/debug2D/ibnodes3.2D.dat'
-!      fnm4 = '/ptmp/lwang/debug2D/ibnodes4.2D.dat'
-
-!      fnm22 = '/ptmp/lwang/debug2D/ibnodes22.2D.dat'
-!      fnm23 = '/ptmp/lwang/debug2D/ibnodes23.2D.dat'
-!      fnm24 = '/ptmp/lwang/debug2D/ibnodes24.2D.dat'
-
-!     open(12, file = trim(fnm2), status = 'unknown',                 &
-!                form = 'formatted', position = 'append')
-!     open(13, file = trim(fnm3), status = 'unknown',                 &
-!                form = 'formatted', position = 'append')
-!     open(14, file = trim(fnm4), status = 'unknown',                 &
-!                form = 'formatted', position = 'append')
-
-!      open(22, file = trim(fnm22), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(23, file = trim(fnm23), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(24, file = trim(fnm24), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-
       ilenz = lx*ly*2
       ileny = lx*(lz+4)*2
-
-!       do ii = 1,nx
-!       do jj = 1,ly 
-!       do kk = lz+1,lz+2 
-!       if(istep==630 .and. myid==38 .and. ii==1 .and. jj==224 .and. kk==1)write(*,*)'Writing out here (3)'
-!       if(istep==631 .and. myid==35 .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (3)'
-!       if(istep==630 .and. myid==52)write(12,211)tmpRecvR(ii,jj,kk),ii,jj,kk
-!       if(istep==631 .and. myid==35)write(22,211)tmpSendU(ii,jj,kk),ii,jj,kk
-!       enddo
-!       enddo
-!       enddo
-
-!      close(12)
 
       call MPI_IRECV(tmpRecvR,ilenz,MPI_INTEGER,mzp,0,MPI_COMM_WORLD,req(1),ierr)
       call MPI_IRECV(tmpRecvL,ilenz,MPI_INTEGER,mzm,1,MPI_COMM_WORLD,req(2),ierr)
@@ -1745,70 +1597,13 @@
       call MPI_ISEND(tmpSendR,ilenz,MPI_INTEGER,mzp,1,MPI_COMM_WORLD,req(4),ierr)
       call MPI_WAITALL(4,req,status_array,ierr)
 
-!       do ii = 1,nx
-!       do jj = 1,ly
-!       do kk = lz+1,lz+2 
-!       if(istep==630 .and. myid==35 .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (4)'
-!       if(istep==631 .and. myid==35 .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (4)'
-!       if(istep==630 .and. myid==52)write(13,211)tmpRecvR(ii,jj,kk),ii,jj,kk
-!       if(istep==631 .and. myid==35)write(23,211)tmpSendUl(ii,jj,kk),ii,jj,kk
-!       enddo
-!       enddo
-!       enddo
+      tmpSendUl(:,1:2,-1:0) = tmpRecvL(:,ly-1:ly,1:2)
+      tmpSendUl(:,1:2,lz+1:lz+2) = tmpRecvR(:,ly-1:ly,1:2)
+      tmpSendUl(:,:,1:lz) = tmpSendU(:,:,:)
 
-!      close(13)
-
-!     do j=1,2
-!      do i = 1,2
-!       tmpSendUl(:,i,j-2) = tmpRecvL(:,ly-2+i,j)
-!      enddo
-!     enddo
-
-!     do j=1,2
-!      do i=1,2
-!       tmpSendUl(:,i,lz+j) = tmpRecvR(:,ly-2+i,j)
-!      enddo
-!     enddo
-
-        tmpSendUl(:,1:2,-1:0) = tmpRecvL(:,ly-1:ly,1:2)
-        tmpSendUl(:,1:2,lz+1:lz+2) = tmpRecvR(:,ly-1:ly,1:2)
-        tmpSendUl(:,:,1:lz) = tmpSendU(:,:,:)
-
-!     do j=1,2
-!      do i=1,2
-!       tmpSendDl(:,i,j-2) = tmpRecvL(:,i,j)
-!      enddo
-!     enddo
-
-!     do j=1,2
-!      do i=1,2
-!       tmpSendDl(:,i,lz+j) = tmpRecvR(:,i,j)
-!      enddo
-!     enddo
-
-        tmpSendDl(:,1:2,-1:0) = tmpRecvL(:,1:2,1:2)
-        tmpSendDl(:,1:2,lz+1:lz+2) = tmpRecvR(:,1:2,1:2)
-        tmpSendDl(:,:,1:lz) = tmpSendD(:,:,:)
-
-
-!      if(istep.eq.630)then
-!      if(myid.eq.1) write(33,*)' before U',((j,k,tmpSendDl(5,j,k),j=1,2),k=1,lz)
-!      if(myid.eq.7) write(34,*)' before D',((j,k,tmpSendUl(5,j,k),j=1,2),k=1,lz)
-
-!      if(myid.eq.57) write(35,*)' before UL',((j,k,tmpSendDl(5,j,k),j=1,2),k=lz-1,lz)
-!      if(myid.eq.63) write(36,*)' before DL',((j,k,tmpSendUl(5,j,k),j=1,2),k=lz-1,lz)
-!      if(myid.eq.9) write(37,*)' before UR',((j,k,tmpSendDl(5,j,k),j=1,2),k=1,2)
-!      if(myid.eq.15) write(38,*)' before DR',((j,k,tmpSendUl(5,j,k),j=1,2),k=1,2)
-
-!      if(myid.eq.56) close(31)
-!      if(myid.eq.8) close(32)
-!      if(myid.eq.1) close(33)
-!      if(myid.eq.7) close(34)
-!      if(myid.eq.57) close(35)
-!      if(myid.eq.63) close(36)
-!      if(myid.eq.9) close(37)
-!      if(myid.eq.15) close(38)
-!      end if
+      tmpSendDl(:,1:2,-1:0) = tmpRecvL(:,1:2,1:2)
+      tmpSendDl(:,1:2,lz+1:lz+2) = tmpRecvR(:,1:2,1:2)
+      tmpSendDl(:,:,1:lz) = tmpSendD(:,:,:)
 
       call MPI_IRECV(tmpRecvUl,ileny,MPI_INTEGER,myp,0,MPI_COMM_WORLD,req(1),ierr)
       call MPI_IRECV(tmpRecvDl,ileny,MPI_INTEGER,mym,1,MPI_COMM_WORLD,req(2),ierr)
@@ -1816,21 +1611,6 @@
       call MPI_ISEND(tmpSendUl,ileny,MPI_INTEGER,myp,1,MPI_COMM_WORLD,req(4),ierr)
       call MPI_WAITALL(4,req,status_array,ierr)
 
-!     do ii = 1,nx
-!     do jj = 1,2
-!     do kk = 25,28
-!      if(istep==630 .and. myid==36  .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (5)'
-!       if(istep==631 .and. myid==36  .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (5)'
-!      if(istep==630 .and. myid==36)write(14,211)tmpRecvDl(ii,jj,kk)
-!       if(istep==631 .and. myid==36)write(24,211)tmpRecvDl(ii,jj,kk)
-!     enddo
-!     enddo
-!     enddo
-
-!     close(14)
-!      close(24)
-
-!211   format(2x,4i5)
       end subroutine exchng2iNew      
 !===========================================================================      
       subroutine exchng3(tmp1,tmp3,tmp5,tmp7,&
