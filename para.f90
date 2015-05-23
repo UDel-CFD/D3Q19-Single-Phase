@@ -49,7 +49,7 @@
 
       istpload = 2000    !!!!THIS NEEDS TO BE CHANGED WHEN STARTING NEW RUNS
       force_mag = 1.0
-      nsteps = 2000
+      nsteps = 50
 
 !     nek = nx/3
       nek = int(nx7/2 - 1.5)
@@ -403,16 +403,22 @@
       end if
 
 !bench marking
-    allocate (collision_MRT_bnch(nsteps))
-    allocate (streaming_bnch(nsteps))
-    allocate (macrovar_bnch(nsteps))
+      allocate (collision_MRT_bnch(nsteps))
+      allocate (streaming_bnch(nsteps))
+      allocate (macrovar_bnch(nsteps))
 
-    allocate (beads_collision_bnch(nsteps))
-    allocate (beads_lubforce_bnch(nsteps))
-    allocate (beads_move_bnch(nsteps))
-    allocate (beads_redistribute_bnch(nsteps))
-    allocate (beads_links_bnch(nsteps))
-    allocate (beads_filling_bnch(nsteps))
+      allocate (beads_collision_bnch(nsteps))
+      allocate (beads_lubforce_bnch(nsteps))
+      allocate (beads_move_bnch(nsteps))
+      allocate (beads_redistribute_bnch(nsteps))
+      allocate (beads_links_bnch(nsteps))
+      allocate (beads_filling_bnch(nsteps))
+
+      allocate (beads_collision_ex2(nsteps))
+      allocate (beads_collision_ex2i(nsteps))
+      allocate (beads_collision_loop(nsteps))
+      allocate (beads_collision_ex3(nsteps))
+      allocate (beads_collision_allre(nsteps))
 
       end subroutine allocarray
 !==================================================================

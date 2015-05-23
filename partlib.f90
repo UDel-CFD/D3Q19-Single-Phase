@@ -1106,7 +1106,7 @@
 ! the goal is to save some run time memory by avoiding employing large
 ! arrays, such as f9(0:npop-1,lx,ly,-1:lz+2), and ibnodes9(lx,ly,-1:lz+2) 
 
-      subroutine beads_collision
+      subroutine beads_collision(step)
       use mpi 
       use var_inc
       implicit none
@@ -1118,9 +1118,11 @@
       real uwx, uwy, uwz, uwpro, ff1, ff2, ff3 
       real w1, w2, w3, omg1, omg2, omg3 
       real c1, c2, c3, dff, dxmom, dymom, dzmom 
-      real xpnt, ypnt, zpnt, f9   
+      real xpnt, ypnt, zpnt, f9
+      real mpibench
+      integer step  
 
-       character (len = 100):: fnm2
+      character (len = 100):: fnm2
 !      character (len = 100):: fnm_a,fnm_a1,fnm_a2,fnm_a3,fnm_a4,fnm_a5,fnm_a6,fnm_a7,fnm_a8
 !      character (len = 100):: fnm_b,fnm_b1,fnm_b2,fnm_b3,fnm_b4,fnm_b5,fnm_b6,fnm_b7,fnm_b8
 !      character (len = 100):: fnm20,fnm21,fnm25,fnm26,fnm27,fnm28
@@ -1144,15 +1146,17 @@
 
       real, dimension(3,npart):: fHIp0, torqp0 
 
+      mpibench = MPI_WTIME()
       allocate(tmpfL(0:npop-1,lx,ly,-1:0))
       allocate(tmpfR(0:npop-1,lx,ly,lz+1:lz+2))
       allocate(tmpfU(0:npop-1,lx,ly+1:ly+2,-1:lz+2))
       allocate(tmpfD(0:npop-1,lx,-1:0,-1:lz+2))
 
-
       call exchng2(f(:,:,:,1:2),tmpfR,f(:,:,:,lz-1:lz),tmpfL,    &
                    f(:,:,1:2,:),tmpfU,f(:,:,ly-1:ly,:),tmpfD)
+      beads_collision_ex2(step) = MPI_WTIME() - mpibench
 
+      mpibench = MPI_WTIME();
       allocate (tmpiL(lx,ly,-1:0))
       allocate (tmpiR(lx,ly,lz+1:lz+2))
       allocate (tmpiU(lx,ly+1:ly+2,-1:lz+2))
@@ -1160,7 +1164,9 @@
 
       call exchng2iNew(ibnodes(:,:,1:2),tmpiR,ibnodes(:,:,lz-1:lz),tmpiL, &
                        ibnodes(:,1:2,:),tmpiU,ibnodes(:,ly-1:ly,:),tmpiD)
+      beads_collision_ex2i(step) = MPI_WTIME() - mpibench
 
+      mpibench = MPI_WTIME();
       fHIp0 = 0.0
       torqp0 = 0.0
 
@@ -1394,10 +1400,11 @@
       deallocate(tmpiU)
       deallocate(tmpiD)
 
+      beads_collision_loop(step) = MPI_WTIME() - mpibench      
 ! We combine the two communications and the order is in reverse inside
 ! Also the re-assignment of f is done inside the suroutine
 ! So exchng3i is not needed any more.
-
+      mpibench = MPI_WTIME()
       call exchng3(tmpfL(:,:,:,0),tmpfR(:,:,:,lz+1), &
               tmpfD(:,:,0,0:lz+1),tmpfU(:,:,ly+1,0:lz+1), &
              if9L,if9R,if9D,if9U)
@@ -1411,17 +1418,18 @@
       deallocate(if9D)
       deallocate(if9L)   
       deallocate(if9R) 
-    
+      beads_collision_ex3(step) = MPI_WTIME() - mpibench   
 ! collect info. for fHIp, and torqp
       ilen = 3*npart
 
+      mpibench = MPI_WTIME()
       call MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
       call MPI_ALLREDUCE(fHIp0,fHIp,ilen,MPI_REAL8,MPI_SUM,             &
                          MPI_COMM_WORLD,ierr)      
       call MPI_ALLREDUCE(torqp0,torqp,ilen,MPI_REAL8,MPI_SUM,           &
                          MPI_COMM_WORLD,ierr)      
-
+      beads_collision_allre(step) = MPI_WTIME() - mpibench
       end subroutine beads_collision
 !===========================================================================
       subroutine exchng2(tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8)

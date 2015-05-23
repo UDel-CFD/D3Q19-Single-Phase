@@ -202,7 +202,7 @@
 
         if(ipart .and. istep >= irelease)then
          bnchstart = MPI_WTIME()
-         call beads_collision
+         call beads_collision(istep-istpload)
          beads_collision_bnch(istep-istpload) = MPI_WTIME() - bnchstart
         endif
 
@@ -295,6 +295,7 @@
       call benchflow
       call benchbead
       call benchmatlab
+      call benchbeads_collision
 
       call benchtotal
 
