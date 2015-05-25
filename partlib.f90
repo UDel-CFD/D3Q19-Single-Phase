@@ -1120,23 +1120,20 @@
       real c1, c2, c3, dff, dxmom, dymom, dzmom 
       real xpnt, ypnt, zpnt, f9
       real mpibench
-      integer step  
+      integer step
 
       character (len = 100):: fnm2
-!      character (len = 100):: fnm_a,fnm_a1,fnm_a2,fnm_a3,fnm_a4,fnm_a5,fnm_a6,fnm_a7,fnm_a8
-!      character (len = 100):: fnm_b,fnm_b1,fnm_b2,fnm_b3,fnm_b4,fnm_b5,fnm_b6,fnm_b7,fnm_b8
-!      character (len = 100):: fnm20,fnm21,fnm25,fnm26,fnm27,fnm28
 
       real,dimension(lx,ly,lz):: f9print,alphaprint,ff1print
 
-      real,allocatable,dimension(:,:,:,:):: tmpfL, tmpfR 
-      real,allocatable,dimension(:,:,:,:):: tmpfU, tmpfD
+      real,allocatable,dimension(:,:,:,:):: tmpfZp, tmpfZm 
+      real,allocatable,dimension(:,:,:,:):: tmpfYp, tmpfYm
 
       real,allocatable,dimension(:,:,:):: tmp3, tmp4    
       real,allocatable,dimension(:,:,:):: tmp5, tmp6
 
-      integer,allocatable,dimension(:,:,:):: tmpiL, tmpiR
-      integer,allocatable,dimension(:,:,:):: tmpiU, tmpiD
+      integer,allocatable,dimension(:,:,:):: tmpiZp, tmpiZm
+      integer,allocatable,dimension(:,:,:):: tmpiYp, tmpiYm
 
       integer,allocatable,dimension(:,:,:):: tmp3i, tmp4i
       integer,allocatable,dimension(:,:,:):: tmp5i, tmp6i
@@ -1147,23 +1144,25 @@
       real, dimension(3,npart):: fHIp0, torqp0 
 
       mpibench = MPI_WTIME()
-      allocate(tmpfL(0:npop-1,lx,ly,-1:0))
-      allocate(tmpfR(0:npop-1,lx,ly,lz+1:lz+2))
-      allocate(tmpfU(0:npop-1,lx,ly+1:ly+2,-1:lz+2))
-      allocate(tmpfD(0:npop-1,lx,-1:0,-1:lz+2))
+      allocate(tmpfZp(0:npop-1,lx,ly,lz+1:lz+2))
+      allocate(tmpfZm(0:npop-1,lx,ly,-1:0))
+      allocate(tmpfYp(0:npop-1,lx,ly+1:ly+2,-1:lz+2))
+      allocate(tmpfYm(0:npop-1,lx,-1:0,-1:lz+2))
 
-      call exchng2(f(:,:,:,1:2),tmpfR,f(:,:,:,lz-1:lz),tmpfL,    &
-                   f(:,:,1:2,:),tmpfU,f(:,:,ly-1:ly,:),tmpfD)
+      call exchng2(f(:,:,:,lz-1:lz),tmpfZp,f(:,:,:,1:2),tmpfZm,    &
+                   f(:,:,ly-1:ly,:),tmpfYp,f(:,:,1:2,:),tmpfYm)
+
       beads_collision_ex2(step) = MPI_WTIME() - mpibench
 
       mpibench = MPI_WTIME();
-      allocate (tmpiL(lx,ly,-1:0))
-      allocate (tmpiR(lx,ly,lz+1:lz+2))
-      allocate (tmpiU(lx,ly+1:ly+2,-1:lz+2))
-      allocate (tmpiD(lx,-1:0,-1:lz+2))
+      allocate (tmpiZp(lx,ly,lz+1:lz+2))
+      allocate (tmpiZm(lx,ly,-1:0))
+      allocate (tmpiYp(lx,ly+1:ly+2,-1:lz+2))
+      allocate (tmpiYm(lx,-1:0,-1:lz+2))
 
-      call exchng2iNew(ibnodes(:,:,1:2),tmpiR,ibnodes(:,:,lz-1:lz),tmpiL, &
-                       ibnodes(:,1:2,:),tmpiU,ibnodes(:,ly-1:ly,:),tmpiD)
+      call exchng2i(ibnodes(:,:,lz-1:lz),tmpiZp,ibnodes(:,:,1:2),tmpiZm, &
+                    ibnodes(:,ly-1:ly,:),tmpiYp,ibnodes(:,1:2,:),tmpiYm)
+
       beads_collision_ex2i(step) = MPI_WTIME() - mpibench
 
       mpibench = MPI_WTIME();
@@ -1255,18 +1254,18 @@
           ibm1 = 2
           else
           if(jm1 > ly) then
-          ff2 = tmpfU(ip,im1,jm1,km1)
-          ibm1 = tmpiU(im1,jm1,km1)
+          ff2 = tmpfYp(ip,im1,jm1,km1)
+          ibm1 = tmpiYp(im1,jm1,km1)
           else if (jm1 < 1) then
-          ff2 = tmpfD(ip,im1,jm1,km1)
-          ibm1 = tmpiD(im1,jm1,km1)
+          ff2 = tmpfYm(ip,im1,jm1,km1)
+          ibm1 = tmpiYm(im1,jm1,km1)
           else
             if(km1 > lz) then
-            ff2 = tmpfR(ip,im1,jm1,km1)
-            ibm1 = tmpiR(im1,jm1,km1)
+            ff2 = tmpfZp(ip,im1,jm1,km1)
+            ibm1 = tmpiZp(im1,jm1,km1)
             else if(km1 < 1 ) then
-            ff2 = tmpfL(ip,im1,jm1,km1)
-            ibm1 = tmpiL(im1,jm1,km1)
+            ff2 = tmpfZm(ip,im1,jm1,km1)
+            ibm1 = tmpiZm(im1,jm1,km1)
             else
               ff2 = f(ip,im1,jm1,km1)
               ibm1 = ibnodes(im1,jm1,km1)
@@ -1280,18 +1279,18 @@
           ibm2 = 2
           else
           if(jm2 > ly) then
-          ff3 = tmpfU(ip,im2,jm2,km2)
-          ibm2 = tmpiU(im2,jm2,km2)
+          ff3 = tmpfYp(ip,im2,jm2,km2)
+          ibm2 = tmpiYp(im2,jm2,km2)
           else if (jm2 < 1) then
-          ff3 = tmpfD(ip,im2,jm2,km2)
-          ibm2 = tmpiD(im2,jm2,km2)
+          ff3 = tmpfYm(ip,im2,jm2,km2)
+          ibm2 = tmpiYm(im2,jm2,km2)
           else
             if(km2 > lz) then
-            ff3 = tmpfR(ip,im2,jm2,km2)
-            ibm2 = tmpiR(im2,jm2,km2)
+            ff3 = tmpfZp(ip,im2,jm2,km2)
+            ibm2 = tmpiZp(im2,jm2,km2)
             else if(km2 < 1 ) then
-            ff3 = tmpfL(ip,im2,jm2,km2)
-            ibm2 = tmpiL(im2,jm2,km2)
+            ff3 = tmpfZm(ip,im2,jm2,km2)
+            ibm2 = tmpiZm(im2,jm2,km2)
             else
             ff3 = f(ip,im2,jm2,km2)
             ibm2 = ibnodes(im2,jm2,km2)
@@ -1325,18 +1324,18 @@
           ibm1 = 2
           else
           if(jm1 > ly) then
-          ff3 = tmpfU(ipp,im1,jm1,km1)
-          ibm1 = tmpiU(im1,jm1,km1)
+          ff3 = tmpfYp(ipp,im1,jm1,km1)
+          ibm1 = tmpiYp(im1,jm1,km1)
           else if (jm1 < 1) then
-          ff3 = tmpfD(ipp,im1,jm1,km1)
-          ibm1 = tmpiD(im1,jm1,km1)
+          ff3 = tmpfYm(ipp,im1,jm1,km1)
+          ibm1 = tmpiYm(im1,jm1,km1)
           else
             if(km1 > lz) then
-            ff3 = tmpfR(ipp,im1,jm1,km1)
-            ibm1 = tmpiR(im1,jm1,km1)
+            ff3 = tmpfZp(ipp,im1,jm1,km1)
+            ibm1 = tmpiZp(im1,jm1,km1)
             else if(km1 < 1 ) then
-            ff3 = tmpfL(ipp,im1,jm1,km1)
-            ibm1 = tmpiL(im1,jm1,km1)
+            ff3 = tmpfZm(ipp,im1,jm1,km1)
+            ibm1 = tmpiZm(im1,jm1,km1)
             else
             ff3 = f(ipp,im1,jm1,km1)
             ibm1 = ibnodes(im1,jm1,km1)
@@ -1361,17 +1360,17 @@
        END IF
 
       if(jp1 > ly) then
-        tmpfU(ipp,ip1,jp1,kp1) = f9
+        tmpfYp(ipp,ip1,jp1,kp1) = f9
         if9U(ipp,ip1,kp1) = 1
         else if (jp1 < 1) then
-        tmpfD(ipp,ip1,jp1,kp1) = f9
+        tmpfYm(ipp,ip1,jp1,kp1) = f9
         if9D(ipp,ip1,kp1) = 1
         else
           if(kp1 > lz) then
-          tmpfR(ipp,ip1,jp1,kp1) = f9
+          tmpfZp(ipp,ip1,jp1,kp1) = f9
           if9R(ipp,ip1,jp1) = 1
           else if(kp1 < 1 ) then
-          tmpfL(ipp,ip1,jp1,kp1) = f9
+          tmpfZm(ipp,ip1,jp1,kp1) = f9
           if9L(ipp,ip1,jp1) = 1
           else
           f(ipp,ip1,jp1,kp1) = f9
@@ -1395,24 +1394,24 @@
       end do 
 
 
-      deallocate(tmpiL)
-      deallocate(tmpiR)
-      deallocate(tmpiU)
-      deallocate(tmpiD)
+      deallocate(tmpiZp)
+      deallocate(tmpiZm)
+      deallocate(tmpiYp)
+      deallocate(tmpiYm)
 
       beads_collision_loop(step) = MPI_WTIME() - mpibench      
 ! We combine the two communications and the order is in reverse inside
 ! Also the re-assignment of f is done inside the suroutine
 ! So exchng3i is not needed any more.
       mpibench = MPI_WTIME()
-      call exchng3(tmpfL(:,:,:,0),tmpfR(:,:,:,lz+1), &
-              tmpfD(:,:,0,0:lz+1),tmpfU(:,:,ly+1,0:lz+1), &
+      call exchng3(tmpfZm(:,:,:,0),tmpfZp(:,:,:,lz+1), &
+              tmpfYm(:,:,0,0:lz+1),tmpfYp(:,:,ly+1,0:lz+1), &
              if9L,if9R,if9D,if9U)
 
-      deallocate(tmpfL)   
-      deallocate(tmpfR)  
-      deallocate(tmpfU)
-      deallocate(tmpfD)
+      deallocate(tmpfZp)  
+      deallocate(tmpfZm)   
+      deallocate(tmpfYp)
+      deallocate(tmpfYm)
 
       deallocate(if9U)
       deallocate(if9D)
@@ -1437,200 +1436,103 @@
       use var_inc
       implicit none
 
-!                   tmp1         tmp2  tmp3             tmp4  tmp5         tmp6  tmp7             tmp8
-!      call exchng2(f(:,:,:,1:2),tmpfR,f(:,:,:,lz-1:lz),tmpfL,f(:,:,1:2,:),tmpfU,f(:,:,ly-1:ly,:),tmpfD)
+!                   tmp1            tmp2   tmp3         tmp4
+!                   tmp5            tmp6   tmp7         tmp8 
+!     call exchng2(f(:,:,:,lz-1:lz),tmpfZp,f(:,:,:,1:2),tmpfZm,    &
+!                  f(:,:,ly-1:ly,:),tmpfYp,f(:,:,1:2,:),tmpfYm)
 
       integer ileny, ilenz
       real, dimension(0:npop-1,lx,ly,2):: tmp1, tmp2, tmp3, tmp4
       real, dimension(0:npop-1,lx,2,lz):: tmp5, tmp7
       real, dimension(0:npop-1,lx,2,-1:lz+2):: tmp5l, tmp6, tmp7l, tmp8
-
       integer error,status_array(MPI_STATUS_SIZE,4), req(4)
 
       ilenz = npop*lx*ly*2
       ileny = npop*lx*(lz+4)*2
-
+! Send/ Receive data from Z direction neighbors
       call MPI_IRECV(tmp2,ilenz,MPI_REAL8,mzp,0,MPI_COMM_WORLD,req(1),ierr)
       call MPI_IRECV(tmp4,ilenz,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(2),ierr)
 
-      call MPI_ISEND(tmp1,ilenz,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmp3,ilenz,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(4),ierr)
+      call MPI_ISEND(tmp1,ilenz,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(3),ierr)
+      call MPI_ISEND(tmp3,ilenz,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(4),ierr)
 
       call MPI_WAITALL(4,req,status_array,ierr)
 
-      tmp5l(:,:,1,-1) = tmp4(:,:,1,1)
-      tmp5l(:,:,1,0) = tmp4(:,:,1,2)
-      tmp5l(:,:,2,-1) = tmp4(:,:,2,1)
-      tmp5l(:,:,2,0) = tmp4(:,:,2,2)
-
+!     Prepare array for y+ neighbor
+      tmp5l(:,:,1:2,-1:0) = tmp4(:,:,ly-1:ly,1:2)
+      tmp5l(:,:,1:2,lz+1:lz+2) = tmp2(:,:,ly-1:ly,1:2)
       tmp5l(:,:,:,1:lz) = tmp5(:,:,:,:)
-
-      tmp5l(:,:,1,lz+1) = tmp2(:,:,1,1)
-      tmp5l(:,:,1,lz+2) = tmp2(:,:,1,2)
-      tmp5l(:,:,2,lz+1) = tmp2(:,:,2,1)
-      tmp5l(:,:,2,lz+2) = tmp2(:,:,2,2)
-
-      tmp7l(:,:,1,-1) = tmp4(:,:,ly-1,1)
-      tmp7l(:,:,1,0) = tmp4(:,:,ly-1,2)
-      tmp7l(:,:,2,-1) = tmp4(:,:,ly,1)
-      tmp7l(:,:,2,0) = tmp4(:,:,ly,2)
-
+!     Prepare array for y- neighbor
+      tmp7l(:,:,1:2,-1:0) = tmp4(:,:,1:2,1:2)
+      tmp7l(:,:,1:2,lz+1:lz+2) = tmp2(:,:,1:2,1:2)
       tmp7l(:,:,:,1:lz) = tmp7(:,:,:,:)
-
-      tmp7l(:,:,1,lz+1) = tmp2(:,:,ly-1,1)
-      tmp7l(:,:,1,lz+2) = tmp2(:,:,ly-1,2)
-      tmp7l(:,:,2,lz+1) = tmp2(:,:,ly,1)
-      tmp7l(:,:,2,lz+2) = tmp2(:,:,ly,2)
-
+! Send/ Receive data from Y direction neighbors
       call MPI_IRECV(tmp6,ileny,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(1),ierr)
       call MPI_IRECV(tmp8,ileny,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(2),ierr)
 
-      call MPI_ISEND(tmp5l,ileny,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmp7l,ileny,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(4),ierr)
+      call MPI_ISEND(tmp5l,ileny,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(3),ierr)
+      call MPI_ISEND(tmp7l,ileny,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(4),ierr)
 
       call MPI_WAITALL(4,req,status_array,ierr)
 
       end subroutine exchng2
 !===========================================================================
-
-      subroutine exchng2i(tmp1i,tmp2i,tmp3i,tmp4i,tmp5i,tmp6i,tmp7i,tmp8i)
+      subroutine exchng2i(tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8)
       use mpi
       use var_inc
       implicit none
 
-!                    tmp1i            tmp2i tmp3i                tmp4i
-!                    tmp5i            tmp6i tmp7i                tmp8i
-!      call exchng2i(ibnodes(:,:,1:2),tmpiR,ibnodes(:,:,lz-1:lz),tmpiL, &
-!                    ibnodes(:,1:2,:),tmpiU,ibnodes(:,ly-1:ly,:),tmpiD)
-
-      integer ilenz, ileny, ii, jj, kk
-      integer, dimension(lx,ly,2):: tmp1i, tmp2i, tmp3i, tmp4i
-      integer, dimension(lx,2,lz):: tmp5i, tmp7i
-      integer, dimension(lx,2,-1:lz+2):: tmp5il, tmp6i, tmp7il, tmp8i
-
-      integer error,status_array(MPI_STATUS_SIZE,4), req(4)
-      integer err1,err2,err3,err4,err5,err6,err7,err8,err9,err10,err11,err12
-
-      ilenz = lx*ly*2
-      ileny = lx*(lz+4)*2
-
-      if(myid==0)write(*,*)'I am at second MPI_ISEND (1)'
-      call MPI_ISEND(tmp3i,ilenz,MPI_INTEGER,mzp,3,MPI_COMM_WORLD,req(1),err2)
-
-      if(myid==0)write(*,*)'I am at first MPI_ISEND (1)'
-      call MPI_ISEND(tmp1i,ilenz,MPI_INTEGER,mzm,2,MPI_COMM_WORLD,req(2),err1)
-      
-      if(myid==0)write(*,*)'I am at first MPI_RECV (1)'
-      call MPI_RECV(tmp2i,ilenz,MPI_INTEGER,mzp,2,MPI_COMM_WORLD,req(3),err3)
-      
-      if(myid==0)write(*,*)'I am at second MPI_RECV (1)'
-      call MPI_RECV(tmp4i,ilenz,MPI_INTEGER,mzm,3,MPI_COMM_WORLD,req(4),err4)
-
-      if(myid==0)write(*,*)'I am at the end of L/R send in exchan21 (1)'
-      return
-
-      call MPI_BARRIER(MPI_COMM_WORLD,err5)
-
-      tmp5il(:,1,-1) = tmp4i(:,1,1)
-      tmp5il(:,1,0) = tmp4i(:,1,2)
-      tmp5il(:,2,-1) = tmp4i(:,2,1)
-      tmp5il(:,2,0) = tmp4i(:,2,2)
-
-      tmp5il(:,:,1:lz) = tmp5i(:,:,:)
-
-      tmp5il(:,1,lz+1) = tmp2i(:,1,1)
-      tmp5il(:,1,lz+2) = tmp2i(:,1,2)
-      tmp5il(:,2,lz+1) = tmp2i(:,2,1)
-      tmp5il(:,2,lz+2) = tmp2i(:,2,2)
-
-      tmp7il(:,1,-1) = tmp4i(:,ly-1,1)
-      tmp7il(:,1,0) = tmp4i(:,ly-1,2)
-      tmp7il(:,2,-1) = tmp4i(:,ly,1)
-      tmp7il(:,2,0) = tmp4i(:,ly,2)
-
-      tmp7il(:,:,1:lz) = tmp7i(:,:,:)
-
-      tmp7il(:,1,lz+1) = tmp2i(:,ly-1,1)
-      tmp7il(:,1,lz+2) = tmp2i(:,ly-1,2)
-      tmp7il(:,2,lz+1) = tmp2i(:,ly,1)
-      tmp7il(:,2,lz+2) = tmp2i(:,ly,2)
-
-      call MPI_BARRIER(MPI_COMM_WORLD,err6)
-
-      if(myid==0)write(*,*)'I am in exchng2i(2),ileny,size(tmp5il)',  &
-                       'size(tmp7il)',ileny,size(tmp5il),size(tmp7il)
-
-      call MPI_BARRIER(MPI_COMM_WORLD,err11)
-
-!Graeme's idea for blocking recv
-      call MPI_ISEND(tmp6i,ileny,MPI_INTEGER,myp,4,MPI_COMM_WORLD,req(1),err7)
-      call MPI_ISEND(tmp8i,ileny,MPI_INTEGER,mym,5,MPI_COMM_WORLD,req(2),err8)
-      call MPI_RECV(tmp5il,ileny,MPI_INTEGER,myp,5,MPI_COMM_WORLD,req(3),err9)
-      call MPI_RECV(tmp7il,ileny,MPI_INTEGER,mym,4,MPI_COMM_WORLD,req(4),err10)
-
-      call MPI_BARRIER(MPI_COMM_WORLD,err12)
-
-      if(myid==0)write(*,*)'I am in exchng2i (3)'
-
-211   format(2x,4i5)
-      end subroutine exchng2i
-!===========================================================================
-      subroutine exchng2iNew(tmpSendL,tmpRecvR,tmpSendR,tmpRecvL,tmpSendD,tmpRecvUl,tmpSendU,tmpRecvDl)
-      use mpi
-      use var_inc
-      implicit none
-
-!      call exchng2iNew(ibnodes(:,:,1:2),tmpiR,ibnodes(:,:,lz-1:lz),tmpiL, &
-!                       ibnodes(:,1:2,:),tmpiU,ibnodes(:,ly-1:ly,:),tmpiD)
-
-!      allocate (tmpiL(lx,ly,-1:0))
-!      allocate (tmpiR(lx,ly,lz+1:lz+2))
-!      allocate (tmpiU(lx,ly+1:ly+2,-1:lz+2))
-!      allocate (tmpiD(lx,-1:0,-1:lz+2))
+!                   tmp1                tmp2   tmp3             tmp4
+!                   tmp5                tmp6   tmp7             tmp8 
+!      exchng2iNew(ibnodes(:,:,lz-1:lz),tmpiZp,ibnodes(:,:,1:2),tmpiZm, &
+!                  ibnodes(:,ly-1:ly,:),tmpiYp,ibnodes(:,1:2,:),tmpiYm)
 
       integer ileny, ilenz, i, j, ii,jj,kk,k
-      integer,dimension(lx,ly,2):: tmpSendL,tmpSendR,tmpRecvL,tmpRecvR
-      integer,dimension(lx,2,lz):: tmpSendU,tmpSendD
-      integer,dimension(lx,2,-1:lz+2):: tmpRecvUl,tmpRecvDl,tmpSendUl,tmpSendDl
-!     integer err1,err2,err3,err4,err5,err6,err7,err8
-!     integer reqSendL,reqSendR,reqSendU,reqSendD,reqRecvL,reqRecvR,reqRecvU,reqRecvD
+      integer,dimension(lx,ly,2):: tmp1,tmp2,tmp3,tmp4
+      integer,dimension(lx,2,lz):: tmp5,tmp7
+      integer,dimension(lx,2,-1:lz+2):: tmp5l,tmp6,tmp7l,tmp8
+
       integer status_array(MPI_STATUS_SIZE,4),req(4)
 
       ilenz = lx*ly*2
       ileny = lx*(lz+4)*2
+! Send/ Receive data from Z direction neighbors
+      call MPI_IRECV(tmp2,ilenz,MPI_INTEGER,mzp,0,MPI_COMM_WORLD,req(1),ierr)
+      call MPI_IRECV(tmp4,ilenz,MPI_INTEGER,mzm,1,MPI_COMM_WORLD,req(2),ierr)
 
-      call MPI_IRECV(tmpRecvR,ilenz,MPI_INTEGER,mzp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmpRecvL,ilenz,MPI_INTEGER,mzm,1,MPI_COMM_WORLD,req(2),ierr)
-      call MPI_ISEND(tmpSendL,ilenz,MPI_INTEGER,mzm,0,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmpSendR,ilenz,MPI_INTEGER,mzp,1,MPI_COMM_WORLD,req(4),ierr)
+      call MPI_ISEND(tmp1,ilenz,MPI_INTEGER,mzp,1,MPI_COMM_WORLD,req(3),ierr)
+      call MPI_ISEND(tmp3,ilenz,MPI_INTEGER,mzm,0,MPI_COMM_WORLD,req(4),ierr)
+      
       call MPI_WAITALL(4,req,status_array,ierr)
 
-      tmpSendUl(:,1:2,-1:0) = tmpRecvL(:,ly-1:ly,1:2)
-      tmpSendUl(:,1:2,lz+1:lz+2) = tmpRecvR(:,ly-1:ly,1:2)
-      tmpSendUl(:,:,1:lz) = tmpSendU(:,:,:)
+!     Prepare array for y+ neighbor
+      tmp5l(:,1:2,-1:0) = tmp4(:,ly-1:ly,1:2)
+      tmp5l(:,1:2,lz+1:lz+2) = tmp2(:,ly-1:ly,1:2)
+      tmp5l(:,:,1:lz) = tmp5(:,:,:)
+!     Prepare array for y- neighbor
+      tmp7l(:,1:2,-1:0) = tmp4(:,1:2,1:2)
+      tmp7l(:,1:2,lz+1:lz+2) = tmp2(:,1:2,1:2)
+      tmp7l(:,:,1:lz) = tmp7(:,:,:)
+! Send/ Receive data from Y direction neighbors
+      call MPI_IRECV(tmp6,ileny,MPI_INTEGER,myp,0,MPI_COMM_WORLD,req(1),ierr)
+      call MPI_IRECV(tmp8,ileny,MPI_INTEGER,mym,1,MPI_COMM_WORLD,req(2),ierr)
 
-      tmpSendDl(:,1:2,-1:0) = tmpRecvL(:,1:2,1:2)
-      tmpSendDl(:,1:2,lz+1:lz+2) = tmpRecvR(:,1:2,1:2)
-      tmpSendDl(:,:,1:lz) = tmpSendD(:,:,:)
+      call MPI_ISEND(tmp5l,ileny,MPI_INTEGER,myp,1,MPI_COMM_WORLD,req(3),ierr)
+      call MPI_ISEND(tmp7l,ileny,MPI_INTEGER,mym,0,MPI_COMM_WORLD,req(4),ierr)
 
-      call MPI_IRECV(tmpRecvUl,ileny,MPI_INTEGER,myp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmpRecvDl,ileny,MPI_INTEGER,mym,1,MPI_COMM_WORLD,req(2),ierr)
-      call MPI_ISEND(tmpSendDl,ileny,MPI_INTEGER,mym,0,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmpSendUl,ileny,MPI_INTEGER,myp,1,MPI_COMM_WORLD,req(4),ierr)
       call MPI_WAITALL(4,req,status_array,ierr)
 
-      end subroutine exchng2iNew      
+      end subroutine exchng2i      
 !===========================================================================      
-      subroutine exchng3(tmp1,tmp3,tmp5,tmp7,&
-            tmp1i,tmp3i,tmp5i,tmp7i)
+      subroutine exchng3(tmp1,tmp3,tmp5,tmp7,tmp1i,tmp3i,tmp5i,tmp7i)
       use mpi
       use var_inc
       implicit none
 
-!                  1              2    3                 4
-!     call exchng3(tmpfL(:,:,:,0),tmp3,tmpfR(:,:,:,lz+1),tmp4, &
-!                  5              6    7                 8
-!                  tmpfD(:,:,0,:),tmp5,tmpfU(:,:,ly+1,:),tmp6)
+!                  tmp1            tmp3               tmp5                 tmp7
+!                  tmp1i           tmp3i              tmp5i                tmp7i
+!     call exchng3(tmpfZm(:,:,:,0),tmpfZp(:,:,:,lz+1),tmpfYm(:,:,0,0:lz+1),tmpfYp(:,:,ly+1,0:lz+1), &
+!                  if9L,           if9R,              if9D,                if9U)
 
 
       integer error, ilenz, ileny
