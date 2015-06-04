@@ -52,6 +52,7 @@
 
       call para  
       call allocarray
+      !call constructMPItypes
 
       IF(newrun)THEN   
 

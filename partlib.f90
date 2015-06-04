@@ -958,7 +958,7 @@
       real alphay, alphaz
       real,dimension(2*msize):: idfbeads, xfbeads, yfbeads, zfbeads
 
-      bc_mzp = 0; bc_mzm = 0; bc_myp = 0; bc_mym = 0; ibc_edge = 0
+      ibc_edge = 0
 
       localReqData = .FALSE. !Reset fill request data
       radp2 = rad + 2.d0
@@ -1041,19 +1041,10 @@
                         stop
                       endif
 
-                      !If tally interpolation solid nodes that are inside neighboring task
+                      !If tally interpolation solid nodes that are on local boundary
                       if(jmove < 1 .or. jmove > ly .or. kmove < 1 .or. kmove > lz)then
                         ibc_edge = ibc_edge + 1
                       endif
-
-                      !if(jmove < 1)then
-                       ! bc_mym = bc_mym + 1
-                      !elseif(jmove > ly)then
-                       ! bc_myp = bc_myp + 1
-                      !else
-                      !  if(kmove < 1) bc_mzm = bc_mzm + 1
-                      !  if(kmove > lz) bc_mzp = bc_mzp + 1
-                      !endif
 
                       xlink(nlink) = i
                       ylink(nlink) = j
@@ -1127,13 +1118,8 @@
       use var_inc
       implicit none
 
-      type bc_data
-        real dist
-        integer dem1, dem2, ipp
-      endtype
-
       integer id, i, j, k, ii, jj, kk,  ip, ipp, ix, iy, iz, ilen
-      integer im1, im2, ip1, jm1, jm2, jp1, km1, km2, kp1, n, temp
+      integer im1, im2, ip1, jm1, jm2, jp1, km1, km2, kp1, n
       integer ibm1, ibm2
       real alpha, xc, yc, zc, xx0, yy0, zz0
       real uwx, uwy, uwz, uwpro, ff1, ff2, ff3 
@@ -1146,9 +1132,6 @@
       character (len = 100):: fnm2
 
       integer imzp, imzm, imyp, imym
-
-      type (bc_data) bcm_mzp(bc_mzp), bcm_mzm(bc_mzm), bcm_myp(bc_myp), bcm_mym(bc_mym)
-      !bcm_mypzp(bc_mypzp), bcm_mypzm(bc_mypzm), bcm_mymzp(bc_mymzp), bcm_mymzm(bc_mymzm)
 
       real,dimension(lx,ly,lz):: f9print,alphaprint,ff1print
 
@@ -1167,7 +1150,7 @@
       real, dimension(3,npart):: fHIp0, torqp0
 
       allocate(bc_edge(ibc_edge))
-      imzp = 0; imzm = 0; imyp = 0; imym = 0; ibc_edge = 0
+      ibc_edge = 0
 
       mpibench = MPI_WTIME()
       allocate(tmpfZp(0:npop-1,lx,ly,lz+1:lz+2))
@@ -1195,7 +1178,6 @@
       fHIp0 = 0.0
       torqp0 = 0.0
 
-      temp = 0
       do n = 1,nlink
 
         i = xlink(n)
@@ -1378,28 +1360,10 @@
 
       if(jp1 > ly .or. jp1 < 1 .or. kp1 > lz .or. kp1 < 1)then
         ibc_edge = ibc_edge + 1
-        bc_edge(ibc_edge) = bc_data2(f9,ipp,i,j,k)
+        bc_edge(ibc_edge) = bc_data(f9,ipp,i,j,k)
       else
         f(ipp,ip1,jp1,kp1) = f9
       endif
-
-      !if(jp1 > ly) then
-        !imyp = imyp + 1
-        !bcm_myp(imyp) = bc_data(f9,ip1,kp1,ipp)
-      !else if (jp1 < 1) then
-        !imym = imym + 1
-        !bcm_mym(imym) = bc_data(f9,ip1,kp1,ipp)
-      !else
-        !if(kp1 > lz) then
-          !imzp = imzp + 1
-          !bcm_mzp(imzp) = bc_data(f9,ip1,jp1,ipp)
-        !else if(kp1 < 1 ) then
-          !imzm = imzm + 1
-          !bcm_mzm(imzm) = bc_data(f9,ip1,jp1,ipp)
-        !else
-          !f(ipp,ip1,jp1,kp1) = f9
-        !end if
-      !end if
 
 ! compute force and torque acting on particles
         dff = ff1 + f9
@@ -1424,19 +1388,12 @@
       deallocate(tmpiYm)
 
       beads_collision_loop(step) = MPI_WTIME() - mpibench      
-! We combine the two communications and the order is in reverse inside
-! Also the re-assignment of f is done inside the suroutine
-! So exchng3i is not needed any more.
-      mpibench = MPI_WTIME()
-
-      !call exchng3New(bcm_mzp, bcm_mzm, bcm_myp, bcm_mym)
 
       deallocate(tmpfZp)  
       deallocate(tmpfZm)   
       deallocate(tmpfYp)
       deallocate(tmpfYm)
 
-      beads_collision_ex3(step) = MPI_WTIME() - mpibench   
 ! collect info. for fHIp, and torqp
       ilen = 3*npart
 
@@ -1542,205 +1499,6 @@
       call MPI_WAITALL(4,req,status_array,ierr)
 
       end subroutine exchng2i      
-!===========================================================================      
-      subroutine exchng3(tmp1,tmp3,tmp5,tmp7,tmp1i,tmp3i,tmp5i,tmp7i)
-      use mpi
-      use var_inc
-      implicit none
-
-!                  tmp1            tmp3               tmp5                 tmp7
-!                  tmp1i           tmp3i              tmp5i                tmp7i
-!     call exchng3(tmpfZm(:,:,:,0),tmpfZp(:,:,:,lz+1),tmpfYm(:,:,0,0:lz+1),tmpfYp(:,:,ly+1,0:lz+1), &
-!                  if9L,           if9R,              if9D,                if9U)
-
-
-      integer error, ilenz, ileny
-      real, dimension(0:npop-1,lx,ly):: tmp1, tmp2, tmp3, tmp4
-      real, dimension(0:npop-1,lx,lz):: tmp6, tmp8
-      real, dimension(0:npop-1,lx,0:lz+1):: tmp5, tmp7, tmp6e, tmp8e
-      integer, dimension(0:npop-1,lx,ly):: tmp1i, tmp2i, tmp3i, tmp4i
-      integer, dimension(0:npop-1,lx,lz):: tmp6i, tmp8i
-      integer, dimension(0:npop-1,lx,0:lz+1):: tmp5i, tmp7i, tmp6ie, tmp8ie
-
-      integer status_array(MPI_STATUS_SIZE,4), req(4)
-
-      ilenz = npop*lx*ly
-      ileny = npop*lx*(lz+2)
-!Change: this needs to be in reverse order, UD first, then LR
-      call MPI_IRECV(tmp6e,ileny,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmp8e,ileny,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(2),ierr)
-      call MPI_ISEND(tmp5,ileny,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmp7,ileny,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(4),ierr)
-      call MPI_WAITALL(4,req,status_array,ierr)
-
-      call MPI_IRECV(tmp6ie,ileny,MPI_INTEGER,myp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmp8ie,ileny,MPI_INTEGER,mym,1,MPI_COMM_WORLD,req(2),ierr)
-      call MPI_ISEND(tmp5i,ileny,MPI_INTEGER,mym,0,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmp7i,ileny,MPI_INTEGER,myp,1,MPI_COMM_WORLD,req(4),ierr)
-      call MPI_WAITALL(4,req,status_array,ierr)
-
-      tmp6 = tmp6e(:,:,1:lz)
-      tmp6i = tmp6ie(:,:,1:lz)
-      tmp8 = tmp8e(:,:,1:lz)
-      tmp8i = tmp8ie(:,:,1:lz)
-! Now corners
-      where(tmp6ie(:,:,0) == 1) tmp1(:,:,ly) = tmp6e(:,:,0)
-      where(tmp6ie(:,:,lz+1) == 1) tmp3(:,:,ly) = tmp6e(:,:,lz+1) 
-      where(tmp8ie(:,:,0) == 1) tmp1(:,:,1) = tmp8e(:,:,0) 
-      where(tmp8ie(:,:,lz+1) == 1) tmp3(:,:,1) = tmp8e(:,:,lz+1) 
-
-      where(tmp6ie(:,:,0) == 1) tmp1i(:,:,ly) = tmp6ie(:,:,0) 
-      where(tmp6ie(:,:,lz+1) == 1) tmp3i(:,:,ly) = tmp6ie(:,:,lz+1) 
-      where(tmp8ie(:,:,0) == 1) tmp1i(:,:,1) = tmp8ie(:,:,0) 
-      where(tmp8ie(:,:,lz+1) == 1) tmp3i(:,:,1) = tmp8ie(:,:,lz+1) 
-
-! in: tmp1 and tmp3;    out:tmp2,tmp4
-      call MPI_IRECV(tmp2,ilenz,MPI_REAL8,mzp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmp4,ilenz,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(2),ierr)
-      call MPI_ISEND(tmp1,ilenz,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmp3,ilenz,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(4),ierr)
-      call MPI_WAITALL(4,req,status_array,ierr)
-
-      call MPI_IRECV(tmp2i,ilenz,MPI_INTEGER,mzp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmp4i,ilenz,MPI_INTEGER,mzm,1,MPI_COMM_WORLD,req(2),ierr)
-      call MPI_ISEND(tmp1i,ilenz,MPI_INTEGER,mzm,0,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmp3i,ilenz,MPI_INTEGER,mzp,1,MPI_COMM_WORLD,req(4),ierr)
-      call MPI_WAITALL(4,req,status_array,ierr)
-
-      where(tmp2i == 1) f(:,:,:,lz) = tmp2  
-      where(tmp4i == 1) f(:,:,:,1) = tmp4    
-      where(tmp6i == 1) f(:,:,ly,:) = tmp6
-      where(tmp8i == 1) f(:,:,1,:) = tmp8
-
-      end subroutine exchng3
-!===========================================================================
-
-      subroutine exchng3i(tmp1i,tmp2i,tmp3i,tmp4i,tmp5i,tmp6i,tmp7i,tmp8i)
-      use mpi
-      use var_inc
-      implicit none
-
-!                    1    2     3    4     5    6     7    8
-!      call exchng3i(if9L,tmp3i,if9R,tmp4i,if9D,tmp5i,if9U,tmp6)
-
-      integer ileny, ilenz
-      integer, dimension(0:npop-1,lx,ly):: tmp1i, tmp2i, tmp3i, tmp4i
-      integer, dimension(0:npop-1,lx,lz):: tmp5i, tmp7i
-      integer, dimension(0:npop-1,lx,0:lz+1):: tmp5il, tmp6i, tmp7il, tmp8i
-
-      integer error, status_array(MPI_STATUS_SIZE,4), req(4)
-
-      ilenz = npop*lx*ly
-      ileny = npop*lx*(lz+2) 
-
-      call MPI_IRECV(tmp2i,ilenz,MPI_INTEGER,mzp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmp4i,ilenz,MPI_INTEGER,mzm,1,MPI_COMM_WORLD,req(2),ierr)
-      call MPI_ISEND(tmp1i,ilenz,MPI_INTEGER,mzm,0,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmp3i,ilenz,MPI_INTEGER,mzp,1,MPI_COMM_WORLD,req(4),ierr)
-      call MPI_WAITALL(4,req,status_array,ierr)
-
-      tmp5il(:,:,0) = tmp2i(:,:,1)
-      tmp5il(:,:,1:lz) = tmp5i(:,:,:)
-      tmp5il(:,:,lz+1) = tmp4i(:,:,1)
-
-      tmp7il(:,:,0) = tmp2i(:,:,ly)
-      tmp7il(:,:,1:lz) = tmp7i(:,:,:)
-      tmp7il(:,:,lz+1) = tmp4i(:,:,ly)
-
-
-
-      end subroutine exchng3i
-!===========================================================================
-
-      subroutine exchng3New(bcm_mzp, bcm_mzm, bcm_myp, bcm_mym)
-      use mpi
-      use var_inc
-      implicit none
-
-      type bc_data
-       real :: dist
-       integer :: dem1, dem2, ipp
-      endtype
-
-      integer status(MPI_STATUS_SIZE), status_array(MPI_STATUS_SIZE,2), req(2)
-      integer i, j, count, mzp_count, mzm_count
-
-      type(bc_data) tbcm_mzp(19*2), tbcm_mzm(19*2)
-      type(bc_data) bcm_mzp(bc_mzp), bcm_mzm(bc_mzm), bcm_myp(bc_myp), bcm_mym(bc_mym)
-      type(bc_data),allocatable,dimension(:):: bcm_recv, bcm_mzp_new, bcm_mzm_new
-
-      mzp_count = 0
-      mzm_count = 0
-
-! Send/ Receive data from Y direction neighbors
-      call MPI_ISEND(bcm_myp, bc_myp, MPI_BCDATA, myp, 99, MPI_COMM_WORLD, req(1), ierr)
-      call MPI_ISEND(bcm_mym, bc_mym, MPI_BCDATA, mym, 99, MPI_COMM_WORLD, req(2), ierr)
-
-      do i = 1, 2
-        call MPI_PROBE(MPI_ANY_SOURCE, 99, MPI_COMM_WORLD, status, ierr)
-        call MPI_GET_COUNT(status, MPI_BCDATA, count, ierr)
-        allocate(bcm_recv(1:count))
-        call MPI_RECV(bcm_recv, count, MPI_BCDATA, status(MPI_SOURCE), status(MPI_TAG), MPI_COMM_WORLD, status, ierr)
-
-        do j = 1, count
-          if(bcm_recv(j)%dem2 < 1)then
-            if(status(MPI_SOURCE) .eq. mym) bcm_recv(j)%dem2 = 1
-            if(status(MPI_SOURCE) .eq. myp) bcm_recv(j)%dem2 = ly
-            mzm_count = mzm_count + 1
-            tbcm_mzm(mzm_count) = bcm_recv(j)
-          elseif(bcm_recv(j)%dem2 > lz)then
-            if(status(MPI_SOURCE) .eq. mym) bcm_recv(j)%dem2 = 1
-            if(status(MPI_SOURCE) .eq. myp) bcm_recv(j)%dem2 = ly
-            mzp_count = mzp_count + 1
-            tbcm_mzp(mzp_count) = bcm_recv(j)
-          else
-            if(status(MPI_SOURCE) .eq. mym)then
-              f(bcm_recv(j)%ipp, bcm_recv(j)%dem1, 1, bcm_recv(j)%dem2) = bcm_recv(j)%dist
-            endif
-            if(status(MPI_SOURCE) .eq. myp)then
-              f(bcm_recv(j)%ipp, bcm_recv(j)%dem1, ly, bcm_recv(j)%dem2) = bcm_recv(j)%dist
-            endif
-          endif
-        enddo
-        deallocate(bcm_recv)
-      enddo
-! If corner data was received add it to the vertical arrays
-      allocate(bcm_mzm_new(bc_mzm + mzm_count))
-      bcm_mzm_new(1:bc_mzm) = bcm_mzm(:)
-      bcm_mzm_new(bc_mzm + 1:bc_mzm + mzm_count) = tbcm_mzm(:)
-      bc_mzm = bc_mzm + mzm_count
-
-      allocate(bcm_mzp_new(bc_mzp + mzp_count))
-      bcm_mzp_new(1:bc_mzp) = bcm_mzp(:)
-      bcm_mzp_new(bc_mzp + 1:bc_mzp + mzp_count) = tbcm_mzp(:)
-      bc_mzp = bc_mzp + mzp_count
-
-! Send/ Receive data from Z direction neighbors
-      call MPI_ISEND(bcm_mzp_new, bc_mzp, MPI_BCDATA, mzp, 98, MPI_COMM_WORLD, req(1), ierr)
-      call MPI_ISEND(bcm_mzm_new, bc_mzm, MPI_BCDATA, mzm, 98, MPI_COMM_WORLD, req(2), ierr)
-
-      do i = 1, 2
-        call MPI_PROBE(MPI_ANY_SOURCE, 98, MPI_COMM_WORLD, status, ierr)
-        call MPI_GET_COUNT(status, MPI_BCDATA, count, ierr)
-        allocate(bcm_recv(count))
-        call MPI_RECV(bcm_recv, count, MPI_BCDATA, status(MPI_SOURCE), status(MPI_TAG), MPI_COMM_WORLD, status, ierr)
-
-        do j = 1, count
-          if(status(MPI_SOURCE) == mzm)then
-            f(bcm_recv(j)%ipp, bcm_recv(j)%dem1, bcm_recv(j)%dem2, 1) = bcm_recv(j)%dist
-          endif
-          if(status(MPI_SOURCE) == mzp)then
-            f(bcm_recv(j)%ipp, bcm_recv(j)%dem1, bcm_recv(j)%dem2, lz) = bcm_recv(j)%dist
-          endif
-        enddo
-        deallocate(bcm_recv)
-      enddo
-
-      call MPI_WAITALL(2,req,status_array,ierr)
-      deallocate(bcm_mzm_new)
-      deallocate(bcm_mzp_new)
-
-      end subroutine exchng3New
 !===========================================================================
 
       subroutine beads_lubforce

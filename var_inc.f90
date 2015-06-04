@@ -1,7 +1,7 @@
       module var_inc
       implicit none
 
-      type bc_data2
+      type bc_data
         real dist
         integer ipp, x, y, z
       endtype
@@ -109,9 +109,8 @@
 
       real,allocatable,dimension(:):: xlink, ylink, zlink
       real,allocatable,dimension(:):: iplink, alink, mlink
-      type(bc_data2),allocatable,dimension(:):: bc_edge
-      integer bc_mzp, bc_mzm, bc_myp, bc_mym, ibc_edge
-      integer MPI_BCDATA
+      type(bc_data),allocatable,dimension(:):: bc_edge
+      integer ibc_edge
 
       real,allocatable,dimension(:,:,:):: rho, rhop
       real,allocatable,dimension(:,:,:):: ux, uy, uz
@@ -145,7 +144,7 @@
       real, allocatable,dimension(:):: beads_collision_bnch, beads_lubforce_bnch, &
                 beads_move_bnch, beads_redistribute_bnch, beads_links_bnch, beads_filling_bnch
       real, allocatable,dimension(:):: beads_collision_ex2, beads_collision_ex2i, beads_collision_loop, &
-                beads_collision_ex3, beads_collision_allre
+                beads_collision_allre
 
       character(len=120):: dirbench, dirbenchmatlab, dirbenchbead, dirbenchflow, dirbenchstat
 

@@ -135,7 +135,7 @@
 
      do i = 1, nsteps
         write(60,600) beads_collision_ex2(i), beads_collision_ex2i(i), beads_collision_loop(i), &
-                beads_collision_ex3(i), beads_collision_allre(i)
+                beads_collision_allre(i)
      enddo
      close(60)
 
