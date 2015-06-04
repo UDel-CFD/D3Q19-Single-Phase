@@ -422,6 +422,47 @@
 
       end subroutine allocarray
 !==================================================================
+
+      subroutine constructMPItypes
+      use mpi
+      use var_inc
+      implicit none
+
+      type bc_data
+       real :: dist
+       integer :: dem1, dem2, ipp
+      endtype
+
+      integer MPI_BCDATA_NRS
+      integer blockcounts(0:1), types(0:1), baseaddr, addr1
+      integer(KIND=MPI_ADDRESS_KIND) offsets(0:1), lb, extent
+
+      type(bc_data) tempdata
+
+      offsets(0) = 0
+      blockcounts(0) = 1
+      types(0) = MPI_REAL8
+
+      call MPI_GET_ADDRESS(tempdata%dist, baseaddr, ierr)
+      call MPI_GET_ADDRESS(tempdata%dem1, addr1, ierr)
+      offsets(1)= addr1 - baseaddr
+      blockcounts(1) = 3
+      types(1) = MPI_INTEGER
+
+      call MPI_TYPE_CREATE_STRUCT(2, blockcounts, offsets, types, MPI_BCDATA_NRS, ierr)
+      call MPI_TYPE_COMMIT(MPI_BCDATA_NRS, ierr)
+
+      call MPI_TYPE_GET_EXTENT(MPI_INTEGER, lb, extent, ierr)
+      ! Note we do 4 ints here, the next double must be placed on an address divisible by 8
+      extent = 4*extent + offsets(1)
+      lb = 0
+      call MPI_TYPE_CREATE_RESIZED(MPI_BCDATA_NRS, lb, extent, MPI_BCDATA, ierr)
+      call MPI_TYPE_COMMIT(MPI_BCDATA, ierr)
+      call MPI_TYPE_FREE(MPI_BCDATA_NRS, ierr)
+
+      end subroutine constructMPItypes
+!==================================================================
+
       subroutine makedir (dirPath)
       use var_inc
 

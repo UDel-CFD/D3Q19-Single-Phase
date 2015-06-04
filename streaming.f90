@@ -7,6 +7,7 @@
       real, dimension(lx,ly)     :: tmpz1,tmpz2
       real, dimension(lx,lz)     :: tmpy1,tmpy2
       real, dimension(0:npop-1,ly,lz)     :: tmpxL,tmpxR
+      integer i
 
 !     Save two layers to be used after streaming
       tmpxL = f(:,1,:,:)
@@ -185,6 +186,13 @@
       f( 8,lx,:,:)=tmpxR( 9,:,:)
       f(14,lx,:,:)=tmpxR(11,:,:)
       f(12,lx,:,:)=tmpxR(13,:,:)
+
+      if(ipart == .TRUE.)then
+        do i=1, ibc_edge
+          f(bc_edge(i)%ipp,bc_edge(i)%x,bc_edge(i)%y,bc_edge(i)%z) = bc_edge(i)%dist
+        enddo
+        deallocate(bc_edge)
+      endif
 
       end subroutine streaming
 !==================================================================

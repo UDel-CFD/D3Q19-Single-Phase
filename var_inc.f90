@@ -1,6 +1,11 @@
       module var_inc
       implicit none
 
+      type bc_data2
+        real dist
+        integer ipp, x, y, z
+      endtype
+
       integer,parameter:: FFTW_FORWARD = -1, FFTW_BACKWARD = 1
       integer,parameter:: FFTW_REAL_TO_COMPLEX = -1,                   &
                           FFTW_COMPLEX_TO_REAL = 1 
@@ -104,6 +109,9 @@
 
       real,allocatable,dimension(:):: xlink, ylink, zlink
       real,allocatable,dimension(:):: iplink, alink, mlink
+      type(bc_data2),allocatable,dimension(:):: bc_edge
+      integer bc_mzp, bc_mzm, bc_myp, bc_mym, ibc_edge
+      integer MPI_BCDATA
 
       real,allocatable,dimension(:,:,:):: rho, rhop
       real,allocatable,dimension(:,:,:):: ux, uy, uz
