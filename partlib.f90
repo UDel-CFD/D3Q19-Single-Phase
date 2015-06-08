@@ -1263,16 +1263,12 @@
       ibc_edge = 0
       imzpc = 0; imzmc = 0; imypc = 0; imymc = 0
 
-      call exchng2new(mymIpfRecv,mypIpfRecv,mzmIpfRecv,mzpIpfRecv)
-
       mpibench = MPI_WTIME()
+      call exchng2new(mymIpfRecv,mypIpfRecv,mzmIpfRecv,mzpIpfRecv)
       allocate(tmpfZp(0:npop-1,lx,ly,lz+1:lz+2))
       allocate(tmpfZm(0:npop-1,lx,ly,-1:0))
       allocate(tmpfYp(0:npop-1,lx,ly+1:ly+2,-1:lz+2))
       allocate(tmpfYm(0:npop-1,lx,-1:0,-1:lz+2))
-
-      call exchng2(f(:,:,:,lz-1:lz),tmpfZp,f(:,:,:,1:2),tmpfZm,    &
-                   f(:,:,ly-1:ly,:),tmpfYp,f(:,:,1:2,:),tmpfYm)
 
       beads_collision_ex2(step) = MPI_WTIME() - mpibench
 
@@ -1281,9 +1277,6 @@
       allocate (tmpiZm(lx,ly,-1:0))
       allocate (tmpiYp(lx,ly+1:ly+2,-1:lz+2))
       allocate (tmpiYm(lx,-1:0,-1:lz+2))
-
-      call exchng2i(ibnodes(:,:,lz-1:lz),tmpiZp,ibnodes(:,:,1:2),tmpiZm, &
-                    ibnodes(:,ly-1:ly,:),tmpiYp,ibnodes(:,1:2,:),tmpiYm)
 
       beads_collision_ex2i(step) = MPI_WTIME() - mpibench
 
@@ -1355,138 +1348,6 @@
 
         uwpro = uwx*real(ix) + uwy*real(iy) + uwz*real(iz)
 
-
-! bounce-back scheme on moving particle surfaces
-        IF(alpha <= 0.5)THEN
-
-!--------
-        if(im1 > nx) then
-          ibm1 = 2
-        else if(im1 < 1) then
-          ibm1 = 2
-        else
-          if(jm1 > ly) then
-          !imypc = imypc + 1
-          ff2 = tmpfYp(ip,im1,jm1,km1)
-          ibm1 = tmpiYp(im1,jm1,km1)
-          else if (jm1 < 1) then
-          !imymc = imymc + 1
-          ff2 = tmpfYm(ip,im1,jm1,km1)
-          ibm1 = tmpiYm(im1,jm1,km1)
-          else
-            if(km1 > lz) then
-            !imzpc = imzpc + 1
-            ff2 = tmpfZp(ip,im1,jm1,km1)
-            ibm1 = tmpiZp(im1,jm1,km1)
-            else if(km1 < 1 ) then
-            !imzmc = imzmc + 1
-            ff2 = tmpfZm(ip,im1,jm1,km1)
-            ibm1 = tmpiZm(im1,jm1,km1)
-            else
-              ff2 = f(ip,im1,jm1,km1)
-              ibm1 = ibnodes(im1,jm1,km1)
-              end if
-            end if
-          end if
-! ------
-         if(im2 > nx) then
-          ibm2 = 2
-         else if(im2 < 1) then
-          ibm2 = 2
-          else
-          if(jm2 > ly) then
-          !imypc = imypc + 1
-          ff3 = tmpfYp(ip,im2,jm2,km2)
-          ibm2 = tmpiYp(im2,jm2,km2)
-          else if (jm2 < 1) then
-          !imymc = imymc + 1
-          ff3 = tmpfYm(ip,im2,jm2,km2)
-          ibm2 = tmpiYm(im2,jm2,km2)
-          else
-            if(km2 > lz) then
-            !imzpc = imzpc + 1
-            ff3 = tmpfZp(ip,im2,jm2,km2)
-            ibm2 = tmpiZp(im2,jm2,km2)
-            else if(km2 < 1 ) then
-            !imzmc = imzmc + 1
-            ff3 = tmpfZm(ip,im2,jm2,km2)
-            ibm2 = tmpiZm(im2,jm2,km2)
-            else
-            ff3 = f(ip,im2,jm2,km2)
-            ibm2 = ibnodes(im2,jm2,km2)
-            end if
-           end if
-          end if
-!------------
-          if(ibm1 > 0)then
-! no interpolation, use simple bounce back
-            f9 = ff1 - 6.0*wwp(ip)*uwpro
-
-          else if(ibm2 > 0)then
-! use 2-point interpolation
-            f9 = 2.0*alpha*(ff1 - ff2) + ff2 - 6.0*wwp(ip)*uwpro
-
-          else
-! use 3-point interpolation scheme of Lallemand and Luo (2003) JCP
-            c1 = alpha*(1.0 + 2.0*alpha)
-            c2 = 1.0 - 4.0*alpha*alpha
-            c3 = -alpha*(1.0 - 2.0*alpha)
-            f9 = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ip)*uwpro
-          end if
-
-        ELSE 
-
-          ff2 = f(ipp,i,j,k)
-          
-          if(im1 > nx) then
-          ibm1 = 2
-          else if(im1 < 1) then
-          ibm1 = 2
-          else
-          if(jm1 > ly) then
-          !imypc = imypc + 1
-          ff3 = tmpfYp(ipp,im1,jm1,km1)
-          ibm1 = tmpiYp(im1,jm1,km1)
-          else if (jm1 < 1) then
-          !imymc = imymc + 1
-          ff3 = tmpfYm(ipp,im1,jm1,km1)
-          ibm1 = tmpiYm(im1,jm1,km1)
-          else
-            if(km1 > lz) then
-            !imzpc = imzpc + 1
-            ff3 = tmpfZp(ipp,im1,jm1,km1)
-            ibm1 = tmpiZp(im1,jm1,km1)
-            else if(km1 < 1 ) then
-            !imzmc = imzmc + 1
-            ff3 = tmpfZm(ipp,im1,jm1,km1)
-            ibm1 = tmpiZm(im1,jm1,km1)
-            else
-            ff3 = f(ipp,im1,jm1,km1)
-            ibm1 = ibnodes(im1,jm1,km1)
-          end if
-            end if
-          end if
-
-          if(ibm1 > 0)then
-! use 2-point interpolation
-            c1 = 0.5 / alpha
-            c2 = 1.0 - c1
-            f9 = c1*ff1 + c2*ff2 - 6.0*wwp(ip)*c1*uwpro
-
-          else
-! use 3-point interpolation scheme of Lallemand and Luo (2003) JCP
-            c1 = 1.0 / alpha / (2.0*alpha + 1.0)
-            c2 = (2.0*alpha - 1.0) / alpha
-            c3 = 1.0 - c1 - c2
-            f9 = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ip)*c1*uwpro
-          end if
-
-       END IF
-       !c1o = c1; c2o = c2; c3o = c3 
-       ff1o = ff1
-       ff2o = ff2
-       ff3o = ff3
-
        IF(alpha <= 0.5)then
 
         if(im1 < 1 .or. im1 > lx)then
@@ -1541,26 +1402,15 @@
 112     continue   
         
         if(ff2 == IBNODES_TRUE)then ! no interpolation, use simple bounce back
-          f92 = ff1 - 6.0*wwp(ip)*uwpro
+          f9 = ff1 - 6.0*wwp(ip)*uwpro
         else if(ff3 == IBNODES_TRUE)then ! use 2-point interpolation
-          f92 = 2.0*alpha*(ff1 - ff2) + ff2 - 6.0*wwp(ip)*uwpro
+          f9 = 2.0*alpha*(ff1 - ff2) + ff2 - 6.0*wwp(ip)*uwpro
         else ! use 3-point interpolation scheme of Lallemand and Luo (2003) JCP
           c1 = alpha*(1.0 + 2.0*alpha)
           c2 = 1.0 - 4.0*alpha*alpha
           c3 = -alpha*(1.0 - 2.0*alpha)
-          f92 = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ip)*uwpro
+          f9 = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ip)*uwpro
         end if
-
-        if(f9 .ne. f92)then
-          write(*,*)'====='
-          write(*,*)myid, f9, f92, n
-          write(*,*)iblinks(1,n),iblinks(2,n), imypc
-          write(*,*) ff1, ff2, ff3
-          write(*,*) ff1o, ff2o, ff3o
-          write(*,*) im1, jm1, km1
-          write(*,*) im2, jm2, km2
-          write(*,*)ipf_myp(imypc)%ipp, ipf_myp(imypc)%x, ipf_myp(imypc)%y, ipf_myp(imypc)%z
-        endif
 
        ELSE
         ff2 = f(ipp,i,j,k)
@@ -1593,24 +1443,12 @@
         if(ff3 == IBNODES_TRUE)then! use 2-point interpolation
             c1 = 0.5 / alpha
             c2 = 1.0 - c1
-            f92 = c1*ff1 + c2*ff2 - 6.0*wwp(ip)*c1*uwpro
+            f9 = c1*ff1 + c2*ff2 - 6.0*wwp(ip)*c1*uwpro
         else! use 3-point interpolation scheme of Lallemand and Luo (2003) JCP
             c1 = 1.0 / alpha / (2.0*alpha + 1.0)
             c2 = (2.0*alpha - 1.0) / alpha
             c3 = 1.0 - c1 - c2
-            f92 = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ip)*c1*uwpro
-        endif
-
-        if(f9 .ne. f92)then
-          write(*,*)'=====  >.5'
-          write(*,*)myid, f9, f92, n
-          write(*,*)iblinks(1,n),iblinks(2,n), imypc
-          write(*,*) ff1, ff2, ff3
-          write(*,*) ff1o, ff2o, ff3o
-          write(*,*) c1, c2, c3
-          write(*,*) c1o, c2o, c3o
-          write(*,*) im1, jm1, km1
-          write(*,*) im2, jm2, km2
+            f9 = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ip)*c1*uwpro
         endif
        ENDIF
 
