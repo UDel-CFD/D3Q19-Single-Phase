@@ -6,6 +6,8 @@
       integer i,j,k
       real vmax
 
+      IBNODES_TRUE = 12345678
+
       pi = 4.0*atan(1.0) 
       pi2 = 2.0*pi
 ! specify the force magnitude
@@ -386,6 +388,11 @@
       allocate (iplink(maxlink))
       allocate (mlink(maxlink))
       allocate (alink(maxlink))
+      allocate (iblinks(2,maxlink))
+      allocate (ipf_mym(2*19*lx*(lz + 4)))
+      allocate (ipf_myp(2*19*lx*(lz + 4)))
+      allocate (ipf_mzm(2*19*lx*ly))
+      allocate (ipf_mzp(2*19*lx*ly))
 
       allocate (ibnodes0(lx,ly,lz))
       allocate (isnodes(lx,ly,lz))
@@ -427,20 +434,15 @@
       use var_inc
       implicit none
 
-      type bc_data
-       real :: dist
-       integer :: dem1, dem2, ipp
-      endtype
-
-      integer MPI_BCDATA_NRS
-      integer blockcounts(0:1), types(0:1), baseaddr, addr1
-      integer(KIND=MPI_ADDRESS_KIND) offsets(0:1), lb, extent
+      !integer MPI_BCDATA_NRS
+      !integer blockcounts(0:1), types(0:1), baseaddr, addr1
+      !integer(KIND=MPI_ADDRESS_KIND) offsets(0:1), lb, extent
 
       !type(bc_data) tempdata
 
-      offsets(0) = 0
-      blockcounts(0) = 1
-      types(0) = MPI_REAL8
+      !offsets(0) = 0
+      !blockcounts(0) = 1
+      !types(0) = MPI_REAL8
 
       !call MPI_GET_ADDRESS(tempdata%dist, baseaddr, ierr)
       !call MPI_GET_ADDRESS(tempdata%dem1, addr1, ierr)
@@ -458,6 +460,9 @@
       !call MPI_TYPE_CREATE_RESIZED(MPI_BCDATA_NRS, lb, extent, MPI_BCDATA, ierr)
       !call MPI_TYPE_COMMIT(MPI_BCDATA, ierr)
       !call MPI_TYPE_FREE(MPI_BCDATA_NRS, ierr)
+
+      call MPI_TYPE_CONTIGUOUS(4, MPI_INTEGER, MPI_IPF_NODE, ierr)
+      call MPI_TYPE_COMMIT(MPI_IPF_NODE, ierr)
 
       end subroutine constructMPItypes
 !==================================================================

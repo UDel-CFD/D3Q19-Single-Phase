@@ -1,6 +1,10 @@
       module var_inc
       implicit none
-
+      !Interpolation fluid node
+      type ipf_node
+        integer ipp, x, y, z
+      endtype
+      !Beads Collision data
       type bc_data
         real dist
         integer ipp, x, y, z
@@ -109,8 +113,11 @@
 
       real,allocatable,dimension(:):: xlink, ylink, zlink
       real,allocatable,dimension(:):: iplink, alink, mlink
-      type(bc_data),allocatable,dimension(:):: bc_edge
-      integer ibc_edge
+      integer,allocatable,dimension(:,:):: iblinks
+      integer ibc_edge, ipf_mymc, ipf_mypc, ipf_mzmc, ipf_mzpc
+      integer MPI_IPF_NODE, IBNODES_TRUE
+      type(ipf_node), allocatable,dimension(:):: ipf_mym, ipf_myp, ipf_mzm, ipf_mzp
+      type(bc_data), allocatable,dimension(:):: bc_edge
 
       real,allocatable,dimension(:,:,:):: rho, rhop
       real,allocatable,dimension(:,:,:):: ux, uy, uz
