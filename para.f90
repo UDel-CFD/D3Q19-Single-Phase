@@ -6,6 +6,8 @@
       integer i,j,k
       real vmax
 
+      !Flag indicating node is inside solid particle
+      !Used in the direct request system in beads_collision
       IBNODES_TRUE = 12345678
 
       pi = 4.0*atan(1.0) 
@@ -422,7 +424,6 @@
       allocate (beads_filling_bnch(nsteps))
 
       allocate (beads_collision_ex2(nsteps))
-      allocate (beads_collision_ex2i(nsteps))
       allocate (beads_collision_loop(nsteps))
       allocate (beads_collision_allre(nsteps))
 
@@ -433,33 +434,6 @@
       use mpi
       use var_inc
       implicit none
-
-      !integer MPI_BCDATA_NRS
-      !integer blockcounts(0:1), types(0:1), baseaddr, addr1
-      !integer(KIND=MPI_ADDRESS_KIND) offsets(0:1), lb, extent
-
-      !type(bc_data) tempdata
-
-      !offsets(0) = 0
-      !blockcounts(0) = 1
-      !types(0) = MPI_REAL8
-
-      !call MPI_GET_ADDRESS(tempdata%dist, baseaddr, ierr)
-      !call MPI_GET_ADDRESS(tempdata%dem1, addr1, ierr)
-      !offsets(1)= addr1 - baseaddr
-      !blockcounts(1) = 3
-      !types(1) = MPI_INTEGER
-
-      !call MPI_TYPE_CREATE_STRUCT(2, blockcounts, offsets, types, MPI_BCDATA_NRS, ierr)
-      !call MPI_TYPE_COMMIT(MPI_BCDATA_NRS, ierr)
-
-      !call MPI_TYPE_GET_EXTENT(MPI_INTEGER, lb, extent, ierr)
-      ! Note we do 4 ints here, the next double must be placed on an address divisible by 8
-      !extent = 4*extent + offsets(1)
-      !lb = 0
-      !call MPI_TYPE_CREATE_RESIZED(MPI_BCDATA_NRS, lb, extent, MPI_BCDATA, ierr)
-      !call MPI_TYPE_COMMIT(MPI_BCDATA, ierr)
-      !call MPI_TYPE_FREE(MPI_BCDATA_NRS, ierr)
 
       call MPI_TYPE_CONTIGUOUS(4, MPI_INTEGER, MPI_IPF_NODE, ierr)
       call MPI_TYPE_COMMIT(MPI_IPF_NODE, ierr)
@@ -476,8 +450,8 @@
 
       inquire(directory = trim(dirPath), exist = dirExist)
       if(.NOT.dirExist)then
-     Write(*,*) trim(dirPath)//' not found. Creating...'
-       CALL system('mkdir -p '// trim(dirPath));
+        write(*,*) trim(dirPath)//' not found. Creating...'
+        call system('mkdir -p '// trim(dirPath));
       endif
 
       end subroutine makedir

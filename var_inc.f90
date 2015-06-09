@@ -150,8 +150,7 @@
       real, allocatable,dimension(:):: collision_MRT_bnch, streaming_bnch, macrovar_bnch
       real, allocatable,dimension(:):: beads_collision_bnch, beads_lubforce_bnch, &
                 beads_move_bnch, beads_redistribute_bnch, beads_links_bnch, beads_filling_bnch
-      real, allocatable,dimension(:):: beads_collision_ex2, beads_collision_ex2i, beads_collision_loop, &
-                beads_collision_allre
+      real, allocatable,dimension(:):: beads_collision_ex2, beads_collision_loop, beads_collision_allre
 
       character(len=120):: dirbench, dirbenchmatlab, dirbenchbead, dirbenchflow, dirbenchstat
 

@@ -955,7 +955,7 @@
       real alphay, alphaz
       real,dimension(2*msize):: idfbeads, xfbeads, yfbeads, zfbeads
 
-
+      !Reset edge request indexers and flag array
       ibc_edge = 0; ipf_mymc = 0; ipf_mypc = 0; ipf_mzmc = 0; ipf_mzpc = 0
       iblinks(:,:) = 0
 
@@ -1216,10 +1216,6 @@
 
       end subroutine parse_MPI_links
 !===========================================================================
-! this is a modified version of the subroutine "beads_collision" above.
-! the goal is to save some run time memory by avoiding employing large
-! arrays, such as f9(0:npop-1,lx,ly,-1:lz+2), and ibnodes9(lx,ly,-1:lz+2) 
-
       subroutine beads_collision(step)
       use mpi 
       use var_inc
@@ -1229,9 +1225,9 @@
       integer im1, im2, ip1, jm1, jm2, jp1, km1, km2, kp1, n
       integer ibm1, ibm2
       real alpha, xc, yc, zc, xx0, yy0, zz0
-      real uwx, uwy, uwz, uwpro, ff1, ff2, ff3, ff1o, ff2o, ff3o
+      real uwx, uwy, uwz, uwpro, ff1, ff2, ff3
       real w1, w2, w3, omg1, omg2, omg3 
-      real c1, c2, c3, dff, dxmom, dymom, dzmom, c1o, c2o, c3o
+      real c1, c2, c3, dff, dxmom, dymom, dzmom
       real xpnt, ypnt, zpnt, f9, f92
       real mpibench
       integer step
@@ -1242,48 +1238,20 @@
       integer imzpc, imzmc, imypc, imymc
 
       real,dimension(lx,ly,lz):: f9print,alphaprint,ff1print
-
-      real,allocatable,dimension(:,:,:,:):: tmpfZp, tmpfZm 
-      real,allocatable,dimension(:,:,:,:):: tmpfYp, tmpfYm
-
-      real,allocatable,dimension(:,:,:):: tmp3, tmp4    
-      real,allocatable,dimension(:,:,:):: tmp5, tmp6
-
-      integer,allocatable,dimension(:,:,:):: tmpiZp, tmpiZm
-      integer,allocatable,dimension(:,:,:):: tmpiYp, tmpiYm
-
-      integer,allocatable,dimension(:,:,:):: tmp3i, tmp4i
-      integer,allocatable,dimension(:,:,:):: tmp5i, tmp6i
-
-      real mymIpfRecv(ipf_mymc), mypIpfRecv(ipf_mypc), mzmIpfRecv(ipf_mzmc), mzpIpfRecv(ipf_mzpc)
-
       real, dimension(3,npart):: fHIp0, torqp0
+      real mymIpfRecv(ipf_mymc), mypIpfRecv(ipf_mypc), mzmIpfRecv(ipf_mzmc), mzpIpfRecv(ipf_mzpc)
 
       allocate(bc_edge(ibc_edge))
       ibc_edge = 0
       imzpc = 0; imzmc = 0; imypc = 0; imymc = 0
-
-      mpibench = MPI_WTIME()
-      call exchng2new(mymIpfRecv,mypIpfRecv,mzmIpfRecv,mzpIpfRecv)
-      allocate(tmpfZp(0:npop-1,lx,ly,lz+1:lz+2))
-      allocate(tmpfZm(0:npop-1,lx,ly,-1:0))
-      allocate(tmpfYp(0:npop-1,lx,ly+1:ly+2,-1:lz+2))
-      allocate(tmpfYm(0:npop-1,lx,-1:0,-1:lz+2))
-
-      beads_collision_ex2(step) = MPI_WTIME() - mpibench
-
-      mpibench = MPI_WTIME();
-      allocate (tmpiZp(lx,ly,lz+1:lz+2))
-      allocate (tmpiZm(lx,ly,-1:0))
-      allocate (tmpiYp(lx,ly+1:ly+2,-1:lz+2))
-      allocate (tmpiYm(lx,-1:0,-1:lz+2))
-
-      beads_collision_ex2i(step) = MPI_WTIME() - mpibench
-
-      mpibench = MPI_WTIME();
       fHIp0 = 0.0
       torqp0 = 0.0
 
+      mpibench = MPI_WTIME()
+      call exchng2direct(mymIpfRecv,mypIpfRecv,mzmIpfRecv,mzpIpfRecv)
+      beads_collision_ex2(step) = MPI_WTIME() - mpibench
+
+      mpibench = MPI_WTIME();
       do n = 1,nlink
 
         i = xlink(n)
@@ -1452,7 +1420,8 @@
         endif
        ENDIF
 
-
+       !If node collision streaming node is outside of the local domain, save in
+       !Temp array to be added after streming
         if(jp1 > ly .or. jp1 < 1 .or. kp1 > lz .or. kp1 < 1)then
          ibc_edge = ibc_edge + 1
          bc_edge(ibc_edge) = bc_data(f9,ipp,i,j,k)
@@ -1460,7 +1429,7 @@
          f(ipp,ip1,jp1,kp1) = f9
        endif
 
-! compute force and torque acting on particles
+        ! compute force and torque acting on particles
         dff = ff1 + f9
         dxmom = dff*real(ix)
         dymom = dff*real(iy)
@@ -1476,17 +1445,7 @@
  
       end do 
 
-      deallocate(tmpiZp)
-      deallocate(tmpiZm)
-      deallocate(tmpiYp)
-      deallocate(tmpiYm)
-
       beads_collision_loop(step) = MPI_WTIME() - mpibench      
-
-      deallocate(tmpfZp)  
-      deallocate(tmpfZm)   
-      deallocate(tmpfYp)
-      deallocate(tmpfYm)
 
 ! collect info. for fHIp, and torqp
       ilen = 3*npart
@@ -1501,7 +1460,7 @@
       beads_collision_allre(step) = MPI_WTIME() - mpibench
       end subroutine beads_collision
 !===========================================================================
-      subroutine exchng2new(mymIpfRecv, mypIpfRecv, mzmIpfRecv, mzpIpfRecv)
+      subroutine exchng2direct(mymIpfRecv, mypIpfRecv, mzmIpfRecv, mzpIpfRecv)
       use mpi
       use var_inc
       implicit none
@@ -1545,6 +1504,7 @@
         endif
         ! Parse Recieved data
         do j = 1, count
+          !If requested data is in the z neighbors (corner), add it to temporay array
           if(ipfReq(j)%z > lz)then
             ipf_mzptc = ipf_mzptc + 1
             ipf_mzpt(ipf_mzptc) = ipfReq(j)
@@ -1572,6 +1532,7 @@
         deallocate(ipfReq)
       enddo
       ! If corner data was requested from Y neighbors add it to vertical requests
+      ! Corner requests are always on the end of the array
       ipf_mzp(ipf_mzpc+1:ipf_mzpc+ipf_mzptc) = ipf_mzpt
       ipf_mzm(ipf_mzmc+1:ipf_mzmc+ipf_mzmtc) = ipf_mzmt
 
@@ -1613,7 +1574,7 @@
         deallocate(ipfReq)
       enddo
 
-      !Recieve vertical data
+      !Recieve z neighbor interpolation fluid nod data
       do i = 1, 2
         call MPI_PROBE(MPI_ANY_SOURCE, 97, MPI_COMM_WORLD, status, ierr)
         call MPI_GET_COUNT(status, MPI_REAL8, count, ierr)
@@ -1622,7 +1583,7 @@
         
         if(status(MPI_SOURCE) == mzp)then
           mzpIpfRecv = ipfRecv(1:ipf_mzpc)
-          do j=1, ipf_mzptc
+          do j=1, ipf_mzptc !Move requested corner data into Y send buffs
             if(mzpt_index(j)%mpidir == 1)then
               mypIpfSend(mzpt_index(j)%index) = ipfRecv(ipf_mzpc+j)
             else
@@ -1631,8 +1592,8 @@
           enddo
         else
           mzmIpfRecv = ipfRecv(1:ipf_mzmc)
-          do j=1, ipf_mzmtc
-            if(mzmt_index(j)%mpidir == 1)then
+          do j=1, ipf_mzmtc !Move requested corner data into Y send buffs
+            if(mzmt_index(j)%mpidir == 1)then 
               mypIpfSend(mzmt_index(j)%index) = ipfRecv(ipf_mzmc+j)
             else
               mymIpfSend(mzmt_index(j)%index) = ipfRecv(ipf_mzmc+j)
@@ -1641,7 +1602,7 @@
         endif        
         deallocate(ipfRecv)
       enddo
-
+      !Send/receive Y interpolation fluid node data to
       call MPI_IRECV(mypIpfRecv,ipf_mypc,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(1),ierr)
       call MPI_IRECV(mymIpfRecv,ipf_mymc,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(2),ierr)
 
@@ -1649,100 +1610,7 @@
       call MPI_ISEND(mymIpfSend, ymcount, MPI_REAL8, mym, 0, MPI_COMM_WORLD, req(4), ierr)
 
       call MPI_WAITALL(4,req,status_array,ierr)
-      end subroutine exchng2new
-!===========================================================================
-      subroutine exchng2(tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8)
-      use mpi
-      use var_inc
-      implicit none
-
-!                   tmp1            tmp2   tmp3         tmp4
-!                   tmp5            tmp6   tmp7         tmp8 
-!     call exchng2(f(:,:,:,lz-1:lz),tmpfZp,f(:,:,:,1:2),tmpfZm,    &
-!                  f(:,:,ly-1:ly,:),tmpfYp,f(:,:,1:2,:),tmpfYm)
-
-      integer ileny, ilenz
-      real, dimension(0:npop-1,lx,ly,2):: tmp1, tmp2, tmp3, tmp4
-      real, dimension(0:npop-1,lx,2,lz):: tmp5, tmp7
-      real, dimension(0:npop-1,lx,2,-1:lz+2):: tmp5l, tmp6, tmp7l, tmp8
-      integer error,status_array(MPI_STATUS_SIZE,4), req(4)
-
-      ilenz = npop*lx*ly*2
-      ileny = npop*lx*(lz+4)*2
-! Send/ Receive data from Z direction neighbors
-      call MPI_IRECV(tmp2,ilenz,MPI_REAL8,mzp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmp4,ilenz,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(2),ierr)
-
-      call MPI_ISEND(tmp1,ilenz,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmp3,ilenz,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(4),ierr)
-
-      call MPI_WAITALL(4,req,status_array,ierr)
-
-!     Prepare array for y+ neighbor
-      tmp5l(:,:,1:2,-1:0) = tmp4(:,:,ly-1:ly,1:2)
-      tmp5l(:,:,1:2,lz+1:lz+2) = tmp2(:,:,ly-1:ly,1:2)
-      tmp5l(:,:,:,1:lz) = tmp5(:,:,:,:)
-!     Prepare array for y- neighbor
-      tmp7l(:,:,1:2,-1:0) = tmp4(:,:,1:2,1:2)
-      tmp7l(:,:,1:2,lz+1:lz+2) = tmp2(:,:,1:2,1:2)
-      tmp7l(:,:,:,1:lz) = tmp7(:,:,:,:)
-! Send/ Receive data from Y direction neighbors
-      call MPI_IRECV(tmp6,ileny,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmp8,ileny,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(2),ierr)
-
-      call MPI_ISEND(tmp5l,ileny,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmp7l,ileny,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(4),ierr)
-
-      call MPI_WAITALL(4,req,status_array,ierr)
-
-      end subroutine exchng2
-!===========================================================================
-      subroutine exchng2i(tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8)
-      use mpi
-      use var_inc
-      implicit none
-
-!                   tmp1                tmp2   tmp3             tmp4
-!                   tmp5                tmp6   tmp7             tmp8 
-!      exchng2iNew(ibnodes(:,:,lz-1:lz),tmpiZp,ibnodes(:,:,1:2),tmpiZm, &
-!                  ibnodes(:,ly-1:ly,:),tmpiYp,ibnodes(:,1:2,:),tmpiYm)
-
-      integer ileny, ilenz, i, j, ii,jj,kk,k
-      integer,dimension(lx,ly,2):: tmp1,tmp2,tmp3,tmp4
-      integer,dimension(lx,2,lz):: tmp5,tmp7
-      integer,dimension(lx,2,-1:lz+2):: tmp5l,tmp6,tmp7l,tmp8
-
-      integer status_array(MPI_STATUS_SIZE,4),req(4)
-
-      ilenz = lx*ly*2
-      ileny = lx*(lz+4)*2
-! Send/ Receive data from Z direction neighbors
-      call MPI_IRECV(tmp2,ilenz,MPI_INTEGER,mzp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmp4,ilenz,MPI_INTEGER,mzm,1,MPI_COMM_WORLD,req(2),ierr)
-
-      call MPI_ISEND(tmp1,ilenz,MPI_INTEGER,mzp,1,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmp3,ilenz,MPI_INTEGER,mzm,0,MPI_COMM_WORLD,req(4),ierr)
-      
-      call MPI_WAITALL(4,req,status_array,ierr)
-
-!     Prepare array for y+ neighbor
-      tmp5l(:,1:2,-1:0) = tmp4(:,ly-1:ly,1:2)
-      tmp5l(:,1:2,lz+1:lz+2) = tmp2(:,ly-1:ly,1:2)
-      tmp5l(:,:,1:lz) = tmp5(:,:,:)
-!     Prepare array for y- neighbor
-      tmp7l(:,1:2,-1:0) = tmp4(:,1:2,1:2)
-      tmp7l(:,1:2,lz+1:lz+2) = tmp2(:,1:2,1:2)
-      tmp7l(:,:,1:lz) = tmp7(:,:,:)
-! Send/ Receive data from Y direction neighbors
-      call MPI_IRECV(tmp6,ileny,MPI_INTEGER,myp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmp8,ileny,MPI_INTEGER,mym,1,MPI_COMM_WORLD,req(2),ierr)
-
-      call MPI_ISEND(tmp5l,ileny,MPI_INTEGER,myp,1,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmp7l,ileny,MPI_INTEGER,mym,0,MPI_COMM_WORLD,req(4),ierr)
-
-      call MPI_WAITALL(4,req,status_array,ierr)
-
-      end subroutine exchng2i      
+      end subroutine exchng2direct
 !===========================================================================
 
       subroutine beads_lubforce
