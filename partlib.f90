@@ -955,8 +955,8 @@
       real alphay, alphaz
       real,dimension(2*msize):: idfbeads, xfbeads, yfbeads, zfbeads
 
-      !Reset edge request indexers and flag array
-      ibc_edge = 0; ipf_mymc = 0; ipf_mypc = 0; ipf_mzmc = 0; ipf_mzpc = 0
+      !Reset indexers and flag array
+      ifsc_inject = 0; ipf_mymc = 0; ipf_mypc = 0; ipf_mzmc = 0; ipf_mzpc = 0
       iblinks(:,:) = 0
 
       localReqData = .FALSE. !Reset fill request data
@@ -1064,7 +1064,7 @@
 
                       !If tally interpolation solid nodes that are on local boundary
                       if(jmove < 1 .or. jmove > ly .or. kmove < 1 .or. kmove > lz)then
-                        ibc_edge = ibc_edge + 1
+                        ifsc_inject = ifsc_inject + 1
                       endif
 
                       call parse_MPI_links(ip, i, j, k, alpha, nlink)
@@ -1241,8 +1241,8 @@
       real, dimension(3,npart):: fHIp0, torqp0
       real mymIpfRecv(ipf_mymc), mypIpfRecv(ipf_mypc), mzmIpfRecv(ipf_mzmc), mzpIpfRecv(ipf_mzpc)
 
-      allocate(bc_edge(ibc_edge))
-      ibc_edge = 0
+      allocate(fsc_inject(ifsc_inject))
+      ifsc_inject = 0
       imzpc = 0; imzmc = 0; imypc = 0; imymc = 0
       fHIp0 = 0.0
       torqp0 = 0.0
@@ -1316,7 +1316,7 @@
 
         uwpro = uwx*real(ix) + uwy*real(iy) + uwz*real(iz)
 
-       IF(alpha <= 0.5)then
+       IF(alpha <= 0.5)then !shouldnt this be just <?
 
         if(im1 < 1 .or. im1 > lx)then
           ff2 = IBNODES_TRUE
@@ -1368,7 +1368,7 @@
           ff3 = mzpIpfRecv(imzpc)
         endif
 112     continue   
-        
+        !*note* wwp weights are 1/2 the true value hence 6 instead of 3
         if(ff2 == IBNODES_TRUE)then ! no interpolation, use simple bounce back
           f9 = ff1 - 6.0*wwp(ip)*uwpro
         else if(ff3 == IBNODES_TRUE)then ! use 2-point interpolation
@@ -1423,8 +1423,8 @@
        !If node collision streaming node is outside of the local domain, save in
        !Temp array to be added after streming
         if(jp1 > ly .or. jp1 < 1 .or. kp1 > lz .or. kp1 < 1)then
-         ibc_edge = ibc_edge + 1
-         bc_edge(ibc_edge) = bc_data(f9,ipp,i,j,k)
+         ifsc_inject = ifsc_inject + 1
+         fsc_inject(ifsc_inject) = fs_collis(f9,ipp,i,j,k)
         else
          f(ipp,ip1,jp1,kp1) = f9
        endif

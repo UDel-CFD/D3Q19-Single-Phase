@@ -188,10 +188,11 @@
       f(12,lx,:,:)=tmpxR(13,:,:)
 
       if(ipart == .TRUE.)then
-        do i=1, ibc_edge
-          f(bc_edge(i)%ipp,bc_edge(i)%x,bc_edge(i)%y,bc_edge(i)%z) = bc_edge(i)%dist
+        !Inject fluid solid particle collisions into fluid domain
+        do i=1, ifsc_inject
+          f(fsc_inject(i)%ip,fsc_inject(i)%x,fsc_inject(i)%y,fsc_inject(i)%z) = fsc_inject(i)%dist
         enddo
-        deallocate(bc_edge)
+        deallocate(fsc_inject)
       endif
 
       end subroutine streaming
