@@ -134,7 +134,7 @@
                  form = 'formatted')
 
      do i = 1, nsteps
-        write(60,600) beads_collision_ex2(i), beads_collision_loop(i), beads_collision_allre(i)
+        !write(60,600) beads_collision_ex2(i), beads_collision_loop(i), beads_collision_allre(i)
      enddo
      close(60)
 

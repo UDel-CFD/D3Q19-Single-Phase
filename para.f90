@@ -423,10 +423,6 @@
       allocate (beads_links_bnch(nsteps))
       allocate (beads_filling_bnch(nsteps))
 
-      allocate (beads_collision_ex2(nsteps))
-      allocate (beads_collision_loop(nsteps))
-      allocate (beads_collision_allre(nsteps))
-
       end subroutine allocarray
 !==================================================================
 

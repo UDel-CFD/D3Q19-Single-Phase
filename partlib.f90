@@ -1216,7 +1216,7 @@
 
       end subroutine parse_MPI_links
 !===========================================================================
-      subroutine beads_collision(step)
+      subroutine beads_collision
       use mpi 
       use var_inc
       implicit none
@@ -1229,8 +1229,6 @@
       real w1, w2, w3, omg1, omg2, omg3 
       real c1, c2, c3, dff, dxmom, dymom, dzmom
       real xpnt, ypnt, zpnt, f9, f92
-      real mpibench
-      integer step
 
       character (len = 100):: fnm2
 
@@ -1247,11 +1245,8 @@
       fHIp0 = 0.0
       torqp0 = 0.0
 
-      mpibench = MPI_WTIME()
       call exchng2direct(mymIpfRecv,mypIpfRecv,mzmIpfRecv,mzpIpfRecv)
-      beads_collision_ex2(step) = MPI_WTIME() - mpibench
 
-      mpibench = MPI_WTIME();
       do n = 1,nlink
 
         i = xlink(n)
@@ -1443,21 +1438,17 @@
         torqp0(2,id) = torqp0(2,id) + dxmom*zz0 - dzmom*xx0 
         torqp0(3,id) = torqp0(3,id) + dymom*xx0 - dxmom*yy0
  
-      end do 
-
-      beads_collision_loop(step) = MPI_WTIME() - mpibench      
+      end do     
 
 ! collect info. for fHIp, and torqp
       ilen = 3*npart
 
-      mpibench = MPI_WTIME()
       call MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
       call MPI_ALLREDUCE(fHIp0,fHIp,ilen,MPI_REAL8,MPI_SUM,             &
                          MPI_COMM_WORLD,ierr)      
       call MPI_ALLREDUCE(torqp0,torqp,ilen,MPI_REAL8,MPI_SUM,           &
-                         MPI_COMM_WORLD,ierr)      
-      beads_collision_allre(step) = MPI_WTIME() - mpibench
+                         MPI_COMM_WORLD,ierr)
       end subroutine beads_collision
 !===========================================================================
       subroutine exchng2direct(mymIpfRecv, mypIpfRecv, mzmIpfRecv, mzpIpfRecv)
@@ -1518,13 +1509,13 @@
               if(ibnodes(ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z) > 0)then
                 mypIpfSend(j) = IBNODES_TRUE
               else
-                mypIpfSend(j) = f(ipfReq(j)%ipp, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
+                mypIpfSend(j) = f(ipfReq(j)%ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
               endif
             else
               if(ibnodes(ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z) > 0)then
                 mymIpfSend(j) = IBNODES_TRUE
               else
-                mymIpfSend(j) = f(ipfReq(j)%ipp, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
+                mymIpfSend(j) = f(ipfReq(j)%ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
               endif
             endif
           endif          
@@ -1554,7 +1545,7 @@
             if(ibnodes(ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z) > 0)then
               mzpIpfSend(j) = IBNODES_TRUE
             else
-              mzpIpfSend(j) = f(ipfReq(j)%ipp, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
+              mzpIpfSend(j) = f(ipfReq(j)%ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
             endif
           enddo
           call MPI_ISEND(mzpIpfSend, zpcount, MPI_REAL8, mzp, 97, MPI_COMM_WORLD, req(3), ierr)
@@ -1566,7 +1557,7 @@
             if(ibnodes(ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z) > 0)then
               mzmIpfSend(j) = IBNODES_TRUE
             else
-              mzmIpfSend(j) = f(ipfReq(j)%ipp, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
+              mzmIpfSend(j) = f(ipfReq(j)%ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
             endif
           enddo
           call MPI_ISEND(mzmIpfSend, zmcount, MPI_REAL8, mzm, 97, MPI_COMM_WORLD, req(3), ierr)

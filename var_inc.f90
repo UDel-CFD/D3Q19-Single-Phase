@@ -2,7 +2,7 @@
       implicit none
       !Interpolation fluid node
       type ipf_node
-        integer ipp, x, y, z
+        integer ip, x, y, z
       endtype
       !Distribution of fluid colliding with solid particle surface
       type fs_collis !Fluid-solid collision
@@ -150,7 +150,6 @@
       real, allocatable,dimension(:):: collision_MRT_bnch, streaming_bnch, macrovar_bnch
       real, allocatable,dimension(:):: beads_collision_bnch, beads_lubforce_bnch, &
                 beads_move_bnch, beads_redistribute_bnch, beads_links_bnch, beads_filling_bnch
-      real, allocatable,dimension(:):: beads_collision_ex2, beads_collision_loop, beads_collision_allre
 
       character(len=120):: dirbench, dirbenchmatlab, dirbenchbead, dirbenchflow, dirbenchstat
 

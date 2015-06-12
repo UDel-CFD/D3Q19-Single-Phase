@@ -296,7 +296,6 @@
       call benchflow
       call benchbead
       call benchmatlab
-      call benchbeads_collision
 
       call benchtotal
 
