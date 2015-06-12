@@ -35,7 +35,7 @@ begin
     xspan =ispan(0,max(runtimes)-1,1)
     rc = regline_stats(int2flt(runtimes), averagedata) ;Arrays must be of same type!
     plotdata(1,:) = rc*(xspan) + rc@yintercept ;mx + b
-
+    print(sprintf("%12.9f",rc))
 ; =================================
 ; Using gsun so we don't have to worry about app, workstations, data, etc.
     wks   = gsn_open_wks ("x11","xy")
@@ -56,6 +56,8 @@ begin
     res@tmXBLabels      = "" + res@tmXBValues                       ; set x major tick labels
     res@tmXBMinorValues = ispan(0,max(runtimes)+100,50)             ; set x minor tick spacing
     res@tmXBLabelFontHeightF = 0.013                                ; set font size for x labels, default = 0.02
+    res@trYMinF               = 0
+    res@trYMaxF               = max(plotdata(0,:))+25
 
     res@xyDashPattern     = 0                                       ; choose solid line
     res@xyMarkLineModes   = (/"Markers","Lines"/)                   ; choose to use markers or line
