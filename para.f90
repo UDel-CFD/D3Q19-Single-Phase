@@ -6,6 +6,10 @@
       integer i,j,k
       real vmax
 
+      !Flag indicating node is inside solid particle
+      !Used in the direct request system in beads_collision
+      IBNODES_TRUE = 12345678
+
       pi = 4.0*atan(1.0) 
       pi2 = 2.0*pi
 ! specify the force magnitude
@@ -49,7 +53,7 @@
 
       istpload = 2000    !!!!THIS NEEDS TO BE CHANGED WHEN STARTING NEW RUNS
       force_mag = 1.0
-      nsteps = 2000
+      nsteps = 50
 
 !     nek = nx/3
       nek = int(nx7/2 - 1.5)
@@ -386,6 +390,11 @@
       allocate (iplink(maxlink))
       allocate (mlink(maxlink))
       allocate (alink(maxlink))
+      allocate (iblinks(2,maxlink))
+      allocate (ipf_mym(2*19*lx*(lz + 4)))
+      allocate (ipf_myp(2*19*lx*(lz + 4)))
+      allocate (ipf_mzm(2*19*lx*ly))
+      allocate (ipf_mzp(2*19*lx*ly))
 
       allocate (ibnodes0(lx,ly,lz))
       allocate (isnodes(lx,ly,lz))
@@ -403,19 +412,31 @@
       end if
 
 !bench marking
-    allocate (collision_MRT_bnch(nsteps))
-    allocate (streaming_bnch(nsteps))
-    allocate (macrovar_bnch(nsteps))
+      allocate (collision_MRT_bnch(nsteps))
+      allocate (streaming_bnch(nsteps))
+      allocate (macrovar_bnch(nsteps))
 
-    allocate (beads_collision_bnch(nsteps))
-    allocate (beads_lubforce_bnch(nsteps))
-    allocate (beads_move_bnch(nsteps))
-    allocate (beads_redistribute_bnch(nsteps))
-    allocate (beads_links_bnch(nsteps))
-    allocate (beads_filling_bnch(nsteps))
+      allocate (beads_collision_bnch(nsteps))
+      allocate (beads_lubforce_bnch(nsteps))
+      allocate (beads_move_bnch(nsteps))
+      allocate (beads_redistribute_bnch(nsteps))
+      allocate (beads_links_bnch(nsteps))
+      allocate (beads_filling_bnch(nsteps))
 
       end subroutine allocarray
 !==================================================================
+
+      subroutine constructMPItypes
+      use mpi
+      use var_inc
+      implicit none
+
+      call MPI_TYPE_CONTIGUOUS(4, MPI_INTEGER, MPI_IPF_NODE, ierr)
+      call MPI_TYPE_COMMIT(MPI_IPF_NODE, ierr)
+
+      end subroutine constructMPItypes
+!==================================================================
+
       subroutine makedir (dirPath)
       use var_inc
 
@@ -425,8 +446,8 @@
 
       inquire(directory = trim(dirPath), exist = dirExist)
       if(.NOT.dirExist)then
-     Write(*,*) trim(dirPath)//' not found. Creating...'
-       CALL system('mkdir -p '// trim(dirPath));
+        write(*,*) trim(dirPath)//' not found. Creating...'
+        call system('mkdir -p '// trim(dirPath));
       endif
 
       end subroutine makedir

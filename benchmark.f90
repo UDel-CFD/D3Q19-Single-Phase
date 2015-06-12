@@ -118,3 +118,27 @@
      end subroutine benchtotal
 !==========================================================================================
 !==========================================================================================
+     subroutine benchbeads_collision
+     use var_inc
+
+     implicit none
+     integer iprc1, iprc2, iprc3, i
+     character (len = 150):: fnm
+     character (len = 10):: filenum
+
+     write (filenum, "(I10)") myid
+
+     fnm = trim(dirbench)//'beads_collision/bench'//trim(adjustl(filenum))//'.dat'
+
+     open(60, file = trim(fnm), status = 'unknown',                 &
+                 form = 'formatted')
+
+     do i = 1, nsteps
+        !write(60,600) beads_collision_ex2(i), beads_collision_loop(i), beads_collision_allre(i)
+     enddo
+     close(60)
+
+600   format(2x,9(1f16.10))
+     end subroutine benchbeads_collision
+!==========================================================================================
+!==========================================================================================

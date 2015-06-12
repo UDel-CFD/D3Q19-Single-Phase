@@ -1,5 +1,14 @@
       module var_inc
       implicit none
+      !Interpolation fluid node
+      type ipf_node
+        integer ip, x, y, z
+      endtype
+      !Distribution of fluid colliding with solid particle surface
+      type fs_collis !Fluid-solid collision
+        real dist !Distribution
+        integer ip, x, y, z !Location
+      endtype
 
       integer,parameter:: FFTW_FORWARD = -1, FFTW_BACKWARD = 1
       integer,parameter:: FFTW_REAL_TO_COMPLEX = -1,                   &
@@ -104,6 +113,11 @@
 
       real,allocatable,dimension(:):: xlink, ylink, zlink
       real,allocatable,dimension(:):: iplink, alink, mlink
+      integer,allocatable,dimension(:,:):: iblinks
+      integer ifsc_inject, ipf_mymc, ipf_mypc, ipf_mzmc, ipf_mzpc
+      integer MPI_IPF_NODE, IBNODES_TRUE
+      type(ipf_node), allocatable,dimension(:):: ipf_mym, ipf_myp, ipf_mzm, ipf_mzp
+      type(fs_collis), allocatable,dimension(:):: fsc_inject !Fluid-solid collision inject
 
       real,allocatable,dimension(:,:,:):: rho, rhop
       real,allocatable,dimension(:,:,:):: ux, uy, uz

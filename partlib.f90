@@ -939,9 +939,6 @@
 
       end subroutine initpartomg
 !===========================================================================
-
-      !===========================================================================
-
       subroutine beads_links
       use var_inc
       implicit none
@@ -957,6 +954,10 @@
       logical bfilled
       real alphay, alphaz
       real,dimension(2*msize):: idfbeads, xfbeads, yfbeads, zfbeads
+
+      !Reset indexers and flag array
+      ifsc_inject = 0; ipf_mymc = 0; ipf_mypc = 0; ipf_mzmc = 0; ipf_mzpc = 0
+      iblinks(:,:) = 0
 
       localReqData = .FALSE. !Reset fill request data
       radp2 = rad + 2.d0
@@ -1022,8 +1023,8 @@
                 else
                   do ip = 1,npop-1
                     imove = i + cix(ip) 
-                    jmove = j + ciy(ip) 
-                    kmove = k + ciz(ip) 
+                    jmove = j + ciy(ip)
+                    kmove = k + ciz(ip)
 
                     xx1 = dfloat(imove) - 0.5d0 - xc
                     yy1 = dfloat(jmove) - 0.5d0 - yc + dfloat(indy*ly)
@@ -1060,6 +1061,14 @@
                         write(*,*) 'fault: alpha = ', alpha, ' @ ilink(',      &
                                    ip, ', ', i, ', ', j, ', ', k, ')' 
                       end if
+
+                      !If tally interpolation solid nodes that are on local boundary
+                      if(jmove < 1 .or. jmove > ly .or. kmove < 1 .or. kmove > lz)then
+                        ifsc_inject = ifsc_inject + 1
+                      endif
+
+                      call parse_MPI_links(ip, i, j, k, alpha, nlink)
+                      
                     end if
 
                   end do
@@ -1102,10 +1111,111 @@
       enddo !x
       end subroutine beads_links
 !===========================================================================
-! this is a modified version of the subroutine "beads_collision" above.
-! the goal is to save some run time memory by avoiding employing large
-! arrays, such as f9(0:npop-1,lx,ly,-1:lz+2), and ibnodes9(lx,ly,-1:lz+2) 
+      subroutine parse_MPI_links(ipi,i,j,k,alpha,n)
+      use var_inc
 
+      integer ipi, i, j, k, ip, ix, iy, ik, n
+      integer im1, jm1, km1, im2, jm2, km2
+      real alpha
+
+      ix = cix(ipi)
+      iy = ciy(ipi)
+      iz = ciz(ipi)
+
+      im1 = i - ix
+      jm1 = j - iy
+      km1 = k - iz
+      im2 = i - 2*ix
+      jm2 = j - 2*iy
+      km2 = k - 2*iz
+
+      if(alpha > 0.5)then
+       ip = ipopp(ipi) 
+      else
+       ip = ipi
+      endif
+
+      !Determine if we need to request data from neighboring tasks
+      if(jm1 < 1)then
+        ipf_mymc = ipf_mymc + 1
+        ipf_mym(ipf_mymc) = ipf_node(ip, im1, jm1, km1)
+        if(alpha <= 0.5)then
+          ipf_mymc = ipf_mymc + 1
+          ipf_mym(ipf_mymc) = ipf_node(ip, im2, jm2, km2)
+        endif
+        iblinks(:,n) = 1
+      elseif(jm1 > ly)then
+        ipf_mypc = ipf_mypc + 1
+        ipf_myp(ipf_mypc) = ipf_node(ip, im1, jm1, km1)
+        if(alpha <= 0.5)then
+          ipf_mypc = ipf_mypc + 1
+          ipf_myp(ipf_mypc) = ipf_node(ip, im2, jm2, km2)
+        endif
+        iblinks(:,n) = 2
+      elseif(km1 < 1)then
+        ipf_mzmc = ipf_mzmc + 1
+        ipf_mzm(ipf_mzmc) = ipf_node(ip, im1, jm1, km1)
+        iblinks(1,n) = 3
+        if(alpha <= 0.5)then
+          if(jm2 < 1)then
+            ipf_mymc = ipf_mymc + 1
+            ipf_mym(ipf_mymc) = ipf_node(ip, im2, jm2, km2)
+            iblinks(2,n) = 1
+          elseif(jm2 > ly)then
+            ipf_mypc = ipf_mypc + 1
+            ipf_myp(ipf_mypc) = ipf_node(ip, im2, jm2, km2)
+            iblinks(2,n) = 2
+          else
+            ipf_mzmc = ipf_mzmc + 1
+            ipf_mzm(ipf_mzmc) = ipf_node(ip, im2, jm2, km2)
+            iblinks(2,n) = 3
+          endif
+        endif
+      elseif(km1 > lz)then
+        ipf_mzpc = ipf_mzpc + 1
+        ipf_mzp(ipf_mzpc) = ipf_node(ip, im1, jm1, km1)
+        iblinks(1,n) = 4
+        if(alpha <= 0.5)then
+          if(jm2 < 1)then
+            ipf_mymc = ipf_mymc + 1
+            ipf_mym(ipf_mymc) = ipf_node(ip, im2, jm2, km2)
+            iblinks(2,n) = 1
+          elseif(jm2 > ly)then
+            ipf_mypc = ipf_mypc + 1
+            ipf_myp(ipf_mypc) = ipf_node(ip, im2, jm2, km2)
+            iblinks(2,n) = 2
+          else
+            ipf_mzpc = ipf_mzpc + 1
+            ipf_mzp(ipf_mzpc) = ipf_node(ip, im2, jm2, km2)
+            iblinks(2,n) = 4
+          endif
+        endif
+      else
+        if(alpha <= 0.5)then
+          if(jm2 < 1)then
+            ipf_mymc = ipf_mymc + 1
+            ipf_mym(ipf_mymc) = ipf_node(ip, im2, jm2, km2)
+            iblinks(2,n) = 1
+          elseif(jm2 > ly)then
+            ipf_mypc = ipf_mypc + 1
+            ipf_myp(ipf_mypc) = ipf_node(ip, im2, jm2, km2)
+            iblinks(2,n) = 2
+          elseif(km2 < 1)then
+            ipf_mzmc = ipf_mzmc + 1
+            ipf_mzm(ipf_mzmc) = ipf_node(ip, im2, jm2, km2)
+            iblinks(2,n) = 3
+          elseif(km2 > lz)then
+            ipf_mzpc = ipf_mzpc + 1
+            ipf_mzp(ipf_mzpc) = ipf_node(ip, im2, jm2, km2)
+            iblinks(2,n) = 4
+          else
+            iblinks(2,n) = 0
+        endif
+        endif
+      endif
+
+      end subroutine parse_MPI_links
+!===========================================================================
       subroutine beads_collision
       use mpi 
       use var_inc
@@ -1115,64 +1225,27 @@
       integer im1, im2, ip1, jm1, jm2, jp1, km1, km2, kp1, n
       integer ibm1, ibm2
       real alpha, xc, yc, zc, xx0, yy0, zz0
-      real uwx, uwy, uwz, uwpro, ff1, ff2, ff3 
+      real uwx, uwy, uwz, uwpro, ff1, ff2, ff3
       real w1, w2, w3, omg1, omg2, omg3 
-      real c1, c2, c3, dff, dxmom, dymom, dzmom 
-      real xpnt, ypnt, zpnt, f9   
+      real c1, c2, c3, dff, dxmom, dymom, dzmom
+      real xpnt, ypnt, zpnt, f9, f92
 
-       character (len = 100):: fnm2
-!      character (len = 100):: fnm_a,fnm_a1,fnm_a2,fnm_a3,fnm_a4,fnm_a5,fnm_a6,fnm_a7,fnm_a8
-!      character (len = 100):: fnm_b,fnm_b1,fnm_b2,fnm_b3,fnm_b4,fnm_b5,fnm_b6,fnm_b7,fnm_b8
-!      character (len = 100):: fnm20,fnm21,fnm25,fnm26,fnm27,fnm28
+      character (len = 100):: fnm2
+
+      integer imzp, imzm, imyp, imym
+      integer imzpc, imzmc, imypc, imymc
 
       real,dimension(lx,ly,lz):: f9print,alphaprint,ff1print
+      real, dimension(3,npart):: fHIp0, torqp0
+      real mymIpfRecv(ipf_mymc), mypIpfRecv(ipf_mypc), mzmIpfRecv(ipf_mzmc), mzpIpfRecv(ipf_mzpc)
 
-      real,allocatable,dimension(:,:,:,:):: tmpfL, tmpfR 
-      real,allocatable,dimension(:,:,:,:):: tmpfU, tmpfD
-
-      real,allocatable,dimension(:,:,:):: tmp3, tmp4    
-      real,allocatable,dimension(:,:,:):: tmp5, tmp6
-
-      integer,allocatable,dimension(:,:,:):: tmpiL, tmpiR
-      integer,allocatable,dimension(:,:,:):: tmpiU, tmpiD
-
-      integer,allocatable,dimension(:,:,:):: tmp3i, tmp4i
-      integer,allocatable,dimension(:,:,:):: tmp5i, tmp6i
-
-      integer,allocatable,dimension(:,:,:):: if9L, if9R  
-      integer,allocatable,dimension(:,:,:):: if9U, if9D
-
-      real, dimension(3,npart):: fHIp0, torqp0 
-
-      allocate(tmpfL(0:npop-1,lx,ly,-1:0))
-      allocate(tmpfR(0:npop-1,lx,ly,lz+1:lz+2))
-      allocate(tmpfU(0:npop-1,lx,ly+1:ly+2,-1:lz+2))
-      allocate(tmpfD(0:npop-1,lx,-1:0,-1:lz+2))
-
-
-      call exchng2(f(:,:,:,1:2),tmpfR,f(:,:,:,lz-1:lz),tmpfL,    &
-                   f(:,:,1:2,:),tmpfU,f(:,:,ly-1:ly,:),tmpfD)
-
-      allocate (tmpiL(lx,ly,-1:0))
-      allocate (tmpiR(lx,ly,lz+1:lz+2))
-      allocate (tmpiU(lx,ly+1:ly+2,-1:lz+2))
-      allocate (tmpiD(lx,-1:0,-1:lz+2))
-
-      call exchng2iNew(ibnodes(:,:,1:2),tmpiR,ibnodes(:,:,lz-1:lz),tmpiL, &
-                       ibnodes(:,1:2,:),tmpiU,ibnodes(:,ly-1:ly,:),tmpiD)
-
+      allocate(fsc_inject(ifsc_inject))
+      ifsc_inject = 0
+      imzpc = 0; imzmc = 0; imypc = 0; imymc = 0
       fHIp0 = 0.0
       torqp0 = 0.0
 
-      allocate (if9L(0:npop-1,lx,ly)) 
-      allocate (if9R(0:npop-1,lx,ly)) 
-      allocate (if9U(0:npop-1,lx,0:lz+1))
-      allocate (if9D(0:npop-1,lx,0:lz+1))
-
-      if9L = 0
-      if9R = 0
-      if9U = 0
-      if9D = 0
+      call exchng2direct(mymIpfRecv,mypIpfRecv,mzmIpfRecv,mzpIpfRecv)
 
       do n = 1,nlink
 
@@ -1226,16 +1299,6 @@
         jp1 = j + iy
         kp1 = k + iz
 
-! periodicity
-!        if(im1 < 1) im1 = im1 + nx 
-!        if(im1 > nx) im1 = im1 - nx 
-
-!        if(im2 < 1) im2 = im2 + nx  
-!        if(im2 > nx) im2 = im2 - nx  
-
-!        if(ip1 < 1) ip1 = ip1 + nx  
-!        if(ip1 > nx) ip1 = ip1 - nx  
-
         xx0 = xpnt + real(ix)*alpha - xc 
         yy0 = ypnt + real(iy)*alpha - yc 
         zz0 = zpnt + real(iz)*alpha - zc 
@@ -1248,146 +1311,120 @@
 
         uwpro = uwx*real(ix) + uwy*real(iy) + uwz*real(iz)
 
+       IF(alpha <= 0.5)then !shouldnt this be just <?
 
-! bounce-back scheme on moving particle surfaces
-        IF(alpha <= 0.5)THEN
+        if(im1 < 1 .or. im1 > lx)then
+          ff2 = IBNODES_TRUE
+          goto 112
+        endif
 
-!--------
-        if(im1 > nx) then
-          ibm1 = 2
-        else if(im1 < 1) then
-          ibm1 = 2
+        if(iblinks(1,n) == 0)then
+          if(ibnodes(im1,jm1,km1)>0)then
+            ff2 = IBNODES_TRUE
           else
-          if(jm1 > ly) then
-          ff2 = tmpfU(ip,im1,jm1,km1)
-          ibm1 = tmpiU(im1,jm1,km1)
-          else if (jm1 < 1) then
-          ff2 = tmpfD(ip,im1,jm1,km1)
-          ibm1 = tmpiD(im1,jm1,km1)
+            ff2 = f(ip,im1,jm1,km1)
+          endif
+        elseif(iblinks(1,n) == 1)then
+          imymc = imymc + 1
+          ff2 = mymIpfRecv(imymc)
+        elseif(iblinks(1,n) == 2)then
+          imypc = imypc + 1
+          ff2 = mypIpfRecv(imypc)
+        elseif(iblinks(1,n) == 3)then
+          imzmc = imzmc + 1
+          ff2 = mzmIpfRecv(imzmc)
+        else
+          imzpc = imzpc + 1
+          ff2 = mzpIpfRecv(imzpc)
+        endif
+
+        if(im2 < 1 .or. im2 > lx)then
+          ff3 = IBNODES_TRUE
+          goto 112
+        endif  
+
+        if(iblinks(2,n) == 0)then
+          if(ibnodes(im2,jm2,km2)>0)then
+            ff3 = IBNODES_TRUE
           else
-            if(km1 > lz) then
-            ff2 = tmpfR(ip,im1,jm1,km1)
-            ibm1 = tmpiR(im1,jm1,km1)
-            else if(km1 < 1 ) then
-            ff2 = tmpfL(ip,im1,jm1,km1)
-            ibm1 = tmpiL(im1,jm1,km1)
-            else
-              ff2 = f(ip,im1,jm1,km1)
-              ibm1 = ibnodes(im1,jm1,km1)
-              end if
-            end if
-          end if
-! ------
-         if(im2 > nx) then
-          ibm2 = 2
-         else if(im2 < 1) then
-          ibm2 = 2
-          else
-          if(jm2 > ly) then
-          ff3 = tmpfU(ip,im2,jm2,km2)
-          ibm2 = tmpiU(im2,jm2,km2)
-          else if (jm2 < 1) then
-          ff3 = tmpfD(ip,im2,jm2,km2)
-          ibm2 = tmpiD(im2,jm2,km2)
-          else
-            if(km2 > lz) then
-            ff3 = tmpfR(ip,im2,jm2,km2)
-            ibm2 = tmpiR(im2,jm2,km2)
-            else if(km2 < 1 ) then
-            ff3 = tmpfL(ip,im2,jm2,km2)
-            ibm2 = tmpiL(im2,jm2,km2)
-            else
             ff3 = f(ip,im2,jm2,km2)
-            ibm2 = ibnodes(im2,jm2,km2)
-            end if
-           end if
-          end if
-!------------
-          if(ibm1 > 0)then
-! no interpolation, use simple bounce back
-            f9 = ff1 - 6.0*wwp(ip)*uwpro
+          endif
+        elseif(iblinks(2,n) == 1)then
+          imymc = imymc + 1
+          ff3 = mymIpfRecv(imymc)
+        elseif(iblinks(2,n) == 2)then
+          imypc = imypc + 1
+          ff3 = mypIpfRecv(imypc)
+        elseif(iblinks(2,n) == 3)then
+          imzmc = imzmc + 1
+          ff3 = mzmIpfRecv(imzmc)
+        else
+          imzpc = imzpc + 1
+          ff3 = mzpIpfRecv(imzpc)
+        endif
+112     continue   
+        !*note* wwp weights are 1/2 the true value hence 6 instead of 3
+        if(ff2 == IBNODES_TRUE)then ! no interpolation, use simple bounce back
+          f9 = ff1 - 6.0*wwp(ip)*uwpro
+        else if(ff3 == IBNODES_TRUE)then ! use 2-point interpolation
+          f9 = 2.0*alpha*(ff1 - ff2) + ff2 - 6.0*wwp(ip)*uwpro
+        else ! use 3-point interpolation scheme of Lallemand and Luo (2003) JCP
+          c1 = alpha*(1.0 + 2.0*alpha)
+          c2 = 1.0 - 4.0*alpha*alpha
+          c3 = -alpha*(1.0 - 2.0*alpha)
+          f9 = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ip)*uwpro
+        end if
 
-          else if(ibm2 > 0)then
-! use 2-point interpolation
-            f9 = 2.0*alpha*(ff1 - ff2) + ff2 - 6.0*wwp(ip)*uwpro
+       ELSE
+        ff2 = f(ipp,i,j,k)
+        if(im1 < 1 .or. im1 > lx)then
+          ff3 = IBNODES_TRUE
+          goto 113
+        endif
 
+        if(iblinks(1,n) == 0)then
+          if(ibnodes(im1,jm1,km1)>0)then
+            ff3 = IBNODES_TRUE
           else
-! use 3-point interpolation scheme of Lallemand and Luo (2003) JCP
-            c1 = alpha*(1.0 + 2.0*alpha)
-            c2 = 1.0 - 4.0*alpha*alpha
-            c3 = -alpha*(1.0 - 2.0*alpha)
-            f9 = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ip)*uwpro
-          end if
-
-!          if(id==460 .and. ipop==8 .and. i==197 .and. j==1 .and. k==28 .and. istep==630)then
-!           write(*,*)'im1,jm1,km1,im2,jm2,km2,ff1,ff2,ff3,ibm1,ibm2,alpha,wwp(ipop),uwpro',  &
-!                      im1,jm1,km1,im2,jm2,km2,ff1,ff2,ff3,ibm1,ibm2,alpha,wwp(ipop),uwpro
-!          endif
-
-        ELSE 
-
-          ff2 = f(ipp,i,j,k)
-          
-          if(im1 > nx) then
-          ibm1 = 2
-          else if(im1 < 1) then
-          ibm1 = 2
-          else
-          if(jm1 > ly) then
-          ff3 = tmpfU(ipp,im1,jm1,km1)
-          ibm1 = tmpiU(im1,jm1,km1)
-          else if (jm1 < 1) then
-          ff3 = tmpfD(ipp,im1,jm1,km1)
-          ibm1 = tmpiD(im1,jm1,km1)
-          else
-            if(km1 > lz) then
-            ff3 = tmpfR(ipp,im1,jm1,km1)
-            ibm1 = tmpiR(im1,jm1,km1)
-            else if(km1 < 1 ) then
-            ff3 = tmpfL(ipp,im1,jm1,km1)
-            ibm1 = tmpiL(im1,jm1,km1)
-            else
             ff3 = f(ipp,im1,jm1,km1)
-            ibm1 = ibnodes(im1,jm1,km1)
-          end if
-            end if
-          end if
+          endif
+        elseif(iblinks(1,n) == 1)then
+          imymc = imymc + 1
+          ff3 = mymIpfRecv(imymc)
+        elseif(iblinks(1,n) == 2)then
+          imypc = imypc + 1
+          ff3 = mypIpfRecv(imypc)
+        elseif(iblinks(1,n) == 3)then
+          imzmc = imzmc + 1
+          ff3 = mzmIpfRecv(imzmc)
+        else
+          imzpc = imzpc + 1
+          ff3 = mzpIpfRecv(imzpc)
+        endif
+113     continue
 
-          if(ibm1 > 0)then
-! use 2-point interpolation
+        if(ff3 == IBNODES_TRUE)then! use 2-point interpolation
             c1 = 0.5 / alpha
             c2 = 1.0 - c1
             f9 = c1*ff1 + c2*ff2 - 6.0*wwp(ip)*c1*uwpro
-
-          else
-! use 3-point interpolation scheme of Lallemand and Luo (2003) JCP
+        else! use 3-point interpolation scheme of Lallemand and Luo (2003) JCP
             c1 = 1.0 / alpha / (2.0*alpha + 1.0)
             c2 = (2.0*alpha - 1.0) / alpha
             c3 = 1.0 - c1 - c2
             f9 = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ip)*c1*uwpro
-          end if
+        endif
+       ENDIF
 
-       END IF
+       !If node collision streaming node is outside of the local domain, save in
+       !Temp array to be added after streming
+        if(jp1 > ly .or. jp1 < 1 .or. kp1 > lz .or. kp1 < 1)then
+         ifsc_inject = ifsc_inject + 1
+         fsc_inject(ifsc_inject) = fs_collis(f9,ipp,i,j,k)
+        else
+         f(ipp,ip1,jp1,kp1) = f9
+       endif
 
-          if(jp1 > ly) then
-          tmpfU(ipp,ip1,jp1,kp1) = f9
-          if9U(ipp,ip1,kp1) = 1
-          else if (jp1 < 1) then
-          tmpfD(ipp,ip1,jp1,kp1) = f9
-          if9D(ipp,ip1,kp1) = 1
-          else
-            if(kp1 > lz) then
-            tmpfR(ipp,ip1,jp1,kp1) = f9
-            if9R(ipp,ip1,jp1) = 1
-            else if(kp1 < 1 ) then
-            tmpfL(ipp,ip1,jp1,kp1) = f9
-            if9L(ipp,ip1,jp1) = 1
-            else
-            f(ipp,ip1,jp1,kp1) = f9
-            end if
-          end if
-
-! compute force and torque acting on particles
+        ! compute force and torque acting on particles
         dff = ff1 + f9
         dxmom = dff*real(ix)
         dymom = dff*real(iy)
@@ -1401,32 +1438,8 @@
         torqp0(2,id) = torqp0(2,id) + dxmom*zz0 - dzmom*xx0 
         torqp0(3,id) = torqp0(3,id) + dymom*xx0 - dxmom*yy0
  
-      end do 
+      end do     
 
-
-      deallocate(tmpiL)
-      deallocate(tmpiR)
-      deallocate(tmpiU)
-      deallocate(tmpiD)
-
-! We combine the two communications and the order is in reverse inside
-! Also the re-assignment of f is done inside the suroutine
-! So exchng3i is not needed any more.
-
-      call exchng3(tmpfL(:,:,:,0),tmpfR(:,:,:,lz+1), &
-              tmpfD(:,:,0,0:lz+1),tmpfU(:,:,ly+1,0:lz+1), &
-             if9L,if9R,if9D,if9U)
-
-      deallocate(tmpfL)   
-      deallocate(tmpfR)  
-      deallocate(tmpfU)
-      deallocate(tmpfD)
-
-      deallocate(if9U)
-      deallocate(if9D)
-      deallocate(if9L)   
-      deallocate(if9R) 
-    
 ! collect info. for fHIp, and torqp
       ilen = 3*npart
 
@@ -1435,512 +1448,160 @@
       call MPI_ALLREDUCE(fHIp0,fHIp,ilen,MPI_REAL8,MPI_SUM,             &
                          MPI_COMM_WORLD,ierr)      
       call MPI_ALLREDUCE(torqp0,torqp,ilen,MPI_REAL8,MPI_SUM,           &
-                         MPI_COMM_WORLD,ierr)      
-
-!      if(istep==630)write(*,*)'fHIp(:,292) = ',fHIp(:,292)
-
-!       do i = 1,3
-!        do j = 1,npart
-!         if(fHIp(i,j) .gt. 100)then
-!          if(myid==0)write(*,*)'istep, fHIp(i,j) = ',istep,fHIp(i,j),i,j 
-!         endif
-!        enddo
-!       enddo
-
-
-!210   format(2x,4i5)
+                         MPI_COMM_WORLD,ierr)
       end subroutine beads_collision
 !===========================================================================
-      subroutine exchng2(tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8)
+      subroutine exchng2direct(mymIpfRecv, mypIpfRecv, mzmIpfRecv, mzpIpfRecv)
       use mpi
       use var_inc
       implicit none
 
-!                   tmp1         tmp2  tmp3             tmp4  tmp5         tmp6  tmp7             tmp8
-!      call exchng2(f(:,:,:,1:2),tmpfR,f(:,:,:,lz-1:lz),tmpfL,f(:,:,1:2,:),tmpfU,f(:,:,ly-1:ly,:),tmpfD)
+      type cornerNode
+        integer index, mpidir
+      endtype
 
-      integer ileny, ilenz
-      real, dimension(0:npop-1,lx,ly,2):: tmp1, tmp2, tmp3, tmp4
-      real, dimension(0:npop-1,lx,2,lz):: tmp5, tmp7
-      real, dimension(0:npop-1,lx,2,-1:lz+2):: tmp5l, tmp6, tmp7l, tmp8
+      real mymIpfRecv(ipf_mymc), mypIpfRecv(ipf_mypc), mzmIpfRecv(ipf_mzmc), mzpIpfRecv(ipf_mzpc)
+      real,allocatable,dimension(:):: mymIpfSend, mypIpfSend, mzmIpfSend, mzpIpfSend, ipfRecv
+      integer ipf_mzmtc, ipf_mzptc, count, ymcount, ypcount, zmcount, zpcount
+      integer status(MPI_STATUS_SIZE), status_array(MPI_STATUS_SIZE,2), req(2)
+      integer i, j, dir
 
-      integer error,status_array(MPI_STATUS_SIZE,4), req(4)
+      type(cornerNode), dimension(19*4):: mzmt_index, mzpt_index
+      type(ipf_node),allocatable,dimension(:):: ipfReq
+      type(ipf_node) ipf_mzmt(19*4), ipf_mzpt(19*4)
 
-      ilenz = npop*lx*ly*2
-      ileny = npop*lx*(lz+4)*2
+      ipf_mzmtc = 0; ipf_mzptc = 0;
 
-      call MPI_IRECV(tmp2,ilenz,MPI_REAL8,mzp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmp4,ilenz,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(2),ierr)
+      ! Send/ Receive data from Y direction neighbors
+      call MPI_ISEND(ipf_myp(1:ipf_mypc), ipf_mypc, MPI_IPF_NODE, myp, 99, MPI_COMM_WORLD, req(1), ierr)
+      call MPI_ISEND(ipf_mym(1:ipf_mymc), ipf_mymc, MPI_IPF_NODE, mym, 99, MPI_COMM_WORLD, req(2), ierr)
 
-      call MPI_ISEND(tmp1,ilenz,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmp3,ilenz,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(4),ierr)
+      do i = 1, 2
+        call MPI_PROBE(MPI_ANY_SOURCE, 99, MPI_COMM_WORLD, status, ierr)
+        call MPI_GET_COUNT(status, MPI_IPF_NODE, count, ierr)
+        allocate(ipfReq(count))
+        call MPI_RECV(ipfReq, count, MPI_IPF_NODE, status(MPI_SOURCE), status(MPI_TAG), MPI_COMM_WORLD, status, ierr)
+        ! Allocate send buffers, and ajust cords to local grid
+        if(status(MPI_SOURCE) == myp)then
+          allocate(mypIpfSend(count))
+          ypcount = count
+          ipfReq(:)%y = ipfReq(:)%y + ly
+          dir = 1
+        else
+          allocate(mymIpfSend(count))
+          ymcount = count
+          ipfReq(:)%y = ipfReq(:)%y - ly
+          dir = -1
+        endif
+        ! Parse Recieved data
+        do j = 1, count
+          !If requested data is in the z neighbors (corner), add it to temporay array
+          if(ipfReq(j)%z > lz)then
+            ipf_mzptc = ipf_mzptc + 1
+            ipf_mzpt(ipf_mzptc) = ipfReq(j)
+            mzpt_index(ipf_mzptc) = cornerNode(j,dir)
+          elseif(ipfReq(j)%z < 1)then
+            ipf_mzmtc = ipf_mzmtc + 1
+            ipf_mzmt(ipf_mzmtc) = ipfReq(j)
+            mzmt_index(ipf_mzmtc) = cornerNode(j,dir)
+          else
+            if(status(MPI_SOURCE) == myp)then
+              if(ibnodes(ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z) > 0)then
+                mypIpfSend(j) = IBNODES_TRUE
+              else
+                mypIpfSend(j) = f(ipfReq(j)%ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
+              endif
+            else
+              if(ibnodes(ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z) > 0)then
+                mymIpfSend(j) = IBNODES_TRUE
+              else
+                mymIpfSend(j) = f(ipfReq(j)%ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
+              endif
+            endif
+          endif          
+        enddo
+        deallocate(ipfReq)
+      enddo
+      ! If corner data was requested from Y neighbors add it to vertical requests
+      ! Corner requests are always on the end of the array
+      ipf_mzp(ipf_mzpc+1:ipf_mzpc+ipf_mzptc) = ipf_mzpt
+      ipf_mzm(ipf_mzmc+1:ipf_mzmc+ipf_mzmtc) = ipf_mzmt
+
+      ! Send/ Receive requests from Z direction neighbors
+      call MPI_ISEND(ipf_mzp(1:ipf_mzpc+ipf_mzptc), ipf_mzpc+ipf_mzptc, MPI_IPF_NODE, mzp, 98, MPI_COMM_WORLD, req(1), ierr)
+      call MPI_ISEND(ipf_mzm(1:ipf_mzmc+ipf_mzmtc), ipf_mzmc+ipf_mzmtc, MPI_IPF_NODE, mzm, 98, MPI_COMM_WORLD, req(2), ierr)
+
+      do i = 1, 2
+        call MPI_PROBE(MPI_ANY_SOURCE, 98, MPI_COMM_WORLD, status, ierr)
+        call MPI_GET_COUNT(status, MPI_IPF_NODE, count, ierr)
+        allocate(ipfReq(count))
+        call MPI_RECV(ipfReq, count, MPI_IPF_NODE, status(MPI_SOURCE), status(MPI_TAG), MPI_COMM_WORLD, status, ierr)
+        ! Allocate send buffers with requested data and send
+        if(status(MPI_SOURCE) == mzp)then
+          allocate(mzpIpfSend(count))
+          zpcount = count
+          ipfReq(:)%z = ipfReq(:)%z + lz
+          do j=1, count
+            if(ibnodes(ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z) > 0)then
+              mzpIpfSend(j) = IBNODES_TRUE
+            else
+              mzpIpfSend(j) = f(ipfReq(j)%ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
+            endif
+          enddo
+          call MPI_ISEND(mzpIpfSend, zpcount, MPI_REAL8, mzp, 97, MPI_COMM_WORLD, req(3), ierr)
+        else
+          allocate(mzmIpfSend(count))
+          zmcount = count
+          ipfReq(:)%z = ipfReq(:)%z - lz
+          do j=1, count
+            if(ibnodes(ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z) > 0)then
+              mzmIpfSend(j) = IBNODES_TRUE
+            else
+              mzmIpfSend(j) = f(ipfReq(j)%ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
+            endif
+          enddo
+          call MPI_ISEND(mzmIpfSend, zmcount, MPI_REAL8, mzm, 97, MPI_COMM_WORLD, req(3), ierr)
+        endif        
+        deallocate(ipfReq)
+      enddo
+
+      !Recieve z neighbor interpolation fluid node data
+      do i = 1, 2
+        call MPI_PROBE(MPI_ANY_SOURCE, 97, MPI_COMM_WORLD, status, ierr)
+        call MPI_GET_COUNT(status, MPI_REAL8, count, ierr)
+        allocate(ipfRecv(count))
+        call MPI_RECV(ipfRecv, count, MPI_REAL8, status(MPI_SOURCE), status(MPI_TAG), MPI_COMM_WORLD, status, ierr)
+        
+        if(status(MPI_SOURCE) == mzp)then
+          mzpIpfRecv = ipfRecv(1:ipf_mzpc)
+          do j=1, ipf_mzptc !Move requested corner data into Y send buffs
+            if(mzpt_index(j)%mpidir == 1)then
+              mypIpfSend(mzpt_index(j)%index) = ipfRecv(ipf_mzpc+j)
+            else
+              mymIpfSend(mzpt_index(j)%index) = ipfRecv(ipf_mzpc+j)
+            endif
+          enddo
+        else
+          mzmIpfRecv = ipfRecv(1:ipf_mzmc)
+          do j=1, ipf_mzmtc !Move requested corner data into Y send buffs
+            if(mzmt_index(j)%mpidir == 1)then 
+              mypIpfSend(mzmt_index(j)%index) = ipfRecv(ipf_mzmc+j)
+            else
+              mymIpfSend(mzmt_index(j)%index) = ipfRecv(ipf_mzmc+j)
+            endif
+          enddo
+        endif        
+        deallocate(ipfRecv)
+      enddo
+      !Send/receive Y interpolation fluid node data to
+      call MPI_IRECV(mypIpfRecv,ipf_mypc,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(1),ierr)
+      call MPI_IRECV(mymIpfRecv,ipf_mymc,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(2),ierr)
+
+      call MPI_ISEND(mypIpfSend, ypcount, MPI_REAL8, myp, 1, MPI_COMM_WORLD, req(3), ierr)
+      call MPI_ISEND(mymIpfSend, ymcount, MPI_REAL8, mym, 0, MPI_COMM_WORLD, req(4), ierr)
 
       call MPI_WAITALL(4,req,status_array,ierr)
-
-      tmp5l(:,:,1,-1) = tmp4(:,:,1,1)
-      tmp5l(:,:,1,0) = tmp4(:,:,1,2)
-      tmp5l(:,:,2,-1) = tmp4(:,:,2,1)
-      tmp5l(:,:,2,0) = tmp4(:,:,2,2)
-
-      tmp5l(:,:,:,1:lz) = tmp5(:,:,:,:)
-
-      tmp5l(:,:,1,lz+1) = tmp2(:,:,1,1)
-      tmp5l(:,:,1,lz+2) = tmp2(:,:,1,2)
-      tmp5l(:,:,2,lz+1) = tmp2(:,:,2,1)
-      tmp5l(:,:,2,lz+2) = tmp2(:,:,2,2)
-
-      tmp7l(:,:,1,-1) = tmp4(:,:,ly-1,1)
-      tmp7l(:,:,1,0) = tmp4(:,:,ly-1,2)
-      tmp7l(:,:,2,-1) = tmp4(:,:,ly,1)
-      tmp7l(:,:,2,0) = tmp4(:,:,ly,2)
-
-      tmp7l(:,:,:,1:lz) = tmp7(:,:,:,:)
-
-      tmp7l(:,:,1,lz+1) = tmp2(:,:,ly-1,1)
-      tmp7l(:,:,1,lz+2) = tmp2(:,:,ly-1,2)
-      tmp7l(:,:,2,lz+1) = tmp2(:,:,ly,1)
-      tmp7l(:,:,2,lz+2) = tmp2(:,:,ly,2)
-
-      call MPI_IRECV(tmp6,ileny,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmp8,ileny,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(2),ierr)
-
-      call MPI_ISEND(tmp5l,ileny,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmp7l,ileny,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(4),ierr)
-
-      call MPI_WAITALL(4,req,status_array,ierr)
-
-      end subroutine exchng2
-!===========================================================================
-
-      subroutine exchng2i(tmp1i,tmp2i,tmp3i,tmp4i,tmp5i,tmp6i,tmp7i,tmp8i)
-      use mpi
-      use var_inc
-      implicit none
-
-!                    tmp1i            tmp2i tmp3i                tmp4i
-!                    tmp5i            tmp6i tmp7i                tmp8i
-!      call exchng2i(ibnodes(:,:,1:2),tmpiR,ibnodes(:,:,lz-1:lz),tmpiL, &
-!                    ibnodes(:,1:2,:),tmpiU,ibnodes(:,ly-1:ly,:),tmpiD)
-
-      integer ilenz, ileny, ii, jj, kk
-      integer, dimension(lx,ly,2):: tmp1i, tmp2i, tmp3i, tmp4i
-      integer, dimension(lx,2,lz):: tmp5i, tmp7i
-      integer, dimension(lx,2,-1:lz+2):: tmp5il, tmp6i, tmp7il, tmp8i
-!      character (len = 100):: fnm2,fnm3,fnm4
-!      character (len = 100):: fnm22,fnm23,fnm24
-
-      integer error,status_array(MPI_STATUS_SIZE,4), req(4)
-      integer err1,err2,err3,err4,err5,err6,err7,err8,err9,err10,err11,err12
-
-!      fnm2 = '/ptmp/lwang/debug2D/ibnodes2.2D.dat'
-!      fnm3 = '/ptmp/lwang/debug2D/ibnodes3.2D.dat'
-!      fnm4 = '/ptmp/lwang/debug2D/ibnodes4.2D.dat'
-     
-!      fnm22 = '/ptmp/lwang/debug2D/ibnodes22.2D.dat'
-!      fnm23 = '/ptmp/lwang/debug2D/ibnodes23.2D.dat'
-!      fnm24 = '/ptmp/lwang/debug2D/ibnodes24.2D.dat'
-
-!      open(12, file = trim(fnm2), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(13, file = trim(fnm3), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(14, file = trim(fnm4), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-
-!      open(22, file = trim(fnm22), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(23, file = trim(fnm23), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(24, file = trim(fnm24), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-
-      ilenz = lx*ly*2
-      ileny = lx*(lz+4)*2
-
-!      call MPI_IRECV(tmp2i,ilenz,MPI_INTEGER,mzp,2,MPI_COMM_WORLD,req(1),err1)
-!      call MPI_ISEND(tmp1i,ilenz,MPI_INTEGER,mzm,2,MPI_COMM_WORLD,req(2),err1)
-!      call MPI_WAITALL(2,req,status_array,err2)
-!      call MPI_IRECV(tmp4i,ilenz,MPI_INTEGER,mzm,3,MPI_COMM_WORLD,req(1),err4)
-!      call MPI_ISEND(tmp3i,ilenz,MPI_INTEGER,mzp,3,MPI_COMM_WORLD,req(2),err4)
-!      call MPI_WAITALL(2,req,status_array,err5)
-
-!Graeme's idea for blocking recv
-!     tmp1i            tmp2i tmp3i                tmp4i
-!     ibnodes(:,:,1:2) tmpiR ibnodes(:,:,lz-1:lz) tmpiL
-
-      if(myid==0)write(*,*)'I am at second MPI_ISEND (1)'
-      call MPI_ISEND(tmp3i,ilenz,MPI_INTEGER,mzp,3,MPI_COMM_WORLD,req(1),err2)
-
-      if(myid==0)write(*,*)'I am at first MPI_ISEND (1)'
-      call MPI_ISEND(tmp1i,ilenz,MPI_INTEGER,mzm,2,MPI_COMM_WORLD,req(2),err1)
-      
-      if(myid==0)write(*,*)'I am at first MPI_RECV (1)'
-      call MPI_RECV(tmp2i,ilenz,MPI_INTEGER,mzp,2,MPI_COMM_WORLD,req(3),err3)
-      
-      if(myid==0)write(*,*)'I am at second MPI_RECV (1)'
-      call MPI_RECV(tmp4i,ilenz,MPI_INTEGER,mzm,3,MPI_COMM_WORLD,req(4),err4)
-
-      if(myid==0)write(*,*)'I am at the end of L/R send in exchan21 (1)'
-      return
-
-      call MPI_BARRIER(MPI_COMM_WORLD,err5)
-
-      tmp5il(:,1,-1) = tmp4i(:,1,1)
-      tmp5il(:,1,0) = tmp4i(:,1,2)
-      tmp5il(:,2,-1) = tmp4i(:,2,1)
-      tmp5il(:,2,0) = tmp4i(:,2,2)
-
-      tmp5il(:,:,1:lz) = tmp5i(:,:,:)
-
-      tmp5il(:,1,lz+1) = tmp2i(:,1,1)
-      tmp5il(:,1,lz+2) = tmp2i(:,1,2)
-      tmp5il(:,2,lz+1) = tmp2i(:,2,1)
-      tmp5il(:,2,lz+2) = tmp2i(:,2,2)
-
-      tmp7il(:,1,-1) = tmp4i(:,ly-1,1)
-      tmp7il(:,1,0) = tmp4i(:,ly-1,2)
-      tmp7il(:,2,-1) = tmp4i(:,ly,1)
-      tmp7il(:,2,0) = tmp4i(:,ly,2)
-
-      tmp7il(:,:,1:lz) = tmp7i(:,:,:)
-
-      tmp7il(:,1,lz+1) = tmp2i(:,ly-1,1)
-      tmp7il(:,1,lz+2) = tmp2i(:,ly-1,2)
-      tmp7il(:,2,lz+1) = tmp2i(:,ly,1)
-      tmp7il(:,2,lz+2) = tmp2i(:,ly,2)
-
-!      do ii = 1,nx
-!      do jj = 1,2
-!      do kk = 25,28 
-!       if(istep==630 .and. myid==35 .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (3)'
-!       if(istep==631 .and. myid==35 .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (3)'
-!       if(istep==630 .and. myid==35)write(12,211)tmp7i(ii,jj,kk),ii,jj,kk
-!       if(istep==631 .and. myid==35)write(22,211)tmp7i(ii,jj,kk),ii,jj,kk
-!      enddo
-!      enddo
-!      enddo
-
-!      do ii = 1,nx
-!      do jj = 1,2
-!      do kk = 25,28 
-!       if(istep==630 .and. myid==35 .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (4)'
-!       if(istep==631 .and. myid==35 .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (4)'
-!       if(istep==630 .and. myid==35)write(13,211)tmp7il(ii,jj,kk),ii,jj,kk
-!       if(istep==631 .and. myid==35)write(23,211)tmp7il(ii,jj,kk),ii,jj,kk
-!      enddo
-!      enddo
-!      enddo
-
-!      close(12)
-!      close(13)
-!      close(23)
-!      close(24)
-
-!      call MPI_IRECV(tmp6i,ileny,MPI_INTEGER,myp,4,MPI_COMM_WORLD,req(1),err7)
-!      call MPI_ISEND(tmp5il,ileny,MPI_INTEGER,mym,4,MPI_COMM_WORLD,req(2),err7)
-!      call MPI_WAITALL(2,req,status_array,err8)
-!      call MPI_IRECV(tmp8i,ileny,MPI_INTEGER,mym,5,MPI_COMM_WORLD,req(1),err10)
-!      call MPI_ISEND(tmp7il,ileny,MPI_INTEGER,myp,5,MPI_COMM_WORLD,req(2),err10)
-!      call MPI_WAITALL(2,req,status_array,err11)
-
-      call MPI_BARRIER(MPI_COMM_WORLD,err6)
-
-      if(myid==0)write(*,*)'I am in exchng2i(2),ileny,size(tmp5il)',  &
-                       'size(tmp7il)',ileny,size(tmp5il),size(tmp7il)
-
-      call MPI_BARRIER(MPI_COMM_WORLD,err11)
-
-!Graeme's idea for blocking recv
-      call MPI_ISEND(tmp6i,ileny,MPI_INTEGER,myp,4,MPI_COMM_WORLD,req(1),err7)
-      call MPI_ISEND(tmp8i,ileny,MPI_INTEGER,mym,5,MPI_COMM_WORLD,req(2),err8)
-      call MPI_RECV(tmp5il,ileny,MPI_INTEGER,myp,5,MPI_COMM_WORLD,req(3),err9)
-      call MPI_RECV(tmp7il,ileny,MPI_INTEGER,mym,4,MPI_COMM_WORLD,req(4),err10)
-
-      call MPI_BARRIER(MPI_COMM_WORLD,err12)
-
-      if(myid==0)write(*,*)'I am in exchng2i (3)'
-
-!      do ii = 1,nx
-!      do jj = 1,2
-!      do kk = 25,28 
-!       if(istep==630 .and. myid==36  .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (5)'
-!       if(istep==631 .and. myid==36  .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (5)'
-!       if(istep==630 .and. myid==36)write(14,211)tmp8i(ii,jj,kk)
-!       if(istep==631 .and. myid==36)write(24,211)tmp8i(ii,jj,kk)
-!      enddo
-!      enddo
-!      enddo
-
-!      close(14)
-!      close(24)
-
-211   format(2x,4i5)
-      end subroutine exchng2i
-!===========================================================================
-      subroutine exchng2iNew(tmpSendL,tmpRecvR,tmpSendR,tmpRecvL,tmpSendD,tmpRecvUl,tmpSendU,tmpRecvDl)
-      use mpi
-      use var_inc
-      implicit none
-
-!      call exchng2iNew(ibnodes(:,:,1:2),tmpiR,ibnodes(:,:,lz-1:lz),tmpiL, &
-!                       ibnodes(:,1:2,:),tmpiU,ibnodes(:,ly-1:ly,:),tmpiD)
-
-!      allocate (tmpiL(lx,ly,-1:0))
-!      allocate (tmpiR(lx,ly,lz+1:lz+2))
-!      allocate (tmpiU(lx,ly+1:ly+2,-1:lz+2))
-!      allocate (tmpiD(lx,-1:0,-1:lz+2))
-
-      integer ileny, ilenz, i, j, ii,jj,kk,k
-      integer,dimension(lx,ly,2):: tmpSendL,tmpSendR,tmpRecvL,tmpRecvR
-      integer,dimension(lx,2,lz):: tmpSendU,tmpSendD
-      integer,dimension(lx,2,-1:lz+2):: tmpRecvUl,tmpRecvDl,tmpSendUl,tmpSendDl
-!     integer err1,err2,err3,err4,err5,err6,err7,err8
-!     integer reqSendL,reqSendR,reqSendU,reqSendD,reqRecvL,reqRecvR,reqRecvU,reqRecvD
-      integer status_array(MPI_STATUS_SIZE,4),req(4)
-
-!      character (len = 100):: fnm2,fnm3,fnm4
-!      character (len = 100):: fnm22,fnm23,fnm24
-
-!      fnm2 = '/ptmp/lwang/debug2D/ibnodes2.2D.dat'
-!      fnm3 = '/ptmp/lwang/debug2D/ibnodes3.2D.dat'
-!      fnm4 = '/ptmp/lwang/debug2D/ibnodes4.2D.dat'
-
-!      fnm22 = '/ptmp/lwang/debug2D/ibnodes22.2D.dat'
-!      fnm23 = '/ptmp/lwang/debug2D/ibnodes23.2D.dat'
-!      fnm24 = '/ptmp/lwang/debug2D/ibnodes24.2D.dat'
-
-!     open(12, file = trim(fnm2), status = 'unknown',                 &
-!                form = 'formatted', position = 'append')
-!     open(13, file = trim(fnm3), status = 'unknown',                 &
-!                form = 'formatted', position = 'append')
-!     open(14, file = trim(fnm4), status = 'unknown',                 &
-!                form = 'formatted', position = 'append')
-
-!      open(22, file = trim(fnm22), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(23, file = trim(fnm23), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-!      open(24, file = trim(fnm24), status = 'unknown',                 &
-!                 form = 'formatted', position = 'append')
-
-      ilenz = lx*ly*2
-      ileny = lx*(lz+4)*2
-
-!       do ii = 1,nx
-!       do jj = 1,ly 
-!       do kk = lz+1,lz+2 
-!       if(istep==630 .and. myid==38 .and. ii==1 .and. jj==224 .and. kk==1)write(*,*)'Writing out here (3)'
-!       if(istep==631 .and. myid==35 .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (3)'
-!       if(istep==630 .and. myid==52)write(12,211)tmpRecvR(ii,jj,kk),ii,jj,kk
-!       if(istep==631 .and. myid==35)write(22,211)tmpSendU(ii,jj,kk),ii,jj,kk
-!       enddo
-!       enddo
-!       enddo
-
-!      close(12)
-
-      call MPI_IRECV(tmpRecvR,ilenz,MPI_INTEGER,mzp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmpRecvL,ilenz,MPI_INTEGER,mzm,1,MPI_COMM_WORLD,req(2),ierr)
-      call MPI_ISEND(tmpSendL,ilenz,MPI_INTEGER,mzm,0,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmpSendR,ilenz,MPI_INTEGER,mzp,1,MPI_COMM_WORLD,req(4),ierr)
-      call MPI_WAITALL(4,req,status_array,ierr)
-
-!       do ii = 1,nx
-!       do jj = 1,ly
-!       do kk = lz+1,lz+2 
-!       if(istep==630 .and. myid==35 .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (4)'
-!       if(istep==631 .and. myid==35 .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (4)'
-!       if(istep==630 .and. myid==52)write(13,211)tmpRecvR(ii,jj,kk),ii,jj,kk
-!       if(istep==631 .and. myid==35)write(23,211)tmpSendUl(ii,jj,kk),ii,jj,kk
-!       enddo
-!       enddo
-!       enddo
-
-!      close(13)
-
-!     do j=1,2
-!      do i = 1,2
-!       tmpSendUl(:,i,j-2) = tmpRecvL(:,ly-2+i,j)
-!      enddo
-!     enddo
-
-!     do j=1,2
-!      do i=1,2
-!       tmpSendUl(:,i,lz+j) = tmpRecvR(:,ly-2+i,j)
-!      enddo
-!     enddo
-
-        tmpSendUl(:,1:2,-1:0) = tmpRecvL(:,ly-1:ly,1:2)
-        tmpSendUl(:,1:2,lz+1:lz+2) = tmpRecvR(:,ly-1:ly,1:2)
-        tmpSendUl(:,:,1:lz) = tmpSendU(:,:,:)
-
-!     do j=1,2
-!      do i=1,2
-!       tmpSendDl(:,i,j-2) = tmpRecvL(:,i,j)
-!      enddo
-!     enddo
-
-!     do j=1,2
-!      do i=1,2
-!       tmpSendDl(:,i,lz+j) = tmpRecvR(:,i,j)
-!      enddo
-!     enddo
-
-        tmpSendDl(:,1:2,-1:0) = tmpRecvL(:,1:2,1:2)
-        tmpSendDl(:,1:2,lz+1:lz+2) = tmpRecvR(:,1:2,1:2)
-        tmpSendDl(:,:,1:lz) = tmpSendD(:,:,:)
-
-
-!      if(istep.eq.630)then
-!      if(myid.eq.1) write(33,*)' before U',((j,k,tmpSendDl(5,j,k),j=1,2),k=1,lz)
-!      if(myid.eq.7) write(34,*)' before D',((j,k,tmpSendUl(5,j,k),j=1,2),k=1,lz)
-
-!      if(myid.eq.57) write(35,*)' before UL',((j,k,tmpSendDl(5,j,k),j=1,2),k=lz-1,lz)
-!      if(myid.eq.63) write(36,*)' before DL',((j,k,tmpSendUl(5,j,k),j=1,2),k=lz-1,lz)
-!      if(myid.eq.9) write(37,*)' before UR',((j,k,tmpSendDl(5,j,k),j=1,2),k=1,2)
-!      if(myid.eq.15) write(38,*)' before DR',((j,k,tmpSendUl(5,j,k),j=1,2),k=1,2)
-
-!      if(myid.eq.56) close(31)
-!      if(myid.eq.8) close(32)
-!      if(myid.eq.1) close(33)
-!      if(myid.eq.7) close(34)
-!      if(myid.eq.57) close(35)
-!      if(myid.eq.63) close(36)
-!      if(myid.eq.9) close(37)
-!      if(myid.eq.15) close(38)
-!      end if
-
-      call MPI_IRECV(tmpRecvUl,ileny,MPI_INTEGER,myp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmpRecvDl,ileny,MPI_INTEGER,mym,1,MPI_COMM_WORLD,req(2),ierr)
-      call MPI_ISEND(tmpSendDl,ileny,MPI_INTEGER,mym,0,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmpSendUl,ileny,MPI_INTEGER,myp,1,MPI_COMM_WORLD,req(4),ierr)
-      call MPI_WAITALL(4,req,status_array,ierr)
-
-!     do ii = 1,nx
-!     do jj = 1,2
-!     do kk = 25,28
-!      if(istep==630 .and. myid==36  .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (5)'
-!       if(istep==631 .and. myid==36  .and. ii==1 .and. jj==1 .and. kk==25)write(*,*)'Writing out here (5)'
-!      if(istep==630 .and. myid==36)write(14,211)tmpRecvDl(ii,jj,kk)
-!       if(istep==631 .and. myid==36)write(24,211)tmpRecvDl(ii,jj,kk)
-!     enddo
-!     enddo
-!     enddo
-
-!     close(14)
-!      close(24)
-
-!211   format(2x,4i5)
-      end subroutine exchng2iNew      
-!===========================================================================      
-      subroutine exchng3(tmp1,tmp3,tmp5,tmp7,&
-            tmp1i,tmp3i,tmp5i,tmp7i)
-      use mpi
-      use var_inc
-      implicit none
-
-!                  1              2    3                 4
-!     call exchng3(tmpfL(:,:,:,0),tmp3,tmpfR(:,:,:,lz+1),tmp4, &
-!                  5              6    7                 8
-!                  tmpfD(:,:,0,:),tmp5,tmpfU(:,:,ly+1,:),tmp6)
-
-
-      integer error, ilenz, ileny
-      real, dimension(0:npop-1,lx,ly):: tmp1, tmp2, tmp3, tmp4
-      real, dimension(0:npop-1,lx,lz):: tmp6, tmp8
-      real, dimension(0:npop-1,lx,0:lz+1):: tmp5, tmp7, tmp6e, tmp8e
-      integer, dimension(0:npop-1,lx,ly):: tmp1i, tmp2i, tmp3i, tmp4i
-      integer, dimension(0:npop-1,lx,lz):: tmp6i, tmp8i
-      integer, dimension(0:npop-1,lx,0:lz+1):: tmp5i, tmp7i, tmp6ie, tmp8ie
-
-      integer status_array(MPI_STATUS_SIZE,4), req(4)
-
-      ilenz = npop*lx*ly
-      ileny = npop*lx*(lz+2)
-!Change: this needs to be in reverse order, UD first, then LR
-      call MPI_IRECV(tmp6e,ileny,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmp8e,ileny,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(2),ierr)
-      call MPI_ISEND(tmp5,ileny,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmp7,ileny,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(4),ierr)
-      call MPI_WAITALL(4,req,status_array,ierr)
-
-      call MPI_IRECV(tmp6ie,ileny,MPI_INTEGER,myp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmp8ie,ileny,MPI_INTEGER,mym,1,MPI_COMM_WORLD,req(2),ierr)
-      call MPI_ISEND(tmp5i,ileny,MPI_INTEGER,mym,0,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmp7i,ileny,MPI_INTEGER,myp,1,MPI_COMM_WORLD,req(4),ierr)
-      call MPI_WAITALL(4,req,status_array,ierr)
-
-      tmp6 = tmp6e(:,:,1:lz)
-      tmp6i = tmp6ie(:,:,1:lz)
-      tmp8 = tmp8e(:,:,1:lz)
-      tmp8i = tmp8ie(:,:,1:lz)
-! Now corners
-      where(tmp6ie(:,:,0) == 1) tmp1(:,:,ly) = tmp6e(:,:,0) 
-      where(tmp6ie(:,:,lz+1) == 1) tmp3(:,:,ly) = tmp6e(:,:,lz+1) 
-      where(tmp8ie(:,:,0) == 1) tmp1(:,:,1) = tmp8e(:,:,0) 
-      where(tmp8ie(:,:,lz+1) == 1) tmp3(:,:,1) = tmp8e(:,:,lz+1) 
-
-      where(tmp6ie(:,:,0) == 1) tmp1i(:,:,ly) = tmp6ie(:,:,0) 
-      where(tmp6ie(:,:,lz+1) == 1) tmp3i(:,:,ly) = tmp6ie(:,:,lz+1) 
-      where(tmp8ie(:,:,0) == 1) tmp1i(:,:,1) = tmp8ie(:,:,0) 
-      where(tmp8ie(:,:,lz+1) == 1) tmp3i(:,:,1) = tmp8ie(:,:,lz+1) 
-
-! in: tmp1 and tmp3;    out:tmp2,tmp4
-      call MPI_IRECV(tmp2,ilenz,MPI_REAL8,mzp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmp4,ilenz,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(2),ierr)
-      call MPI_ISEND(tmp1,ilenz,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmp3,ilenz,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(4),ierr)
-      call MPI_WAITALL(4,req,status_array,ierr)
-
-      call MPI_IRECV(tmp2i,ilenz,MPI_INTEGER,mzp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmp4i,ilenz,MPI_INTEGER,mzm,1,MPI_COMM_WORLD,req(2),ierr)
-      call MPI_ISEND(tmp1i,ilenz,MPI_INTEGER,mzm,0,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmp3i,ilenz,MPI_INTEGER,mzp,1,MPI_COMM_WORLD,req(4),ierr)
-      call MPI_WAITALL(4,req,status_array,ierr)
-
-      where(tmp2i == 1) f(:,:,:,lz) = tmp2  
-      where(tmp4i == 1) f(:,:,:,1) = tmp4    
-      where(tmp6i == 1) f(:,:,ly,:) = tmp6
-      where(tmp8i == 1) f(:,:,1,:) = tmp8
-
-      end subroutine exchng3
-!===========================================================================
-
-      subroutine exchng3i(tmp1i,tmp2i,tmp3i,tmp4i,tmp5i,tmp6i,tmp7i,tmp8i)
-      use mpi
-      use var_inc
-      implicit none
-
-!                    1    2     3    4     5    6     7    8
-!      call exchng3i(if9L,tmp3i,if9R,tmp4i,if9D,tmp5i,if9U,tmp6)
-
-      integer ileny, ilenz
-      integer, dimension(0:npop-1,lx,ly):: tmp1i, tmp2i, tmp3i, tmp4i
-      integer, dimension(0:npop-1,lx,lz):: tmp5i, tmp7i
-      integer, dimension(0:npop-1,lx,0:lz+1):: tmp5il, tmp6i, tmp7il, tmp8i
-
-      integer error, status_array(MPI_STATUS_SIZE,4), req(4)
-
-      ilenz = npop*lx*ly
-      ileny = npop*lx*(lz+2) 
-
-      call MPI_IRECV(tmp2i,ilenz,MPI_INTEGER,mzp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmp4i,ilenz,MPI_INTEGER,mzm,1,MPI_COMM_WORLD,req(2),ierr)
-      call MPI_ISEND(tmp1i,ilenz,MPI_INTEGER,mzm,0,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmp3i,ilenz,MPI_INTEGER,mzp,1,MPI_COMM_WORLD,req(4),ierr)
-      call MPI_WAITALL(4,req,status_array,ierr)
-
-      tmp5il(:,:,0) = tmp2i(:,:,1)
-      tmp5il(:,:,1:lz) = tmp5i(:,:,:)
-      tmp5il(:,:,lz+1) = tmp4i(:,:,1)
-
-      tmp7il(:,:,0) = tmp2i(:,:,ly)
-      tmp7il(:,:,1:lz) = tmp7i(:,:,:)
-      tmp7il(:,:,lz+1) = tmp4i(:,:,ly)
-
-
-
-      end subroutine exchng3i
+      end subroutine exchng2direct
 !===========================================================================
 
       subroutine beads_lubforce
