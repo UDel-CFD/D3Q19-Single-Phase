@@ -1565,7 +1565,7 @@
         deallocate(ipfReq)
       enddo
 
-      !Recieve z neighbor interpolation fluid nod data
+      !Recieve z neighbor interpolation fluid node data
       do i = 1, 2
         call MPI_PROBE(MPI_ANY_SOURCE, 97, MPI_COMM_WORLD, status, ierr)
         call MPI_GET_COUNT(status, MPI_REAL8, count, ierr)
