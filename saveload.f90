@@ -1500,11 +1500,11 @@
       do k=1,lz
       do j=1,ly
       do i=1,lx
-      if(vel(i,j,k).gt.vmax0(myid) ) then
-      vmax0(myid) = vel(i,j,k)
-      im(myid)=i
-      jm(myid)=j +  indy*ly
-      km(myid)=k +  indz*lz
+      if(vel(i,j,k).gt.vmax0(myid + 1) ) then
+      vmax0(myid + 1) = vel(i,j,k)
+      im(myid + 1)=i
+      jm(myid + 1)=j +  indy*ly
+      km(myid + 1)=k +  indz*lz
       end if
       end do
       end do
@@ -1536,13 +1536,13 @@
 
 !     end if
 
-          rhoerr = maxval(rho,MASK = (ibnodes < 0))
-          call MPI_ALLREDUCE(rhoerr,rhomax,1,MPI_REAL8,MPI_MAX, &
-                             MPI_COMM_WORLD,ierr)
-          rhoerr = minval(rho,MASK = (ibnodes < 0))
-          call MPI_ALLREDUCE(rhoerr,rhomin,1,MPI_REAL8,MPI_MIN, &
-                             MPI_COMM_WORLD,ierr)
-          if(myid == 0 ) write(*,*)istep, rhomax, rhomin
+      rhoerr = maxval(rho,MASK = (ibnodes < 0))
+      call MPI_ALLREDUCE(rhoerr,rhomax,1,MPI_REAL8,MPI_MAX, &
+                         MPI_COMM_WORLD,ierr)
+      rhoerr = minval(rho,MASK = (ibnodes < 0))
+      call MPI_ALLREDUCE(rhoerr,rhomin,1,MPI_REAL8,MPI_MIN, &
+                         MPI_COMM_WORLD,ierr)
+      if(myid == 0 ) write(*,*)istep, rhomax, rhomin
 
       if(myid == 0)then
        umeant = umeant/real(nfluid)
