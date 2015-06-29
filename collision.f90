@@ -61,7 +61,7 @@
           Fbar(ip) = ww2*(3.*G1 + 9.*G1*G2 - 3.*G3)
         enddo
 
-        f9 = f(:,ix,iy,iz) + Fbar(:)/2.
+        f9 = f(ix,iy,iz,:) + Fbar(:)/2.
 
         t1 = ux9s + uy9s + uz9s
         eqm1 = -11.0*rho9 + 19.0*t1
@@ -199,7 +199,7 @@
         f9(17) = sumb + sum89 - sum1011 + sump - tl17 + tl20 + tl21
         f9(18) = sumb - sum89 - sum1011 + sump + tl17 - tl20 + tl21
 
-        f(:,ix,iy,iz) = f9 + 0.5*Fbar
+        f(ix,iy,iz,:) = f9 + 0.5*Fbar
 
       end if 
       end do
@@ -220,9 +220,9 @@
 
       integer ip
 
-      rho = f(0,:,:,:)
+      rho = f(:,:,:,0)
       do ip = 1,npop-1
-        rho = rho + f(ip,:,:,:)
+        rho = rho + f(:,:,:,ip)
       end do
 
       end subroutine rhoupdat 
@@ -245,7 +245,7 @@
       do iz = 1,lz
       do iy = 1,ly
       do ix = 1,lx
-      f9 = f(:,ix,iy,iz)
+      f9 = f(ix,iy,iz,:)
 
       sum1 = f9(7) - f9(10)
       sum2 = f9(9) - f9(8)

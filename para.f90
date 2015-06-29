@@ -334,7 +334,7 @@
       use var_inc
       implicit none
 
-      allocate (f(0:npop-1,lx,ly,lz))
+      allocate (f(lx,ly,lz,0:npop-1))
       allocate (rho(lx,ly,lz))
       allocate (rhop(lx,ly,lz))
       allocate (ux(lx,ly,lz))
@@ -444,7 +444,7 @@
       logical dirExist
       character(len=120):: dirPath !Needs to be the same as declared length!
 
-      inquire(directory = trim(dirPath), exist = dirExist)
+      inquire(directory = trim(dirPath), exist = dirExist) !Only works on ifort
       if(.NOT.dirExist)then
         write(*,*) trim(dirPath)//' not found. Creating...'
         call system('mkdir -p '// trim(dirPath));

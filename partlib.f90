@@ -1303,7 +1303,7 @@
         yy0 = ypnt + real(iy)*alpha - yc 
         zz0 = zpnt + real(iz)*alpha - zc 
 
-        ff1 = f(ip,i,j,k)
+        ff1 = f(i,j,k,ip)
 
         uwx = w1 + omg2*zz0 - omg3*yy0
         uwy = w2 + omg3*xx0 - omg1*zz0
@@ -1322,7 +1322,7 @@
           if(ibnodes(im1,jm1,km1)>0)then
             ff2 = IBNODES_TRUE
           else
-            ff2 = f(ip,im1,jm1,km1)
+            ff2 = f(im1,jm1,km1,ip)
           endif
         elseif(iblinks(1,n) == 1)then
           imymc = imymc + 1
@@ -1347,7 +1347,7 @@
           if(ibnodes(im2,jm2,km2)>0)then
             ff3 = IBNODES_TRUE
           else
-            ff3 = f(ip,im2,jm2,km2)
+            ff3 = f(im2,jm2,km2,ip)
           endif
         elseif(iblinks(2,n) == 1)then
           imymc = imymc + 1
@@ -1376,7 +1376,7 @@
         end if
 
        ELSE
-        ff2 = f(ipp,i,j,k)
+        ff2 = f(i,j,k,ipp)
         if(im1 < 1 .or. im1 > lx)then
           ff3 = IBNODES_TRUE
           goto 113
@@ -1386,7 +1386,7 @@
           if(ibnodes(im1,jm1,km1)>0)then
             ff3 = IBNODES_TRUE
           else
-            ff3 = f(ipp,im1,jm1,km1)
+            ff3 = f(im1,jm1,km1,ipp)
           endif
         elseif(iblinks(1,n) == 1)then
           imymc = imymc + 1
@@ -1421,7 +1421,7 @@
          ifsc_inject = ifsc_inject + 1
          fsc_inject(ifsc_inject) = fs_collis(f9,ipp,i,j,k)
         else
-         f(ipp,ip1,jp1,kp1) = f9
+         f(ip1,jp1,kp1,ipp) = f9
        endif
 
         ! compute force and torque acting on particles
@@ -1509,13 +1509,13 @@
               if(ibnodes(ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z) > 0)then
                 mypIpfSend(j) = IBNODES_TRUE
               else
-                mypIpfSend(j) = f(ipfReq(j)%ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
+                mypIpfSend(j) = f(ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z, ipfReq(j)%ip)
               endif
             else
               if(ibnodes(ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z) > 0)then
                 mymIpfSend(j) = IBNODES_TRUE
               else
-                mymIpfSend(j) = f(ipfReq(j)%ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
+                mymIpfSend(j) = f(ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z, ipfReq(j)%ip)
               endif
             endif
           endif          
@@ -1545,7 +1545,7 @@
             if(ibnodes(ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z) > 0)then
               mzpIpfSend(j) = IBNODES_TRUE
             else
-              mzpIpfSend(j) = f(ipfReq(j)%ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
+              mzpIpfSend(j) = f(ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z, ipfReq(j)%ip)
             endif
           enddo
           call MPI_ISEND(mzpIpfSend, zpcount, MPI_REAL8, mzp, 97, MPI_COMM_WORLD, req(3), ierr)
@@ -1557,7 +1557,7 @@
             if(ibnodes(ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z) > 0)then
               mzmIpfSend(j) = IBNODES_TRUE
             else
-              mzmIpfSend(j) = f(ipfReq(j)%ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
+              mzmIpfSend(j) = f(ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z, ipfReq(j)%ip)
             endif
           enddo
           call MPI_ISEND(mzmIpfSend, zmcount, MPI_REAL8, mzm, 97, MPI_COMM_WORLD, req(3), ierr)
@@ -1566,6 +1566,7 @@
       enddo
 
       !Recieve z neighbor interpolation fluid node data
+      !Should probably change to wait any
       do i = 1, 2
         call MPI_PROBE(MPI_ANY_SOURCE, 97, MPI_COMM_WORLD, status, ierr)
         call MPI_GET_COUNT(status, MPI_REAL8, count, ierr)
@@ -2271,30 +2272,30 @@
 !Directions were originally physical, changed to MPI
 ! Determine allocations needed for recieving data
       if(fillMPIrequest(myid,3))then !Left
-        allocate(tmpfL(0:npop-1,lx,0:lz+1))
+        allocate(tmpfL(lx,0:lz+1,0:npop-1))
         allocate(tmpiL(lx,0:lz+1))
         allocate(tmpiL0(lx,0:lz+1))
       endif
       if(fillMPIrequest(myid,4))then !Right
-        allocate(tmpfR(0:npop-1,lx,0:lz+1))
+        allocate(tmpfR(lx,0:lz+1,0:npop-1))
         allocate(tmpiR(lx,0:lz+1))
         allocate(tmpiR0(lx,0:lz+1))
       endif
 ! For top and bottom we must also consider recieving data for corner spots in neighboring tasks
       if(fillMPIrequest(myid,1) .or. fillMPIrequest(mym,6) .or. fillMPIrequest(myp,5))then !Top
-        allocate(tmpfU(0:npop-1,lx,ly))
+        allocate(tmpfU(lx,ly,0:npop-1))
         allocate(tmpiU(lx,ly))
         allocate(tmpiU0(lx,ly))
       endif
       if(fillMPIrequest(myid,2) .or. fillMPIrequest(mym,8) .or. fillMPIrequest(myp,7))then !Bottom
-        allocate(tmpfD(0:npop-1,lx,ly))
+        allocate(tmpfD(lx,ly,0:npop-1))
         allocate(tmpiD(lx,ly))
         allocate(tmpiD0(lx,ly))
       endif
 
 ! Send and recieve data for filling
-      call exchng5(f(:,:,:,1),tmpfU,f(:,:,:,lz),tmpfD,          &
-                   f(:,:,1,:),tmpfR,f(:,:,ly,:),tmpfL)
+      call exchng5(f(:,:,1,:),tmpfU,f(:,:,lz,:),tmpfD,          &
+                   f(:,1,:,:),tmpfR,f(:,ly,:,:),tmpfL)
 
       call exchng5i(ibnodes(:,:,1),tmpiU,ibnodes(:,:,lz),tmpiD, &
                     ibnodes(:,1,:),tmpiR,ibnodes(:,ly,:),tmpiL)
@@ -2425,16 +2426,16 @@
           w9 = 0.0
         
             if(jp1 > ly) then
-            f9 = tmpfR(:,ip1,kp1)
+            f9 = tmpfR(ip1,kp1,:)
             else if (jp1 < 1) then
-            f9 = tmpfL(:,ip1,kp1)
+            f9 = tmpfL(ip1,kp1,:)
             else
               if(kp1 > lz) then
-              f9 = tmpfU(:,ip1,jp1)
+              f9 = tmpfU(ip1,jp1,:)
               else if(kp1 < 1 ) then
-              f9 = tmpfD(:,ip1,jp1)
+              f9 = tmpfD(ip1,jp1,:)
               else
-              f9 = f(:,ip1,jp1,kp1)
+              f9 = f(ip1,jp1,kp1,:)
               end if
             end if
    
@@ -2446,9 +2447,9 @@
           end do
           call feqpnt(u9,v9,w9,rho9,feq9)
 ! note: below LHS = f(:,i,j,k), NOT f9(:,i,j,k)
-          f(:,i,j,k) = f9 - feq9
+          f(i,j,k,:) = f9 - feq9
         ELSE
-          f(:,i,j,k) = 0.0
+          f(i,j,k,:) = 0.0
         END IF
 
 ! now calculate the equilibrium part
@@ -2501,16 +2502,16 @@
 
 
             if(jp1 > ly) then
-            f9 = tmpfR(:,ip1,kp1)
+            f9 = tmpfR(ip1,kp1,:)
             else if (jp1 < 1) then
-            f9 = tmpfL(:,ip1,kp1)
+            f9 = tmpfL(ip1,kp1,:)
             else
               if(kp1 > lz) then
-              f9 = tmpfU(:,ip1,jp1)
+              f9 = tmpfU(ip1,jp1,:)
               else if(kp1 < 1 ) then
-              f9 = tmpfD(:,ip1,jp1)
+              f9 = tmpfD(ip1,jp1,:)
               else
-              f9 = f(:,ip1,jp1,kp1)
+              f9 = f(ip1,jp1,kp1,:)
               end if
             end if
 
@@ -2550,7 +2551,7 @@
         call feqpnt(u9,v9,w9,rho9,feq9)
 
 ! equilibrium + non-equilibrium refill
-        f(:,i,j,k) = f(:,i,j,k) + feq9
+        f(i,j,k,:) = f(i,j,k,:) + feq9
 
 !     write(*,*)'istep,i,j,k,nghb,f(:,i,j,k)=',istep,i,j,k,nghb,f(:,i,j,k)
 ! Deallocate our temp arrays we used
@@ -2590,9 +2591,9 @@
 
       integer ileny, ilenz, nreq
       logical utempinit, dtempinit
-      real, dimension(0:npop-1,lx,ly)    :: tmp1, tmp2, tmp3, tmp4
-      real, dimension(0:npop-1,lx,lz)    :: tmp5, tmp7
-      real, dimension(0:npop-1,lx,0:lz+1):: tmp5l, tmp6, tmp7l, tmp8
+      real, dimension(lx,ly,0:npop-1)    :: tmp1, tmp2, tmp3, tmp4
+      real, dimension(lx,lz,0:npop-1)    :: tmp5, tmp7
+      real, dimension(lx,0:lz+1,0:npop-1):: tmp5l, tmp6, tmp7l, tmp8
       integer status_array(MPI_STATUS_SIZE,4), req(4)
 
       utempinit = .FALSE.
@@ -2641,17 +2642,17 @@
 !Sending Left
       if(fillMPIrequest(mym,4))then
         nreq = nreq + 1
-        if(dtempinit) tmp5l(:,:,0) = tmp4(:,:,1)
-        tmp5l(:,:,1:lz) = tmp5(:,:,:)
-        if(utempinit) tmp5l(:,:,lz+1) = tmp2(:,:,1)
+        if(dtempinit) tmp5l(:,0,:) = tmp4(:,1,:)
+        tmp5l(:,1:lz,:) = tmp5(:,:,:)
+        if(utempinit) tmp5l(:,lz+1,:) = tmp2(:,1,:)
         call MPI_ISEND(tmp5l,ileny,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(nreq),ierr)
       endif
 ! Sending Right
       if(fillMPIrequest(myp,3))then
         nreq = nreq + 1
-        if(dtempinit) tmp7l(:,:,0) = tmp4(:,:,ly)
-        tmp7l(:,:,1:lz) = tmp7(:,:,:)
-        if(utempinit) tmp7l(:,:,lz+1) = tmp2(:,:,ly)
+        if(dtempinit) tmp7l(:,0,:) = tmp4(:,ly,:)
+        tmp7l(:,1:lz,:) = tmp7(:,:,:)
+        if(utempinit) tmp7l(:,lz+1,:) = tmp2(:,ly,:)
         call MPI_ISEND(tmp7l,ileny,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(nreq),ierr)
       endif
 

@@ -284,7 +284,7 @@
       implicit none
 
       integer iprc1, iprc2, iprc3
-      integer istp1, istp2, istp3, istp4, istp5, istp6, istp7
+      integer istp1, istp2, istp3, istp4, istp5, istp6, istp7, i
       character (len = 120):: fnm
 
       iprc1 = myid / 100
@@ -1951,7 +1951,7 @@
       do ix = 1,lx
       if(ibnodes(ix,iy,iz) < 0)then
 
-        f9 = f(:,ix,iy,iz)
+        f9 = f(ix,iy,iz,:)
 
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
@@ -2243,7 +2243,7 @@
       do ix = 1,lx
       if(ibnodes(ix,iy,iz) < 0)then
 
-        f9 = f(:,ix,iy,iz)
+        f9 = f(ix,iy,iz,:)
 
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
@@ -2601,7 +2601,7 @@
       do ix = 1,lx
       if(ibnodes(ix,iy,iz) < 0)then
 
-        f9 = f(:,ix,iy,iz)
+        f9 = f(ix,iy,iz,:)
 
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
@@ -2676,7 +2676,7 @@
         Syz = 0.0
         Szx = 0.0
 
-        f9 = f(:,ix,iy,iz)
+        f9 = f(ix,iy,iz,:)
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
         uy9 = uy(ix,iy,iz)
@@ -2981,7 +2981,7 @@
 ! Method 1: calculate in the moment space.
 ! see Yu H. et al. Computers & Fluids 35, pp. 957-965, 2006, Appendix.
 
-        f9 = f(:,ix,iy,iz)
+        f9 = f(ix,iy,iz,:)
 
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
@@ -3411,7 +3411,7 @@
 ! Method 1: calculate in the moment space.
 ! see Yu H. et al. Computers & Fluids 35, pp. 957-965, 2006, Appendix.
 
-        f9 = f(:,ix,iy,iz)
+        f9 = f(ix,iy,iz,:)
 
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
@@ -3842,8 +3842,8 @@
        do k9 = 2,31
        do j9 = 2,31
        do i9 = 1,64
-       write(60,600)i9,j9,k9,ibnodes(i9,j9,k9),f(1,i9,j9,k9),f(2,i9,j9,k9) &
-                   ,f(3,i9,j9,k9),f(4,i9,j9,k9)
+       write(60,600)i9,j9,k9,ibnodes(i9,j9,k9),f(i9,j9,k9,1),f(i9,j9,k9,2) &
+                   ,f(i9,j9,k9,3),f(i9,j9,k9,4)
        end do
        end do
        end do
