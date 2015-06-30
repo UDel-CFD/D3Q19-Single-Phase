@@ -184,7 +184,7 @@
       f(lx,:,:,14)=tmpxR(:,:,11)
       f(lx,:,:,12)=tmpxR(:,:,13)
 
-      if(ipart)then
+      if(ipart .and. released)then
         !Inject fluid solid particle collisions into fluid domain
         do i=1, ifsc_inject
           f(fsc_inject(i)%x,fsc_inject(i)%y,fsc_inject(i)%z,fsc_inject(i)%ip) = fsc_inject(i)%dist

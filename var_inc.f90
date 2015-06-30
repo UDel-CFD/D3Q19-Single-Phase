@@ -56,7 +56,7 @@
       integer iseedp, msize, nps, iyp, kpeak
       integer nlink, maxlink !20*pi*r^2
       
-      logical newrun, ipart, newinitflow
+      logical newrun, ipart, newinitflow, released
 
       real force_in_y,ustar,Rstar,ystar,force_mag
       real pi, pi2, anu, visc, tau, u0in 

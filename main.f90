@@ -50,7 +50,7 @@
       call MPI_COMM_SIZE(MPI_COMM_WORLD,nproc,ierr)      
 
 
-      call para  
+      call para
       call allocarray
       call constructMPItypes
 
@@ -63,11 +63,13 @@
 ! FORCING has to be called as it is used in collision_MRT
          call FORCING
 
+
         ux = 0.0
         uy = 0.0
         uz = 0.0
 
         call initpop
+
         istep = 0
 
 ! For testing
@@ -84,7 +86,6 @@
           call rhoupdat
 
           call collision_MRT 
-
           rhoerr = maxval(abs(rho - rhop))        
 
           call MPI_ALLREDUCE(rhoerr,rhoerrmax,1,MPI_REAL8, &
@@ -148,6 +149,7 @@
       if(ipart .and. istpload > irelease)then
         call loadcntdpart    
         call beads_links
+        released = .TRUE.
       end if
 
       call macrovar
@@ -184,7 +186,7 @@
         call beads_links
 
         istep00 = 1
- 
+        released = .TRUE.
       end if
 
 !        if(istep==2) call writeflowfieldstart

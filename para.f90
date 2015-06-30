@@ -250,10 +250,12 @@
         call makedir(dirbenchmatlab)
       endif
 
+
 ! particle-related parameters
 !      ipart = .false.
        ipart = .true.
-
+       released = .FALSE.
+       
       if(ipart)then
         volp = 4.0/3.0*pi*rad**3
         amp = rhopart*volp
