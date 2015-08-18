@@ -4,6 +4,7 @@
 #
 SHELL = /bin/bash
 FFLAG = -O3 -w -r8
+#FFLAG = -g -r8 -C -CB -traceback -debug all -fp-model precise
 FCOMP = mpif90 -c ${FFLAG}
 LINK = mpif90 
 LIBS = -lm

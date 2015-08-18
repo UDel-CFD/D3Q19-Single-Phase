@@ -284,7 +284,7 @@
       implicit none
 
       integer iprc1, iprc2, iprc3
-      integer istp1, istp2, istp3, istp4, istp5, istp6, istp7, i
+      integer istp1, istp2, istp3, istp4, istp5, istp6, istp7
       character (len = 120):: fnm
 
       iprc1 = myid / 100
@@ -449,7 +449,7 @@
                form = 'unformatted')
 
       write(14) nps, ipglb 
-      write(14) ibnodes, ibnodes0
+      write(14) ibnodes(1:lx,1:ly,1:lz), ibnodes0
       write(14) isnodes, isnodes0
       write(14) xlink, ylink, zlink
       write(14) iplink, mlink, alink
@@ -492,7 +492,7 @@
                form = 'unformatted')
 
       read(14) nps, ipglb
-      read(14) ibnodes, ibnodes0
+      read(14) ibnodes(1:lx,1:ly,1:lz), ibnodes0
       read(14) isnodes, isnodes0
       read(14) xlink, ylink, zlink
       read(14) iplink, mlink, alink
@@ -667,7 +667,7 @@
       read(14) dwdt, domgdt
       if(myid == 0) read(14) ypglb, wp, omgp
 
-      ibnodes = ibnodes0
+      ibnodes(1:lx,1:ly,1:lz) = ibnodes0
       isnodes = isnodes0
 
       close(14)
@@ -1330,7 +1330,7 @@
         prsq = 0.0
 
        do i=1,lx
-       itmp2D = ibnodes(i,:,:)
+       itmp2D = ibnodes(i,1:ly,1:lz)
 
        nfluid0(i) = count(itmp2D < 0)
 
@@ -1469,13 +1469,13 @@
       vmean = 0.0
       wmean = 0.0
 
-      nfluid0 = count(ibnodes < 0)
-      umean = sum (ux,MASK = (ibnodes < 0) )
-      vmean = sum (uy,MASK = (ibnodes < 0) )
-      wmean = sum (uz,MASK = (ibnodes < 0) )
-      urms = sum (ux*ux,MASK = (ibnodes < 0) )
-      vrms = sum (uy*uy,MASK = (ibnodes < 0) )
-      wrms = sum (uz*uz,MASK = (ibnodes < 0) )
+      nfluid0 = count(ibnodes(1:lx,1:ly,1:lz) < 0)
+      umean = sum (ux,MASK = (ibnodes(1:lx,1:ly,1:lz) < 0) )
+      vmean = sum (uy,MASK = (ibnodes(1:lx,1:ly,1:lz) < 0) )
+      wmean = sum (uz,MASK = (ibnodes(1:lx,1:ly,1:lz) < 0) )
+      urms = sum (ux*ux,MASK = (ibnodes(1:lx,1:ly,1:lz) < 0) )
+      vrms = sum (uy*uy,MASK = (ibnodes(1:lx,1:ly,1:lz) < 0) )
+      wrms = sum (uz*uz,MASK = (ibnodes(1:lx,1:ly,1:lz) < 0) )
 
       call MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
@@ -1490,7 +1490,7 @@
 !!!!!!!!!!!
 
       vel = sqrt(ux*ux + uy*uy + uz*uz)
-      where(ibnodes > 0) vel = 0.0
+      where(ibnodes(1:lx,1:ly,1:lz) > 0) vel = 0.0
 
 !     vmax0 = maxval(vel)
       im = 0
@@ -1500,11 +1500,11 @@
       do k=1,lz
       do j=1,ly
       do i=1,lx
-      if(vel(i,j,k).gt.vmax0(myid + 1) ) then
-      vmax0(myid + 1) = vel(i,j,k)
-      im(myid + 1)=i
-      jm(myid + 1)=j +  indy*ly
-      km(myid + 1)=k +  indz*lz
+      if(vel(i,j,k).gt.vmax0(myid+1) ) then
+      vmax0(myid+1) = vel(i,j,k)
+      im(myid+1)=i
+      jm(myid+1)=j +  indy*ly
+      km(myid+1)=k +  indz*lz
       end if
       end do
       end do
@@ -1536,13 +1536,13 @@
 
 !     end if
 
-      rhoerr = maxval(rho,MASK = (ibnodes < 0))
-      call MPI_ALLREDUCE(rhoerr,rhomax,1,MPI_REAL8,MPI_MAX, &
-                         MPI_COMM_WORLD,ierr)
-      rhoerr = minval(rho,MASK = (ibnodes < 0))
-      call MPI_ALLREDUCE(rhoerr,rhomin,1,MPI_REAL8,MPI_MIN, &
-                         MPI_COMM_WORLD,ierr)
-      if(myid == 0 ) write(*,*)istep, rhomax, rhomin
+          rhoerr = maxval(rho,MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
+          call MPI_ALLREDUCE(rhoerr,rhomax,1,MPI_REAL8,MPI_MAX, &
+                             MPI_COMM_WORLD,ierr)
+          rhoerr = minval(rho,MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
+          call MPI_ALLREDUCE(rhoerr,rhomin,1,MPI_REAL8,MPI_MIN, &
+                             MPI_COMM_WORLD,ierr)
+          if(myid == 0 ) write(*,*)istep, rhomax, rhomin
 
       if(myid == 0)then
        umeant = umeant/real(nfluid)
@@ -1951,7 +1951,7 @@
       do ix = 1,lx
       if(ibnodes(ix,iy,iz) < 0)then
 
-        f9 = f(ix,iy,iz,:)
+        f9 = f(:,ix,iy,iz)
 
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
@@ -2243,7 +2243,7 @@
       do ix = 1,lx
       if(ibnodes(ix,iy,iz) < 0)then
 
-        f9 = f(ix,iy,iz,:)
+        f9 = f(:,ix,iy,iz)
 
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
@@ -2601,7 +2601,7 @@
       do ix = 1,lx
       if(ibnodes(ix,iy,iz) < 0)then
 
-        f9 = f(ix,iy,iz,:)
+        f9 = f(:,ix,iy,iz)
 
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
@@ -2676,7 +2676,7 @@
         Syz = 0.0
         Szx = 0.0
 
-        f9 = f(ix,iy,iz,:)
+        f9 = f(:,ix,iy,iz)
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
         uy9 = uy(ix,iy,iz)
@@ -2981,7 +2981,7 @@
 ! Method 1: calculate in the moment space.
 ! see Yu H. et al. Computers & Fluids 35, pp. 957-965, 2006, Appendix.
 
-        f9 = f(ix,iy,iz,:)
+        f9 = f(:,ix,iy,iz)
 
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
@@ -3411,7 +3411,7 @@
 ! Method 1: calculate in the moment space.
 ! see Yu H. et al. Computers & Fluids 35, pp. 957-965, 2006, Appendix.
 
-        f9 = f(ix,iy,iz,:)
+        f9 = f(:,ix,iy,iz)
 
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
@@ -3842,8 +3842,8 @@
        do k9 = 2,31
        do j9 = 2,31
        do i9 = 1,64
-       write(60,600)i9,j9,k9,ibnodes(i9,j9,k9),f(i9,j9,k9,1),f(i9,j9,k9,2) &
-                   ,f(i9,j9,k9,3),f(i9,j9,k9,4)
+       write(60,600)i9,j9,k9,ibnodes(i9,j9,k9),f(1,i9,j9,k9),f(2,i9,j9,k9) &
+                   ,f(3,i9,j9,k9),f(4,i9,j9,k9)
        end do
        end do
        end do

@@ -50,7 +50,7 @@
       call MPI_COMM_SIZE(MPI_COMM_WORLD,nproc,ierr)      
 
 
-      call para
+      call para  
       call allocarray
       call constructMPItypes
 
@@ -63,13 +63,11 @@
 ! FORCING has to be called as it is used in collision_MRT
          call FORCING
 
-
         ux = 0.0
         uy = 0.0
         uz = 0.0
 
         call initpop
-
         istep = 0
 
 ! For testing
@@ -86,6 +84,7 @@
           call rhoupdat
 
           call collision_MRT 
+
           rhoerr = maxval(abs(rho - rhop))        
 
           call MPI_ALLREDUCE(rhoerr,rhoerrmax,1,MPI_REAL8, &
@@ -147,7 +146,8 @@
 !     call input_outputf(1)
 
       if(ipart .and. istpload > irelease)then
-        call loadcntdpart    
+        call loadcntdpart  
+
         call beads_links
         released = .TRUE.
       end if
@@ -165,8 +165,8 @@
 ! main loop
       do istep = istep0+1,istep0+nsteps 
 
-      if(myid.eq.0 .and. mod(istep,5).eq.0)then
-      	write(*,*) 'istep= ',istep
+      if(myid.eq.0 .and. mod(istep,1).eq.0)then
+      	write(*,*) 'istep=',istep
       endif
 
 
@@ -186,7 +186,9 @@
         call beads_links
 
         istep00 = 1
+        
         released = .TRUE.
+
       end if
 
 !        if(istep==2) call writeflowfieldstart
@@ -203,17 +205,15 @@
 !       call macrovar 
 !       call statistc
 
-        if(ipart .and. istep >= irelease)then
-         bnchstart = MPI_WTIME()
-         call beads_collision
-         beads_collision_bnch(istep-istpload) = MPI_WTIME() - bnchstart
-        endif
-
         bnchstart = MPI_WTIME()
         call streaming
         streaming_bnch(istep-istpload) = MPI_WTIME() - bnchstart
 
         if(ipart .and. istep >= irelease)then
+          bnchstart = MPI_WTIME()
+          call beads_collision(istep-istpload)
+          beads_collision_bnch(istep-istpload) = MPI_WTIME() - bnchstart
+
           bnchstart = MPI_WTIME()
           call beads_lubforce
           beads_lubforce_bnch(istep-istpload) = MPI_WTIME() - bnchstart
@@ -288,11 +288,11 @@
 !Probe each processor for final flow comparing
        call probe
 ! save data for continue run
-!      call savecntdflow
+      !call savecntdflow
 !save param variables
 !      call input_outputf(2)
 !save bead positions
-!      if(ipart .and. istep > irelease) call savecntdpart    
+      !if(ipart .and. istep > irelease) call savecntdpart    
 
 !Record Benchmarks
       call benchflow

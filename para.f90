@@ -51,15 +51,15 @@
 ! it can be any step # at which the "endrunflow" & "endrunpart" data are saved
 ! Note: this variable needs to be manually setup for each continue run
 
-      istpload = 2000    !!!!THIS NEEDS TO BE CHANGED WHEN STARTING NEW RUNS
+      istpload = 2000   !!!!THIS NEEDS TO BE CHANGED WHEN STARTING NEW RUNS
       force_mag = 1.0
       nsteps = 50
 
 !     nek = nx/3
       nek = int(nx7/2 - 1.5)
 
-!      newrun = .true.
-!      newinitflow = .true.
+      !newrun = .true.
+      !newinitflow = .true.
       newrun = .false.
       newinitflow = .false.
  
@@ -206,7 +206,13 @@
       mypzm = mod(indz+nprocZ-1,nprocZ)*nprocY + mod(indy+1,nprocY) !bottom-right corner
       mymzp = mod(indz+1,nprocZ)*nprocY + mod(indy+nprocY-1,nprocY) !top-left corner
       mymzm = mod(indz+nprocZ-1,nprocZ)*nprocY + mod(indy+nprocY-1,nprocY) !bottom-left corner
-
+	
+      if(mzp == mzm .OR. myp == mym)then
+        if(myid==0)then
+          write(*,*)'WARNING: MPI topology is too small!'
+          write(*,*)'Particle Laden code will not work!'
+        endif
+      endif
 
       rhoepsl = 1.e-05
 
@@ -250,12 +256,11 @@
         call makedir(dirbenchmatlab)
       endif
 
-
 ! particle-related parameters
 !      ipart = .false.
        ipart = .true.
        released = .FALSE.
-       
+
       if(ipart)then
         volp = 4.0/3.0*pi*rad**3
         amp = rhopart*volp
@@ -336,7 +341,7 @@
       use var_inc
       implicit none
 
-      allocate (f(lx,ly,lz,0:npop-1))
+      allocate (f(0:npop-1,lx,ly,lz))
       allocate (rho(lx,ly,lz))
       allocate (rhop(lx,ly,lz))
       allocate (ux(lx,ly,lz))
@@ -356,7 +361,7 @@
       allocate (wx(lx+2,ly+lyext,lz))
       allocate (wy(lx+2,ly+lyext,lz))
       allocate (wz(lx+2,ly+lyext,lz))
-      allocate (ibnodes(lx,ly,lz))
+      allocate (ibnodes(1:lx,0:ly+1,0:lz+1))
 
       allocate(force_realx(lx,ly,lz))
       allocate(force_realy(lx,ly,lz))
@@ -392,7 +397,7 @@
       allocate (iplink(maxlink))
       allocate (mlink(maxlink))
       allocate (alink(maxlink))
-      allocate (iblinks(2,maxlink))
+      allocate (iblinks(0:2,maxlink))
       allocate (ipf_mym(2*19*lx*(lz + 4)))
       allocate (ipf_myp(2*19*lx*(lz + 4)))
       allocate (ipf_mzm(2*19*lx*ly))
@@ -433,7 +438,31 @@
       use var_inc
       implicit none
 
-      call MPI_TYPE_CONTIGUOUS(4, MPI_INTEGER, MPI_IPF_NODE, ierr)
+      integer blockcounts(0:1), types(0:1), baseaddr, addr1
+      integer(KIND=MPI_ADDRESS_KIND) offsets(0:1), lb, extent
+      type(ipf_node) temp
+ 
+      offsets(0) = 0
+      blockcounts(0) = 4
+      blockcounts(1) = 1
+      types(0) = MPI_INTEGER
+      types(1) = MPI_LOGICAL
+
+       !call MPI_Type_extent(MPI_INTEGER, extent, ierr)
+       !call MPI_GET_ADDRESS(temp%sdist, addr1, ierr)
+       !offsets(1)= 4*extent
+
+       !call MPI_TYPE_CREATE_STRUCT(2, blockcounts, offsets, types, MPI_IPF_NODE, ierr)
+       !call MPI_TYPE_COMMIT(MPI_IPF_NODE, ierr)
+       !call MPI_TYPE_GET_EXTENT(MPI_BOOL, lb, extent, ierr)
+       ! Note we do 4 ints here, the next double must be placed on an address divisible by 8
+       !extent = extent + offsets(1)
+       !lb = 0
+       !call MPI_TYPE_CREATE_RESIZED(MPI_BCDATA_NRS, lb, extent, MPI_BCDATA, ierr)
+       !call MPI_TYPE_COMMIT(MPI_BCDATA, ierr)
+       !call MPI_TYPE_FREE(MPI_BCDATA_NRS, ierr)
+
+      call MPI_TYPE_CONTIGUOUS(5, MPI_INTEGER, MPI_IPF_NODE, ierr)
       call MPI_TYPE_COMMIT(MPI_IPF_NODE, ierr)
 
       end subroutine constructMPItypes
@@ -446,7 +475,8 @@
       logical dirExist
       character(len=120):: dirPath !Needs to be the same as declared length!
 
-      inquire(directory = trim(dirPath), exist = dirExist) !Only works on ifort
+      !inquire( file=trim(DirPath)//'/.', exist=dirExist )  ! Works with gfortran
+      inquire(directory = trim(dirPath), exist = dirExist)  ! Works with ifort (yellowstone)
       if(.NOT.dirExist)then
         write(*,*) trim(dirPath)//' not found. Creating...'
         call system('mkdir -p '// trim(dirPath));

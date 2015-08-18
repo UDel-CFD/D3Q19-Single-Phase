@@ -15,16 +15,16 @@
 !     rho = rho0
       rho = 0.0
 
-      f(:,:,:,0) = ww0*(rho - usqr) 
+      f(0,:,:,:) = ww0*(rho - usqr) 
 
       do ip = 1,6
         G = (cix(ip)*ux + ciy(ip)*uy + ciz(ip)*uz)
-        f(:,:,:,ip) = ww1*(rho + 3.0*G + 4.5*G*G - usqr) 
+        f(ip,:,:,:) = ww1*(rho + 3.0*G + 4.5*G*G - usqr) 
       end do
 
       do ip = 7,npop-1
         G = (cix(ip)*ux + ciy(ip)*uy + ciz(ip)*uz)
-        f(:,:,:,ip) = ww2*(rho + 3.0*G + 4.5*G*G - usqr) 
+        f(ip,:,:,:) = ww2*(rho + 3.0*G + 4.5*G*G - usqr) 
       end do
 
       END SUBROUTINE initpop

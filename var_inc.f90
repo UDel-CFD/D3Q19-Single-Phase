@@ -2,10 +2,12 @@
       implicit none
       !Interpolation fluid node
       type ipf_node
-        integer ip, x, y, z
+      sequence
+        integer ip, x, y, z, sdist
       endtype
       !Distribution of fluid colliding with solid particle surface
       type fs_collis !Fluid-solid collision
+        sequence
         real dist !Distribution
         integer ip, x, y, z !Location
       endtype
@@ -28,7 +30,7 @@
       integer,parameter:: npop = 19
       integer,parameter:: iflowseed = 54321
       integer,parameter:: NTAB = 32 
-      integer,parameter:: ndiag = 100, nstat = 100  , nspec=1000
+      integer,parameter:: ndiag = 10, nstat = 10  , nspec=1000
       integer,parameter:: nflowout = 10000, npartout = 1000
 !     integer,parameter:: ndiag = 10, nstat = 2000  , nspec=2000
 !     integer,parameter:: nflowout = 10000, npartout = 10
@@ -113,6 +115,7 @@
 
       real,allocatable,dimension(:):: xlink, ylink, zlink
       real,allocatable,dimension(:):: iplink, alink, mlink
+      real,allocatable,dimension(:,:):: oldlink
       integer,allocatable,dimension(:,:):: iblinks
       integer ifsc_inject, ipf_mymc, ipf_mypc, ipf_mzmc, ipf_mzpc
       integer MPI_IPF_NODE, IBNODES_TRUE
