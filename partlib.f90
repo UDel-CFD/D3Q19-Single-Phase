@@ -1983,7 +1983,7 @@
       end do
 
 ! save as previous values for ibnodes and isnodes
-      ibnodes0 = ibnodes(1:lx,1:ly,1:lz)
+      ibnodes0 = ibnodes
 
 ! update info. for wp and omgp
       ilen = 3*npart
@@ -2422,14 +2422,6 @@
       logical, dimension(nproc*8):: temp
 
       real, dimension(0:npop-1):: f9, feq9 
-      real,allocatable,dimension(:,:,:):: tmpfL, tmpfR    
-      real,allocatable,dimension(:,:,:):: tmpfU, tmpfD
-      
-      integer,allocatable,dimension(:,:):: tmpiL, tmpiR
-      integer,allocatable,dimension(:,:):: tmpiU, tmpiD 
-
-      integer,allocatable,dimension(:,:):: tmpiL0, tmpiR0   
-      integer,allocatable,dimension(:,:):: tmpiU0, tmpiD0
 
 ! Gather all request data
       call MPI_ALLGATHER(localReqData, 8, MPI_LOGICAL, temp, 8, MPI_LOGICAL, MPI_COMM_WORLD, ierr)
@@ -2438,33 +2430,8 @@
         fillMPIrequest(n,:) = temp(n*8+1:n*8+8)
       enddo
 
-!Directions were originally physical, changed to MPI
-! Determine allocations needed for recieving data
-      allocate(tmpfL(0:npop-1,lx,0:lz+1))
-      allocate(tmpiL(lx,0:lz+1))
-      allocate(tmpiL0(lx,0:lz+1))
-
-      allocate(tmpfR(0:npop-1,lx,0:lz+1))
-      allocate(tmpiR(lx,0:lz+1))
-      allocate(tmpiR0(lx,0:lz+1))
-
-      allocate(tmpfU(0:npop-1,lx,ly))
-      allocate(tmpiU(lx,ly))
-      allocate(tmpiU0(lx,ly))
-
-      allocate(tmpfD(0:npop-1,lx,ly))
-      allocate(tmpiD(lx,ly))
-      allocate(tmpiD0(lx,ly))
-
 ! Send and recieve data for filling
-      call exchng5(f(:,:,:,1),tmpfU,f(:,:,:,lz),tmpfD,          &
-                   f(:,:,1,:),tmpfR,f(:,:,ly,:),tmpfL)
-
-      call exchng5i(ibnodes(:,1:ly,1),tmpiU,ibnodes(:,1:ly,lz),tmpiD, &
-                    ibnodes(:,1,1:lz),tmpiR,ibnodes(:,ly,1:lz),tmpiL)
-
-      call exchng5i(ibnodes0(:,:,1),tmpiU0,ibnodes0(:,:,lz),tmpiD0,  &
-                    ibnodes0(:,1,:),tmpiR0,ibnodes0(:,ly,:),tmpiL0)
+      call exchng5
 
       do n=1, nbfill
         id = idbfill(n)
@@ -2554,33 +2521,9 @@
 ! periodicity
 !     if(ip1 < 1) ip1 = ip1 + lx
 !     if(ip1 > lx) ip1 = ip1 - lx
-            
-            if(ip1 < 1) then
-            ibp1 = 2
-            ib0p1 = 2
-            else if (ip1 > lx) then
-            ibp1 = 2
-            ib0p1 = 2
-            else
-            if(jp1 > ly) then
-            ibp1 = tmpiR(ip1,kp1)
-            ib0p1 = tmpiR0(ip1,kp1)
-            else if (jp1 < 1) then
-            ibp1 = tmpiL(ip1,kp1)
-            ib0p1 = tmpiL0(ip1,kp1)
-            else
-              if(kp1 > lz) then
-              ibp1 = tmpiU(ip1,jp1)
-              ib0p1 = tmpiU0(ip1,jp1)
-              else if(kp1 < 1 ) then
-              ibp1 = tmpiD(ip1,jp1)
-              ib0p1 = tmpiD0(ip1,jp1)
-              else
-              ibp1 = ibnodes(ip1,jp1,kp1)
-              ib0p1 = ibnodes0(ip1,jp1,kp1)
-              end if
-            end if
-          end if
+
+          ibp1 = ibnodes(ip1,jp1,kp1)
+          ib0p1 = ibnodes0(ip1,jp1,kp1)
 !!!!!
           IF(ibp1 < 0 .and. ib0p1 < 0)THEN
           rho9 = 0.0 
@@ -2589,14 +2532,14 @@
           w9 = 0.0
         
             if(jp1 > ly) then
-            f9 = tmpfR(:,ip1,kp1)
+            f9 = fillRecvYp(:,ip1,kp1)
             else if (jp1 < 1) then
-            f9 = tmpfL(:,ip1,kp1)
+            f9 = fillRecvYm(:,ip1,kp1)
             else
               if(kp1 > lz) then
-              f9 = tmpfU(:,ip1,jp1)
+              f9 = fillRecvZp(:,ip1,jp1)
               else if(kp1 < 1 ) then
-              f9 = tmpfD(:,ip1,jp1)
+              f9 = fillRecvZm(:,ip1,jp1)
               else
               f9 = f(:,ip1,jp1,kp1)
               end if
@@ -2633,46 +2576,22 @@
         !  if(ip1 < 1) ip1 = ip1 + lx
         !  if(ip1 > lx) ip1 = ip1 - lx
 
-          if(ip1 > lx) then
-            ibp1 = 2
-            ib0p1 = 2
-          else if (ip1 < 1) then
-            ibp1 = 2
-            ib0p1 = 2
-          else
-            if(jp1 > ly) then
-            ibp1 = tmpiR(ip1,kp1)
-            ib0p1 = tmpiR0(ip1,kp1)
-            else if (jp1 < 1) then
-            ibp1 = tmpiL(ip1,kp1)
-            ib0p1 = tmpiL0(ip1,kp1)
-            else
-              if(kp1 > lz) then
-              ibp1 = tmpiU(ip1,jp1)
-              ib0p1 = tmpiU0(ip1,jp1)
-              else if(kp1 < 1 ) then
-              ibp1 = tmpiD(ip1,jp1)
-              ib0p1 = tmpiD0(ip1,jp1)
-              else
-              ibp1 = ibnodes(ip1,jp1,kp1)
-              ib0p1 = ibnodes0(ip1,jp1,kp1)
-              end if
-            end if
-          end if
+          ibp1 = ibnodes(ip1,jp1,kp1)
+          ib0p1 = ibnodes0(ip1,jp1,kp1)
 
           IF(ibp1 < 0 .and. ib0p1 < 0)THEN
             nghb = nghb + 1
 
 
             if(jp1 > ly) then
-            f9 = tmpfR(:,ip1,kp1)
+            f9 = fillRecvYp(:,ip1,kp1)
             else if (jp1 < 1) then
-            f9 = tmpfL(:,ip1,kp1)
+            f9 = fillRecvYm(:,ip1,kp1)
             else
               if(kp1 > lz) then
-              f9 = tmpfU(:,ip1,jp1)
+              f9 = fillRecvZp(:,ip1,jp1)
               else if(kp1 < 1 ) then
-              f9 = tmpfD(:,ip1,jp1)
+              f9 = fillRecvZm(:,ip1,jp1)
               else
               f9 = f(:,ip1,jp1,kp1)
               end if
@@ -2715,47 +2634,19 @@
 
 ! equilibrium + non-equilibrium refill
         f(:,i,j,k) = f(:,i,j,k) + feq9
-
-! Deallocate our temp arrays we used
       end do
-      if(allocated(tmpfU))then
-        deallocate(tmpfU)
-        deallocate (tmpiU)
-        deallocate (tmpiU0)  
-      endif
-      if(allocated(tmpfD))then
-        deallocate(tmpfD)
-        deallocate (tmpiD)
-        deallocate (tmpiD0)  
-      endif
-      if(allocated(tmpfR))then
-        deallocate(tmpfR)
-        deallocate (tmpiR)
-        deallocate (tmpiR0)  
-      endif
-      if(allocated(tmpfL))then
-        deallocate(tmpfL)
-        deallocate (tmpiL)
-        deallocate (tmpiL0)  
-      endif
+
       end subroutine beads_filling
 !===========================================================================
 
-      subroutine exchng5(tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8)
+      subroutine exchng5
       use mpi
       use var_inc
       implicit none
 
-!                     1          2       3        4
-!                     5          6       7        8
-!      call exchng5(f(:,:,:,1),tmpfU,f(:,:,:,lz),tmpfD,          &
-!                   f(:,:,1,:),tmpfR,f(:,:,ly,:),tmpfL)
-
       integer ileny, ilenz, nreq
       logical utempinit, dtempinit
-      real, dimension(0:npop-1,lx,ly)    :: tmp1, tmp2, tmp3, tmp4
-      real, dimension(0:npop-1,lx,lz)    :: tmp5, tmp7
-      real, dimension(0:npop-1,lx,0:lz+1):: tmp5l, tmp6, tmp7l, tmp8
+      real, dimension(0:npop-1,lx,0:lz+1):: tmpYp, tmpYm
       integer status_array(MPI_STATUS_SIZE,4), req(4)
 
       utempinit = .FALSE.
@@ -2763,27 +2654,27 @@
       ilenz = npop*lx*ly
       ileny = npop*lx*(lz+2)
       nreq = 0
-! Recieving top
+! Recieving Z+
       if(fillMPIrequest(myid,1) .or. fillMPIrequest(mym,6) .or. fillMPIrequest(myp,5))then
         nreq = nreq + 1
         utempinit = .TRUE.
-        call MPI_IRECV(tmp2,ilenz,MPI_REAL8,mzp,0,MPI_COMM_WORLD,req(nreq),ierr)
+        call MPI_IRECV(fillRecvZp,ilenz,MPI_REAL8,mzp,0,MPI_COMM_WORLD,req(nreq),ierr)
       endif
-! Recieving Bottom
+! Recieving Z-
       if(fillMPIrequest(myid,2) .or. fillMPIrequest(mym,8) .or. fillMPIrequest(myp,7))then
         nreq = nreq + 1
         dtempinit = .TRUE.
-        call MPI_IRECV(tmp4,ilenz,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(nreq),ierr)
+        call MPI_IRECV(fillRecvZm,ilenz,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(nreq),ierr)
       endif
-! Sending Top
+! Sending Z+
       if(fillMPIrequest(mzp,2) .or. fillMPIrequest(mymzp,8) .or. fillMPIrequest(mypzp,7))then
         nreq = nreq + 1
-        call MPI_ISEND(tmp3,ilenz,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(nreq),ierr)
+        call MPI_ISEND(f(:,:,:,lz),ilenz,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(nreq),ierr)
       endif
-! Sending Bottom
+! Sending Z-
       if(fillMPIrequest(mzm,1) .or. fillMPIrequest(mymzm,6) .or. fillMPIrequest(mypzm,5))then
         nreq = nreq + 1
-        call MPI_ISEND(tmp1,ilenz,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(nreq),ierr)
+        call MPI_ISEND(f(:,:,:,1),ilenz,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(nreq),ierr)
       endif
       
       if(nreq > 0)then
@@ -2791,31 +2682,31 @@
       endif
       nreq = 0
 
-!Receiving Left
+!Receiving Y-
       if(fillMPIrequest(myid,3))then
         nreq = nreq + 1
-        call MPI_IRECV(tmp8,ileny,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(nreq),ierr)
+        call MPI_IRECV(fillRecvYm,ileny,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(nreq),ierr)
       endif
-!Recieving Right
+!Recieving Y+
       if(fillMPIrequest(myid,4))then
         nreq = nreq + 1
-        call MPI_IRECV(tmp6,ileny,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(nreq),ierr)
+        call MPI_IRECV(fillRecvYp,ileny,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(nreq),ierr)
       endif
-!Sending Left
+!Sending Y-
       if(fillMPIrequest(mym,4))then
         nreq = nreq + 1
-        if(dtempinit) tmp5l(:,:,0) = tmp4(:,:,1)
-        tmp5l(:,:,1:lz) = tmp5(:,:,:)
-        if(utempinit) tmp5l(:,:,lz+1) = tmp2(:,:,1)
-        call MPI_ISEND(tmp5l,ileny,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(nreq),ierr)
+        if(dtempinit) tmpYm(:,:,0) = fillRecvZm(:,:,1)
+        tmpYm(:,:,1:lz) = f(:,:,1,:)
+        if(utempinit) tmpYm(:,:,lz+1) = fillRecvZp(:,:,1)
+        call MPI_ISEND(tmpYm,ileny,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(nreq),ierr)
       endif
-! Sending Right
+! Sending Y+
       if(fillMPIrequest(myp,3))then
         nreq = nreq + 1
-        if(dtempinit) tmp7l(:,:,0) = tmp4(:,:,ly)
-        tmp7l(:,:,1:lz) = tmp7(:,:,:)
-        if(utempinit) tmp7l(:,:,lz+1) = tmp2(:,:,ly)
-        call MPI_ISEND(tmp7l,ileny,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(nreq),ierr)
+        if(dtempinit) tmpYp(:,:,0) = fillRecvZm(:,:,ly)
+        tmpYp(:,:,1:lz) = f(:,:,ly,:)
+        if(utempinit) tmpYp(:,:,lz+1) = fillRecvZp(:,:,ly)
+        call MPI_ISEND(tmpYp,ileny,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(nreq),ierr)
       endif
 
       if(nreq > 0)then
@@ -2823,93 +2714,6 @@
       endif
 
       end subroutine exchng5
-!===========================================================================
-
-      subroutine exchng5i(tmp1i,tmp2i,tmp3i,tmp4i,tmp5i,tmp6i,tmp7i,tmp8i)
-      use mpi
-      use var_inc
-      implicit none
-
-!                         1           2         3          4
-!                         5           6         7          8
-!     call exchng5i(ibnodes(:,:,1),tmpiU,ibnodes(:,:,lz),tmpiD, &
-!                   ibnodes(:,1,:),tmpiR,ibnodes(:,ly,:),tmpiL)
-
-!     call exchng5i(ibnodes0(:,:,1),tmpiU0,ibnodes0(:,:,lz),tmpiD0,  &
-!                   ibnodes0(:,1,:),tmpiR0,ibnodes0(:,ly,:),tmpiL0)
-
-      integer ilenz,ileny, nreq
-      logical utempinit, dtempinit
-      integer, dimension(lx,ly):: tmp1i, tmp2i, tmp3i, tmp4i  
-      integer, dimension(lx,lz)    :: tmp5i, tmp7i
-      integer, dimension(lx,0:lz+1):: tmp5il, tmp6i, tmp7il, tmp8i
-      integer status_array(MPI_STATUS_SIZE,4), req(4)
-
-      utempinit = .FALSE. !boolean if bottom recieve array is initialized
-      dtempinit = .FALSE. !booleans if top recieve array is initialized
-      ilenz = lx*ly
-      ileny = lx*(lz+2)
-      nreq = 0
-! Recieving top
-      if(fillMPIrequest(myid,1) .or. fillMPIrequest(mym,6) .or. fillMPIrequest(myp,5))then
-        nreq = nreq + 1
-        utempinit = .TRUE.
-        call MPI_IRECV(tmp2i,ilenz,MPI_INTEGER,mzp,0,MPI_COMM_WORLD,req(nreq),ierr)
-      endif
-! Recieving Bottom
-      if(fillMPIrequest(myid,2) .or. fillMPIrequest(mym,8) .or. fillMPIrequest(myp,7))then
-        nreq = nreq + 1
-        dtempinit = .TRUE.
-        call MPI_IRECV(tmp4i,ilenz,MPI_INTEGER,mzm,1,MPI_COMM_WORLD,req(nreq),ierr)
-      endif
-! Sending Top
-      if(fillMPIrequest(mzp,2) .or. fillMPIrequest(mymzp,8) .or. fillMPIrequest(mypzp,7))then
-        nreq = nreq + 1
-        call MPI_ISEND(tmp3i,ilenz,MPI_INTEGER,mzp,1,MPI_COMM_WORLD,req(nreq),ierr)
-      endif
-! Sending Bottom
-      if(fillMPIrequest(mzm,1) .or. fillMPIrequest(mymzm,6) .or. fillMPIrequest(mypzm,5))then
-        nreq = nreq + 1
-        call MPI_ISEND(tmp1i,ilenz,MPI_INTEGER,mzm,0,MPI_COMM_WORLD,req(nreq),ierr)
-      endif
-
-      if(nreq > 0)then
-        call MPI_WAITALL(nreq,req,status_array,ierr)
-      endif
-      nreq = 0
-
-!Receiving Left
-      if(fillMPIrequest(myid,3))then
-        nreq = nreq + 1
-        call MPI_IRECV(tmp8i,ileny,MPI_INTEGER,mym,1,MPI_COMM_WORLD,req(nreq),ierr)
-      endif
-!Recieving Right
-      if(fillMPIrequest(myid,4))then
-        nreq = nreq + 1
-        call MPI_IRECV(tmp6i,ileny,MPI_INTEGER,myp,0,MPI_COMM_WORLD,req(nreq),ierr)
-      endif
-!Sending Left
-      if(fillMPIrequest(mym,4))then
-        nreq = nreq + 1
-        if(dtempinit)tmp5il(:,0) = tmp4i(:,1)
-        tmp5il(:,1:lz) = tmp5i(:,:)
-        if(utempinit)tmp5il(:,lz+1) = tmp2i(:,1)
-        call MPI_ISEND(tmp5il,ileny,MPI_INTEGER,mym,0,MPI_COMM_WORLD,req(nreq),ierr)
-      endif
-! Sending Right
-      if(fillMPIrequest(myp,3))then
-        nreq = nreq + 1
-        if(dtempinit)tmp7il(:,0) = tmp4i(:,ly)
-        tmp7il(:,1:lz) = tmp7i(:,:)
-        if(utempinit)tmp7il(:,lz+1) = tmp2i(:,ly)
-        call MPI_ISEND(tmp7il,ileny,MPI_INTEGER,myp,1,MPI_COMM_WORLD,req(nreq),ierr)
-      endif
-
-      if(nreq > 0)then
-        call MPI_WAITALL(nreq,req,status_array,ierr)
-      endif
-
-      end subroutine exchng5i
 !===========================================================================
 
       subroutine feqpnt(u9,v9,w9,rho9,feq9)

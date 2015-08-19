@@ -449,7 +449,7 @@
                form = 'unformatted')
 
       write(14) nps, ipglb 
-      write(14) ibnodes(1:lx,1:ly,1:lz), ibnodes0
+      write(14) ibnodes(1:lx,1:ly,1:lz), ibnodes0(1:lx,1:ly,1:lz)
       write(14) isnodes, isnodes0
       write(14) xlink, ylink, zlink
       write(14) iplink, mlink, alink
@@ -492,7 +492,7 @@
                form = 'unformatted')
 
       read(14) nps, ipglb
-      read(14) ibnodes(1:lx,1:ly,1:lz), ibnodes0
+      read(14) ibnodes(1:lx,1:ly,1:lz), ibnodes0(1:lx,1:ly,1:lz)
       read(14) isnodes, isnodes0
       read(14) xlink, ylink, zlink
       read(14) iplink, mlink, alink
@@ -535,7 +535,7 @@
                form = 'unformatted')
 
       write(14) nps, ipglb
-      write(14) ibnodes0, isnodes0
+      write(14) ibnodes0(1:lx,1:ly,1:lz), isnodes0
       write(14) ypglb, wp, omgp
       write(14) yp, thetap
       write(14) forcepp, torqpp
@@ -575,7 +575,7 @@
                form = 'unformatted')
 
       read(14) nps, ipglb
-      read(14) ibnodes0, isnodes0   
+      read(14) ibnodes0(1:lx,1:ly,1:lz), isnodes0   
       read(14) ypglb, wp, omgp
       read(14) yp, thetap
       read(14) forcepp, torqpp
@@ -618,7 +618,7 @@
                form = 'unformatted')
 
       write(14) nps, ipglb
-      write(14) ibnodes0, isnodes0
+      write(14) ibnodes0(1:lx,1:ly,1:lz), isnodes0
       write(14) yp, thetap
       write(14) forcepp, torqpp
       write(14) dwdt, domgdt
@@ -661,13 +661,13 @@
                form = 'unformatted')
 
       read(14) nps, ipglb
-      read(14) ibnodes0, isnodes0   
+      read(14) ibnodes0(1:lx,1:ly,1:lz), isnodes0   
       read(14) yp, thetap
       read(14) forcepp, torqpp
       read(14) dwdt, domgdt
       if(myid == 0) read(14) ypglb, wp, omgp
 
-      ibnodes(1:lx,1:ly,1:lz) = ibnodes0
+      ibnodes(1:lx,1:ly,1:lz) = ibnodes0(1:lx,1:ly,1:lz)
       isnodes = isnodes0
 
       close(14)

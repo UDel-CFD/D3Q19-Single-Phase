@@ -53,7 +53,7 @@
 
       istpload = 2000   !!!!THIS NEEDS TO BE CHANGED WHEN STARTING NEW RUNS
       force_mag = 1.0
-      nsteps = 50
+      nsteps = 1000
 
 !     nek = nx/3
       nek = int(nx7/2 - 1.5)
@@ -361,7 +361,7 @@
       allocate (wx(lx+2,ly+lyext,lz))
       allocate (wy(lx+2,ly+lyext,lz))
       allocate (wz(lx+2,ly+lyext,lz))
-      allocate (ibnodes(1:lx,0:ly+1,0:lz+1))
+      allocate (ibnodes(lx,0:ly+1,0:lz+1))
 
       allocate(force_realx(lx,ly,lz))
       allocate(force_realy(lx,ly,lz))
@@ -403,7 +403,7 @@
       allocate (ipf_mzm(2*19*lx*ly))
       allocate (ipf_mzp(2*19*lx*ly))
 
-      allocate (ibnodes0(lx,ly,lz))
+      allocate (ibnodes0(lx,0:ly+1,0:lz+1))
       allocate (isnodes(lx,ly,lz))
       allocate (isnodes0(lx,ly,lz))
 
@@ -413,6 +413,11 @@
       allocate (idbfill(maxbfill))
       allocate (fillMPIrequest(0:nproc,8))
       allocate (localReqData(8))
+
+      allocate(fillRecvYm(0:npop-1,lx,0:lz+1))
+      allocate(fillRecvYp(0:npop-1,lx,0:lz+1))
+      allocate(fillRecvZm(0:npop-1,lx,ly))
+      allocate(fillRecvZp(0:npop-1,lx,ly))
 
       isnodes = -1
 
