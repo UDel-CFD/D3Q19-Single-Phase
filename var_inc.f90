@@ -116,7 +116,7 @@
       real,allocatable,dimension(:):: xlink, ylink, zlink
       real,allocatable,dimension(:):: iplink, alink, mlink
       real,allocatable,dimension(:,:):: oldlink
-      integer,allocatable,dimension(:,:):: iblinks
+      integer,allocatable,dimension(:,:,:):: iblinks
       integer ifsc_inject, ipf_mymc, ipf_mypc, ipf_mzmc, ipf_mzpc
       integer MPI_IPF_NODE, IBNODES_TRUE
       type(ipf_node), allocatable,dimension(:):: ipf_mym, ipf_myp, ipf_mzm, ipf_mzp

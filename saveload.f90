@@ -1008,37 +1008,38 @@
       end subroutine outputpress      
 !===========================================================================
 
-      subroutine outputvort(ibnodes9)      
+      subroutine outputvort     
       use mpi 
       use var_inc
       implicit none
 
       integer, dimension(lx,ly,nz):: ibnodes9
 
-      integer ip, ilen
+      integer ip, ilen, iy, iz
       integer status(MPI_STATUS_SIZE)
       integer istp1, istp2, istp3, istp4, istp5, istp6
       
-      real, dimension(lx,ly,nz):: vort9    
+      real, dimension(lx,ny,nz):: vort9
       real, dimension(lx,ly,lz):: vort, vort0    
 
       character (len = 120):: fnm
 
 ! prepare vorticity field ox, oy, oz, and magnitude field vort
       call vortcalc
-
       vort = sqrt(ox*ox + oy*oy + oz*oz)
    
       ilen = lx*ly*lz
 
       if(myid == 0)then
 
-        vort9(:,:,1:lz) = vort         
+        vort9(:,1:ly,1:lz) = vort         
 
         do ip = 1,nproc-1
           call MPI_RECV(vort0,ilen,MPI_REAL8,ip,1,MPI_COMM_WORLD,status,ierr)
+          iy = mod(ip,nprocY)
+          iz = int(ip/nprocY)
 
-          vort9(:,:,(ip*lz + 1):((ip + 1)*lz)) = vort0            
+          vort9(:,(iy*ly + 1):((iy + 1)*ly),(iz*lz + 1):((iz + 1)*lz)) = vort0            
         end do
 
       else
@@ -1046,7 +1047,6 @@
       end if
 
       if(myid == 0)then
-
 ! zero out the vorticity inside particle for plot purpose
 !        where(ibnodes9 > 0) vort9 = 0.0
 
@@ -1062,12 +1062,12 @@
             //char(istp4 + 48)//char(istp5 + 48)//char(istp6 + 48)     &
             //'.dat' 
 
-!       open(20, file = trim(fnm), status = 'unknown',                 &
-!                form = 'formatted')
+       open(25, file = trim(fnm), status = 'unknown',                 &
+                form = 'formatted')
 
-!       write(20,200) vort9      
+       write(25,200) vort9(:,:,int(nz/2))    
 
-!       close(20)
+       close(25)
 
       end if
 
@@ -3861,15 +3861,131 @@
       use mpi
       use var_inc
       implicit none
+! Since the vorticity is only decided by the derivative in x, y and z
+! directions, there is no need to consider the conner points
+      real, dimension(lx,ly) :: tmpuxF, tmpuyF, tmpuzF
+      real, dimension(lx,ly) :: tmpuxB, tmpuyB, tmpuzB
+      real, dimension(lx,lz) :: tmpuxL, tmpuyL, tmpuzL
+      real, dimension(lx,lz) :: tmpuxR, tmpuyR, tmpuzR
+      real, dimension(lx,ly,lz):: pwy,pvz,puz,pwx,pvx,puy
+      integer i, j, k, id
+      real omg1, omg2, omg3
 
-      real, dimension(lx+2,lly,lz) :: tmp
+      integer, dimension(lx,ly):: tmpiF, tmpiB
+      integer, dimension(lx,lz):: tmpiL, tmpiR
 
+      call exchng8(ux(:,:,1),tmpuxB,ux(:,:,lz),tmpuxF,ux(:,1,:),tmpuxR &
+           ,ux(:,ly,:),tmpuxL)
+      call exchng8(uy(:,:,1),tmpuyB,uy(:,:,lz),tmpuyF,uy(:,1,:),tmpuyR &
+           ,uy(:,ly,:),tmpuyL)
+      call exchng8(uz(:,:,1),tmpuzB,uz(:,:,lz),tmpuzF,uz(:,1,:),tmpuzR &
+           ,uz(:,ly,:),tmpuzL)
+!      call exchng8i(ibnodes(:,:,1),tmpiB,ibnodes(:,:,lz),tmpiF,        &
+!           ibnodes(:,1,:),tmpiR,ibnodes(:,ly,:),tmpiL)
+      
       ox = 0.0
       oy = 0.0
       oz = 0.0
 
+      do k = 1,lz
+      do j = 1,ly
+      do i = 1,lx
+! Here note that inside the particle, we also have calculated the
+! velocity, so we dont need to particularly deal with the situation that
+! some point is inside the particle. The only situation that needs to be
+! particularly treated is near the wall 
+
+      if(ibnodes(i,j,k) < 0 ) then
+
+      if(i == 1) then
+       pwx(i,j,k) = (3.d0*uz(i,j,k)+uz(i+1,j,k))/3.d0
+       pvx(i,j,k) = (3.d0*uy(i,j,k)+uy(i+1,j,k))/3.d0
+      else if(i == lx) then
+       pwx(i,j,k) = -(3.d0*uz(i,j,k)+uz(i-1,j,k))/3.d0
+       pvx(i,j,k) = -(3.d0*uy(i,j,k)+uy(i-1,j,k))/3.d0
+      else
+       pwx(i,j,k) = (uz(i+1,j,k)-uz(i-1,j,k))/2.d0
+       pvx(i,j,k) = (uy(i+1,j,k)-uy(i-1,j,k))/2.d0
+      end if
+
+      if(j == 1) then
+       pwy(i,j,k) = (uz(i,j+1,k)-tmpuzL(i,k))/2.d0
+       puy(i,j,k) = (ux(i,j+1,k)-tmpuxL(i,k))/2.d0
+      else if(j == ly) then
+       pwy(i,j,k) = (tmpuzR(i,k)-uz(i,j-1,k))/2.d0
+       puy(i,j,k) = (tmpuxR(i,k)-ux(i,j-1,k))/2.d0
+      else
+       pwy(i,j,k) = (uz(i,j+1,k)-uz(i,j-1,k))/2.d0
+       puy(i,j,k) = (ux(i,j+1,k)-ux(i,j-1,k))/2.d0
+      end if
+
+      if(k == 1) then
+       puz(i,j,k) = (ux(i,j,k+1)-tmpuxF(i,j))/2.d0
+       pvz(i,j,k) = (uy(i,j,k+1)-tmpuyF(i,j))/2.d0
+      else if(k == lz) then
+       puz(i,j,k) = (tmpuxB(i,j)-ux(i,j,k-1))/2.d0
+       pvz(i,j,k) = (tmpuyB(i,j)-uy(i,j,k-1))/2.d0
+      else
+       puz(i,j,k) = (ux(i,j,k+1)-ux(i,j,k-1))/2.d0
+       pvz(i,j,k) = (uy(i,j,k+1)-uy(i,j,k-1))/2.d0
+      end if
+
+      ox(i,j,k) = pwy(i,j,k) - pvz(i,j,k)
+      oy(i,j,k) = puz(i,j,k) - pwx(i,j,k)
+      oz(i,j,k) = pvx(i,j,k) - puy(i,j,k)
+      
+      else
+      id = isnodes(i,j,k)
+
+      omg1 = omgp(1,id)
+      omg2 = omgp(2,id)
+      omg3 = omgp(3,id)
+
+      ox(i,j,k) = 2.d0*omg1
+      oy(i,j,k) = 2.d0*omg2
+      oz(i,j,k) = 2.d0*omg3
+      endif
+
+      end do
+      end do
+      end do      
+
+
       end subroutine vortcalc
+
 !==========================================================================
+
+      subroutine exchng8(tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8)
+      use mpi
+      use var_inc
+      implicit none
+      real, dimension(lx,ly):: tmp1,tmp2,tmp3,tmp4
+      real, dimension(lx,lz):: tmp5,tmp6,tmp7,tmp8
+
+      integer ileny, ilenz
+      integer error, status_array(MPI_STATUS_SIZE,4),req(4)
+
+      ilenz = lx*ly
+      ileny = lx*lz
+  
+      call MPI_IRECV(tmp2,ilenz,MPI_REAL8,mzp,0,MPI_COMM_WORLD,req(1),ierr)
+      call MPI_IRECV(tmp4,ilenz,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(2),ierr)
+      call MPI_ISEND(tmp1,ilenz,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(3),ierr)
+      call MPI_ISEND(tmp3,ilenz,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(4),ierr)
+
+      call MPI_WAITALL(4,req,status_array,ierr)
+
+      call MPI_IRECV(tmp6,ileny,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(1),ierr)
+      call MPI_IRECV(tmp8,ileny,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(2),ierr)
+      call MPI_ISEND(tmp5,ileny,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(3),ierr)
+      call MPI_ISEND(tmp7,ileny,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(4),ierr)
+
+      call MPI_WAITALL(4,req,status_array,ierr)
+
+      end subroutine exchng8
+
+
+!=========================================================================
 !==========================================================================
       subroutine probe
       use mpi

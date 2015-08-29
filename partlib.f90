@@ -957,7 +957,7 @@
 
       !Reset indexers and flag array
       ifsc_inject = 0; ipf_mymc = 0; ipf_mypc = 0; ipf_mzmc = 0; ipf_mzpc = 0
-      iblinks(:,:) = 0
+      iblinks(:,:,:) = 0
 
       ibnodes(:,0,0:lz+1)=-1
       ibnodes(:,ly+1,0:lz+1)=-1
@@ -1066,7 +1066,6 @@
                         write(*,*) 'fault: alpha = ', alpha, ' @ ilink(',      &
                                    ip, ', ', i, ', ', j, ', ', k, ')' 
                       end if
-
                       call parse_MPI_links(ip, i, j, k, alpha, nlink)
                       
                     end if
@@ -1208,7 +1207,7 @@
       km2 = k - 2*iz
       
       if(alpha > 0.5)then
-        ip = ipopp(ipi)! Negitive used as identification in directexchange
+        ip = ipopp(ipi)
         if(im1 < 1 .or. im1 > lx)then
           goto 116
         elseif((im2 == 0 .or. im2 == lx+1) .and. (0 < jm1 .and. jm1 < ly + 1 .and. 0 < km1 .and. km1 < lz + 1))then
@@ -1229,75 +1228,91 @@
       if(jp1 < 1)then
         ipf_mymc = ipf_mymc + 1
         ipf_mym(ipf_mymc) = ipf_node(ipi, ip1, jp1, kp1, 1)
-        iblinks(0,n) = 1
+        iblinks(0,1,n) = 1
+        iblinks(0,2,n) = ipf_mymc
       elseif(jp1 > ly)then
         ipf_mypc = ipf_mypc + 1
         ipf_myp(ipf_mypc) = ipf_node(ipi, ip1, jp1, kp1, 1)
-        iblinks(0,n) = 2
+        iblinks(0,1,n) = 2
+        iblinks(0,2,n) = ipf_mypc
       elseif(kp1 < 1)then
         ipf_mzmc = ipf_mzmc + 1
         ipf_mzm(ipf_mzmc) = ipf_node(ipi, ip1, jp1, kp1, 1)
-        iblinks(0,n) = 3
+        iblinks(0,1,n) = 3
+        iblinks(0,2,n) = ipf_mzmc
       elseif(kp1 > lz)then
         ipf_mzpc = ipf_mzpc + 1
         ipf_mzp(ipf_mzpc) = ipf_node(ipi, ip1, jp1, kp1, 1)
-        iblinks(0,n) = 4
+        iblinks(0,1,n) = 4
+        iblinks(0,2,n) = ipf_mzpc
       endif
 
       if(jm1 < 1)then
         ipf_mymc = ipf_mymc + 1
         ipf_mym(ipf_mymc) = ipf_node(ip, im1, jm1, km1, 0)
-        iblinks(1,n) = 1
+        iblinks(1,1,n) = 1
+        iblinks(1,2,n) = ipf_mymc
         if(alpha > 0.5 .and. im2f)then
           ipf_mymc = ipf_mymc + 1
           ipf_mym(ipf_mymc) = ipf_node(ip, im2, jm2, km2, 0)
-          iblinks(2,n) = 1
+          iblinks(2,1,n) = 1
+          iblinks(2,2,n) = ipf_mymc
         endif
       elseif(jm1 > ly)then
         ipf_mypc = ipf_mypc + 1
         ipf_myp(ipf_mypc) = ipf_node(ip, im1, jm1, km1, 0)
-        iblinks(1,n) = 2
+        iblinks(1,1,n) = 2
+        iblinks(1,2,n) = ipf_mypc
         if(alpha > 0.5 .and. im2f)then
           ipf_mypc = ipf_mypc + 1
           ipf_myp(ipf_mypc) = ipf_node(ip, im2, jm2, km2, 0)
-          iblinks(2,n) = 2
+          iblinks(2,1,n) = 2
+          iblinks(2,2,n) = ipf_mypc
         endif
       elseif(km1 < 1)then
         ipf_mzmc = ipf_mzmc + 1
         ipf_mzm(ipf_mzmc) = ipf_node(ip, im1, jm1, km1, 0)
-        iblinks(1,n) = 3
+        iblinks(1,1,n) = 3
+        iblinks(1,2,n) = ipf_mzmc
         if(alpha > 0.5 .and. im2f)then
           if(jm2 < 1)then
             ipf_mymc = ipf_mymc + 1
             ipf_mym(ipf_mymc) = ipf_node(ip, im2, jm2, km2, 0)
-            iblinks(2,n) = 1
+            iblinks(2,1,n) = 1
+            iblinks(2,2,n) = ipf_mymc
           elseif(jm2 > ly)then
             ipf_mypc = ipf_mypc + 1
             ipf_myp(ipf_mypc) = ipf_node(ip, im2, jm2, km2, 0)
-            iblinks(2,n) = 2
+            iblinks(2,1,n) = 2
+            iblinks(2,2,n) = ipf_mypc
           else
             ipf_mzmc = ipf_mzmc + 1
             ipf_mzm(ipf_mzmc) = ipf_node(ip, im2, jm2, km2, 0)
-            iblinks(2,n) = 3
+            iblinks(2,1,n) = 3
+            iblinks(2,2,n) = ipf_mzmc
           endif
         endif
       elseif(km1 > lz)then
         ipf_mzpc = ipf_mzpc + 1
         ipf_mzp(ipf_mzpc) = ipf_node(ip, im1, jm1, km1, 0)
-        iblinks(1,n) = 4
+        iblinks(1,1,n) = 4
+        iblinks(1,2,n) = ipf_mzpc
         if(alpha > 0.5 .and. im2f)then
           if(jm2 < 1)then
             ipf_mymc = ipf_mymc + 1
             ipf_mym(ipf_mymc) = ipf_node(ip, im2, jm2, km2, 0)
-            iblinks(2,n) = 1
+            iblinks(2,1,n) = 1
+            iblinks(2,2,n) = ipf_mymc
           elseif(jm2 > ly)then
             ipf_mypc = ipf_mypc + 1
             ipf_myp(ipf_mypc) = ipf_node(ip, im2, jm2, km2, 0)
-            iblinks(2,n) = 2
+            iblinks(2,1,n) = 2
+            iblinks(2,2,n) = ipf_mypc
           else
             ipf_mzpc = ipf_mzpc + 1
             ipf_mzp(ipf_mzpc) = ipf_node(ip, im2, jm2, km2, 0)
-            iblinks(2,n) = 4
+            iblinks(2,1,n) = 4
+            iblinks(2,2,n) = ipf_mzpc
           endif
         endif
       else
@@ -1305,52 +1320,49 @@
           if(jm2 < 1)then
             ipf_mymc = ipf_mymc + 1
             ipf_mym(ipf_mymc) = ipf_node(ip, im2, jm2, km2, 0)
-            iblinks(2,n) = 1
+            iblinks(2,1,n) = 1
+            iblinks(2,2,n) = ipf_mymc
           elseif(jm2 > ly)then
             ipf_mypc = ipf_mypc + 1
             ipf_myp(ipf_mypc) = ipf_node(ip, im2, jm2, km2, 0)
-            iblinks(2,n) = 2
+            iblinks(2,1,n) = 2
+            iblinks(2,2,n) = ipf_mypc
           elseif(km2 < 1)then
             ipf_mzmc = ipf_mzmc + 1
             ipf_mzm(ipf_mzmc) = ipf_node(ip, im2, jm2, km2, 0)
-            iblinks(2,n) = 3
+            iblinks(2,1,n) = 3
+            iblinks(2,2,n) = ipf_mzmc
           elseif(km2 > lz)then
             ipf_mzpc = ipf_mzpc + 1
             ipf_mzp(ipf_mzpc) = ipf_node(ip, im2, jm2, km2, 0)
-            iblinks(2,n) = 4
-          else
-            iblinks(2,n) = 0
-        endif
+            iblinks(2,1,n) = 4
+            iblinks(2,2,n) = ipf_mzpc
+           endif
         endif
       endif
 116   continue
 
       end subroutine parse_MPI_links
 !===========================================================================
-      subroutine beads_collision(step)
+      subroutine beads_collision
       use mpi 
       use var_inc
       implicit none
 
       integer id, i, j, k, ii, jj, kk,  ip, ipp, ix, iy, iz, ilen
       integer im1, im2, ip1, jm1, jm2, jp1, km1, km2, kp1, n
-      integer ibm1, ibm2,step
+      integer ibm1, ibm2
       real alpha, xc, yc, zc, xx0, yy0, zz0
       real uwx, uwy, uwz, uwpro, ff1, ff2, ff3
       real w1, w2, w3, omg1, omg2, omg3 
       real c1, c2, c3, dff, dxmom, dymom, dzmom
       real xpnt, ypnt, zpnt
-
       character (len = 100):: fnm2
-
-      integer imzp, imzm, imyp, imym
-      integer imzpc, imzmc, imypc, imymc
 
       real,dimension(lx,ly,lz):: f9print,alphaprint,ff1print
       real, dimension(3,npart):: fHIp0, torqp0
       real mymIpfRecv(ipf_mymc), mypIpfRecv(ipf_mypc), mzmIpfRecv(ipf_mzmc), mzpIpfRecv(ipf_mzpc)
 
-      imzpc = 0; imzmc = 0; imypc = 0; imymc = 0
       fHIp0 = 0.0
       torqp0 = 0.0
 
@@ -1418,20 +1430,16 @@
 
         uwpro = uwx*real(ix) + uwy*real(iy) + uwz*real(iz)
 
-       if(iblinks(0,n) == 0)then
+       if(iblinks(0,1,n) == 0)then
           ff1 = f(ip,ip1,jp1,kp1)
-       elseif(iblinks(0,n) == 1)then
-          imymc = imymc + 1
-          ff1 = mymIpfRecv(imymc)
-       elseif(iblinks(0,n) == 2)then
-          imypc = imypc + 1
-          ff1 = mypIpfRecv(imypc)
-       elseif(iblinks(0,n) == 3)then
-          imzmc = imzmc + 1
-          ff1 = mzmIpfRecv(imzmc)
+       elseif(iblinks(0,1,n) == 1)then
+          ff1 = mymIpfRecv(iblinks(0,2,n))
+       elseif(iblinks(0,1,n) == 2)then
+          ff1 = mypIpfRecv(iblinks(0,2,n))
+       elseif(iblinks(0,1,n) == 3)then
+          ff1 = mzmIpfRecv(iblinks(0,2,n))
        else
-          imzpc = imzpc + 1
-          ff1 = mzpIpfRecv(imzpc)
+          ff1 = mzpIpfRecv(iblinks(0,2,n))
        endif
 
 ! If alpha is > 0.5
@@ -1441,20 +1449,16 @@
           goto 112
         endif
         !Get ff2
-        if(iblinks(1,n) == 0)then !Pre-Stream Location at interpolation node
+        if(iblinks(1,1,n) == 0)then !Pre-Stream Location at interpolation node
           ff2 = f(ipp,im1,jm1,km1)
-        elseif(iblinks(1,n) == 1)then
-          imymc = imymc + 1
-          ff2 = mymIpfRecv(imymc)
-        elseif(iblinks(1,n) == 2)then
-          imypc = imypc + 1
-          ff2 = mypIpfRecv(imypc)
-        elseif(iblinks(1,n) == 3)then
-          imzmc = imzmc + 1
-          ff2 = mzmIpfRecv(imzmc)
+        elseif(iblinks(1,1,n) == 1)then
+          ff2 = mymIpfRecv(iblinks(1,2,n))
+        elseif(iblinks(1,1,n) == 2)then
+          ff2 = mypIpfRecv(iblinks(1,2,n))
+        elseif(iblinks(1,1,n) == 3)then
+          ff2 = mzmIpfRecv(iblinks(1,2,n))
         else
-          imzpc = imzpc + 1
-          ff2 = mzpIpfRecv(imzpc)
+          ff2 = mzpIpfRecv(iblinks(1,2,n))
         endif
 
         if(im2 < 0 .or. im2 > lx+1)then
@@ -1462,7 +1466,7 @@
           goto 112
         endif  
         !Get ff3
-        if(iblinks(2,n) == 0)then
+        if(iblinks(2,1,n) == 0)then
           if(im2 == 0 .or. im2 == lx+1)then !If we're only one out use bounce back!
             ff3 = f(ip,im1,jm1,km1)
           else
@@ -1472,18 +1476,14 @@
               ff3 = f(ipp,im2,jm2,km2)
             endif
           endif
-        elseif(iblinks(2,n) == 1)then
-          imymc = imymc + 1
-          ff3 = mymIpfRecv(imymc)
-        elseif(iblinks(2,n) == 2)then
-          imypc = imypc + 1
-          ff3 = mypIpfRecv(imypc)
-        elseif(iblinks(2,n) == 3)then
-          imzmc = imzmc + 1
-          ff3 = mzmIpfRecv(imzmc)
+        elseif(iblinks(2,1,n) == 1)then
+          ff3 = mymIpfRecv(iblinks(2,2,n))
+        elseif(iblinks(2,1,n) == 2)then
+          ff3 = mypIpfRecv(iblinks(2,2,n))
+        elseif(iblinks(2,1,n) == 3)then
+          ff3 = mzmIpfRecv(iblinks(2,2,n))
         else
-          imzpc = imzpc + 1
-          ff3 = mzpIpfRecv(imzpc)
+          ff3 = mzpIpfRecv(iblinks(2,2,n))
         endif
 112     continue
 
@@ -1512,24 +1512,20 @@
           goto 113
         endif
 
-        if(iblinks(1,n) == 0)then
+        if(iblinks(1,1,n) == 0)then
           if(ibnodes(im2,jm2,km2)>0)then !Check Pre-Stream Location
             ff3 = IBNODES_TRUE
           else
             ff3 = f(ip,im1,jm1,km1)
           endif
-        elseif(iblinks(1,n) == 1)then
-          imymc = imymc + 1
-          ff3 = mymIpfRecv(imymc)
-        elseif(iblinks(1,n) == 2)then
-          imypc = imypc + 1
-          ff3 = mypIpfRecv(imypc)
-        elseif(iblinks(1,n) == 3)then
-          imzmc = imzmc + 1
-          ff3 = mzmIpfRecv(imzmc)
+        elseif(iblinks(1,1,n) == 1)then
+          ff3 = mymIpfRecv(iblinks(1,2,n))
+        elseif(iblinks(1,1,n) == 2)then
+          ff3 = mypIpfRecv(iblinks(1,2,n))
+        elseif(iblinks(1,1,n) == 3)then
+          ff3 = mzmIpfRecv(iblinks(1,2,n))
         else
-          imzpc = imzpc + 1
-          ff3 = mzpIpfRecv(imzpc)
+          ff3 = mzpIpfRecv(iblinks(1,2,n))
         endif
 113     continue
 
@@ -1549,8 +1545,10 @@
         ! compute force and torque acting on particles
         if(abs(f(ipp,i,j,k)) > 1e-2)then
           write(*,*)'=',myid,f(ipp,i,j,k),alpha,'='
-          write(*,*)ip,i,j,k,iblinks(0,n),iblinks(1,n),iblinks(2,n)
-          write(*,*)ff1,ff2,ff3
+          write(*,*)ip,i,j,k,iblinks(0,1,n),iblinks(1,1,n),iblinks(2,1,n)
+          write(*,*),iblinks(0,2,n),iblinks(1,2,n),iblinks(2,2,n)
+          write(*,*)im1,jm1,km1,im2,jm2,km2
+          write(*,*)ff1,ff2,ff3,n
         endif
 
         dff = ff1 + f(ipp,i,j,k)
@@ -1595,9 +1593,9 @@
       integer status(MPI_STATUS_SIZE), status_array(MPI_STATUS_SIZE,10), req(10)
       integer ip, i, j, dir, xm1, ym1, zm1, ipt
 
-      type(cornerNode), dimension(2*19*4):: mzmt_index, mzpt_index
+      type(cornerNode), dimension(2*19*lx):: mzmt_index, mzpt_index
       type(ipf_node),allocatable,dimension(:):: ipfReq
-      type(ipf_node), dimension(2*19*4):: ipf_mzmt, ipf_mzpt
+      type(ipf_node), dimension(2*19*lx):: ipf_mzmt, ipf_mzpt
 
       ipf_mzmtc = 0; ipf_mzptc = 0;
 

@@ -53,7 +53,7 @@
 
       istpload = 2000   !!!!THIS NEEDS TO BE CHANGED WHEN STARTING NEW RUNS
       force_mag = 1.0
-      nsteps = 1000
+      nsteps = 2000
 
 !     nek = nx/3
       nek = int(nx7/2 - 1.5)
@@ -397,7 +397,7 @@
       allocate (iplink(maxlink))
       allocate (mlink(maxlink))
       allocate (alink(maxlink))
-      allocate (iblinks(0:2,maxlink))
+      allocate (iblinks(0:2,2,maxlink))
       allocate (ipf_mym(2*19*lx*(lz + 4)))
       allocate (ipf_myp(2*19*lx*(lz + 4)))
       allocate (ipf_mzm(2*19*lx*ly))

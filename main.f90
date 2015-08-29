@@ -211,7 +211,7 @@
 
         if(ipart .and. istep >= irelease)then
           bnchstart = MPI_WTIME()
-          call beads_collision(istep-istpload)
+          call beads_collision
           beads_collision_bnch(istep-istpload) = MPI_WTIME() - bnchstart
 
           bnchstart = MPI_WTIME()
@@ -287,6 +287,7 @@
                            MPI_MAX,MPI_COMM_WORLD,ierr)
 !Probe each processor for final flow comparing
        call probe
+       call outputvort
 ! save data for continue run
       !call savecntdflow
 !save param variables
