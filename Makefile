@@ -4,7 +4,6 @@
 #
 SHELL = /bin/bash
 FFLAG = -O3 -w -r8
-#FFLAG = -g -r8 -C -CB -traceback -debug all -fp-model precise
 FCOMP = mpif90 -c ${FFLAG}
 LINK = mpif90 
 LIBS = -lm
@@ -17,11 +16,15 @@ OBJ = var_inc.o main.o para.o collision.o streaming.o initial.o partlib.o savelo
 	${FCOMP} $*.f90 ${LIBS}
 main: ${OBJ}
 	${LINK} ${FFLAG} ${OBJ} ${LIBS} -o main
-#Delete all .o and other object files
-	rm -rf ${OBJ} var_inc.mod
-#Note this forces a recompile everytime
-
-#Type make clean to clean all object and program files
+	#Optional auto clean object files
+	rm -rf *.o *.mod
+# Debug build changes flags to assist in program debugging
+debug: FFLAG = -g -r8 -C -CB -traceback -debug all -fp-model precise
+debug: main
+#Remove Old Object files, useful when recompiling
 clean:
+	rm -rf *.o *.mod core*
+#Type make clean to clean all object and program files
+fullclean:
 	rm -rf *.o *.mod main core*
 
