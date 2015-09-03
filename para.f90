@@ -1,3 +1,7 @@
+!=============================================================================
+!@subroutine para
+!@desc Initializes parameters, variables, and constants
+!=============================================================================      
       subroutine para
       use var_inc
       implicit none
@@ -5,14 +9,42 @@
       logical dirExist
       integer i,j,k
       real vmax
+!=======================================================
+! General parameters
+!=======================================================
+      ! true: if a entirely new run is desired
+      ! false: wish to load an old flow
+      newrun = .false.
+      ! true: if one wants to load an old pre-relaxed flow
+      ! false: wish to load an previous simulaiton
+      newinitflow = .false. 
 
-      !Flag indicating node is inside solid particle
-      !Used in the direct request system in beads_collision
-      IBNODES_TRUE = 12345678
+      ! Initial timestep one want to load flow/ particle data from
+      ! It can be any step # at which the "endrunflow" & "endrunpart" data are saved
+      istpload = 2000
+      ! Number of time steps in main loop
+      nsteps = 2000
 
+      s = 1 !Global switch used for 2-array algorithm
+
+      istep0 = 0
+      istep00 = 1 
+      istat = 0
+      imovie = 0 
+
+      ! wall clock time limit, must be the same as in RUN file, unit in [min]
+      time_lmt = 3600.0
+      ! wall clock time buffer, for saving the data, [min]
+      time_buff = 10.0
+      ! wall clock time upper bound, for computation, [s]
+      time_bond = (time_lmt - time_buff)*60.d0
+!=======================================================
+! Physical constants and parameters
+!=======================================================
       pi = 4.0*atan(1.0) 
       pi2 = 2.0*pi
-! specify the force magnitude
+      
+      ! specify the force magnitude
 !     visc = 0.0032
 !     Rstar = 200.0
 !     visc = 0.0036
@@ -21,91 +53,63 @@
       ustar = 2.0*Rstar*visc/real(nx)
       force_in_y = 2.*rho0*ustar*ustar/real(nx)
       ystar = visc/ustar
+      force_mag = 1.0
 
-! not used
+      ! not used
       kpeak = 4         ! It does not matter. Starting from stagnant flow
       u0in = 0.0503     ! It does not matter. Starting from stagnant flow
 
       iseedf = 232300
 
-! get rid of vscale
+      ! get rid of vscale
       vscale = 1.0
       escale = 1.0/(vscale*vscale)
       dscale = pi2/real(ny)/vscale**3
       tscale = pi2*vscale/real(ny)
 
-      istep0 = 0
-      istep00 = 1 
-      istat = 0
-      imovie = 0 
-
-! wall clock time limit, must be the same as in RUN file, unit in [min]
-      time_lmt = 1440.0
-! wall clock time buffer, for saving the data, [min]
-      time_buff = 10.0
-! wall clock time upper bound, for computation, [s]
-      time_bond = (time_lmt - time_buff)*60.d0
-
-! "istpload" is to determine from which step the code will load up flow and 
-! particle data for continue run. Usually istpload = the latest (istep), but 
-! it can be any step # at which the "endrunflow" & "endrunpart" data are saved
-! Note: this variable needs to be manually setup for each continue run
-
-      istpload = 2000   !!!!THIS NEEDS TO BE CHANGED WHEN STARTING NEW RUNS
-      force_mag = 1.0
-      nsteps = 2000
-
 !     nek = nx/3
       nek = int(nx7/2 - 1.5)
-
-      !newrun = .true.
-      !newinitflow = .true.
-      newrun = .false.
-      newinitflow = .false.
  
       tau = 3.0*visc + 0.5
-
-! below are the coefficients for MRT collision step
-! Linear analysis data for stability 
+!=======================================================
+! Initialize MRT related constants
+!=======================================================
       MRTtype = 1
-! To recover LBGK  
-!      MRTtype = 2
-! To reduce dissipation
-!      MRTtype = 3 
-
-      select case(MRTtype) 
-      case(1)
-        omegepsl = 0.0
-        omegepslj = -475.0/63.0
-        omegxx = 0.0
-      case(2,3)
-        omegepsl = 3.0
-        omegepslj = -11.0/2.0
-        omegxx = -1.0/2.0
-      end select
 
       s9 = 1.0/tau
       s13 = s9
 
       select case(MRTtype) 
-      case(1)
+      case(1) ! Linear analysis data for stability 
         s1 = 1.19
         s2 = 1.4
         s4 = 1.2
         s10 = 1.4
         s16 = 1.98
-      case(2)
+
+        omegepsl = 0.0
+        omegepslj = -475.0/63.0
+        omegxx = 0.0
+      case(2) ! To recover LBGK  
         s1 = s9
         s2 = s9
         s4 = s9
         s10 = s9
         s16 = s9
-      case(3)
+
+        omegepsl = 3.0
+        omegepslj = -11.0/2.0
+        omegxx = -1.0/2.0
+      case(3) ! To reduce dissipation
         s1 = 1.8
         s2 = s1
         s4 = s9
         s10 = s1
         s16 = s1
+
+        omegepsl = 3.0
+        omegepslj = -11.0/2.0
+        omegxx = -1.0/2.0
       end select
 
       coef1 = -2.0/3.0
@@ -136,7 +140,6 @@
       val7i = 1.0/val7
       val8i = 1.0/val8
       val9i = 1.0/val9
-! MRT-realated parameters end here
 
       ww0 = 1.0/3.0
       ww1 = 1.0/18.0
@@ -166,20 +169,19 @@
 ! index 16: ( 0 -1 +1)
 ! index 17: ( 0 +1 -1)
 ! index 18: ( 0 -1 -1)
-!
+
       cix = (/0, 1, -1, 0, 0, 0, 0,1,-1, 1,-1,1,-1, 1,-1,0, 0, 0, 0 /) 
       ciy = (/0, 0, 0, 1, -1, 0, 0,1, 1,-1,-1,0, 0, 0, 0,1,-1, 1,-1 /) 
       ciz = (/0, 0, 0, 0, 0,  1,-1,0, 0, 0, 0,1, 1,-1,-1,1, 1,-1,-1/) 
+      
+      !Arrray used for finding the opposite velocity
+      ipopp=(/0, 2, 1, 4, 3, 6, 5, 10, 9, 8, 7, 14, 13, 12, 11, 18, 17, 16, 15/) 
 
-      ipopp=(/0, 2, 1, 4, 3, 6, 5, 10, 9, 8, 7, 14, 13, 12, 11, 18, 17, 16, 15/)
-
-
-! find the neighboring nodes to each processor
-
-!****changes
-
-      nprocY = 20   !!!!THIS IS MEANT TO BE CHANGED WITH NPROC
-      nprocZ = nproc/nprocY
+!=======================================================
+! Create MPI topology
+!=======================================================
+      nprocY = 20 !MPI topology width
+      nprocZ = nproc/nprocY !MPI topology height
 
       ly = ny/nprocY         !local division of dist for procs in y dir
       lz = nz/nprocZ         !local division of dist for procs in z dir
@@ -191,7 +193,7 @@
       endif
       lly = ly+lyext
 
-!******create index for proccessors*******
+      !Determine MPI neighbor Ids
       indy = mod(myid,nprocY)
       indz = int(myid/nprocY)
 
@@ -215,8 +217,9 @@
       endif
 
       rhoepsl = 1.e-05
-
-! saving and loading directories relevant to flow
+!=======================================================
+! Declare reading and writing directories
+!=======================================================
       dircntdflow0 = trim('/glade/scratch/ngeneva/Particle_Laden_Channel_Flow_Code/')
       dircntdpart0 = trim('/glade/scratch/ngeneva/Particle_Laden_Channel_Flow_Code/')
 
@@ -229,16 +232,18 @@
       dirflowout = trim(dirgenr)//'flowout/'
       dirmoviedata = trim(dirgenr)//'moviedata/'
 
-! saving and loading directories relevant to particle
+      ! saving and loading directories relevant to particle
       dircntdpart = trim(dirgenr)//'cntdpart/'
       dirpartout = trim(dirgenr)//'partout/'
 
-!Benchmarking directories
+      !Benchmarking directories
       dirbench = trim(dirgenr)//'benchmark/'
       dirbenchmatlab = trim(dirbench)//'matlab/'
       dirbenchbead = trim(dirbench)//'bead/'
       dirbenchflow = trim(dirbench)//'flow/'
 
+      !Make sure that directories exist with makedir
+      !@file para.f90
       if(myid==0)then
         call makedir(dirdiag)
         call makedir(dirstat)
@@ -255,30 +260,34 @@
         call makedir(dirbenchflow)
         call makedir(dirbenchmatlab)
       endif
+!=======================================================
+! Particle related parameters
+!=======================================================
+      ipart = .true.
+      released = .FALSE.
 
-! particle-related parameters
-!      ipart = .false.
-       ipart = .true.
-       released = .FALSE.
+      !Flag indicating node is inside solid particle
+      !Used in the direct request system in beads_collision
+      IBNODES_TRUE = 12345678
 
       if(ipart)then
         volp = 4.0/3.0*pi*rad**3
         amp = rhopart*volp
         aip = 0.4*amp*rad**2 ! moment of inertia for solid sphere
 
-! rhog is used to calculate the (body force - buoyancy)
-! Define g by setting Stokes settling velocity / ustar
-! ws_normalized =  Stokes settling velocity / ustar
-! (1) For with gravity case
+        ! rhog is used to calculate the (body force - buoyancy)
+        ! Define g by setting Stokes settling velocity / ustar
+        ! ws_normalized =  Stokes settling velocity / ustar
+        ! (1) For with gravity case
 !       ws_normalized = 1.0
 !       g_lbm = 9.0/2.0*ws_normalized/(rhopart/rho0 - 1.0)  
 !       g_lbm = g_lbm/rad**2*visc*ustar
 !       rhog = (rhopart/rho0 - 1.0)*rho0*g_lbm
-! (2) For no gravity case
+        ! (2) For no gravity case
         rhog = 0.0
         g_lbm = ustar*ustar/ystar
 
-! stiff coefficient from Feng & Michaelides (2005) JCP 202, pp 20-51, eqn(28)
+        ! stiff coefficient from Feng & Michaelides (2005) JCP 202, pp 20-51, eqn(28)
         stf0 = 0.025
         stf1 = 0.002
         stf0_w = 0.025
@@ -287,25 +296,28 @@
 !       stf1 = 0.001
 !       stf0_w = 0.01
 !       stf1_w = 0.001
-
+        
+        !Random seed for inital particle placement
         iseedp = 12345
+        !Max number of solid particles that can exist in a single local MPI domain (NEEDS FIX)
         msize = int(10.0*real(npart)/real(nproc))
-! max number of node that will require filling
-! umax is determined from poiseuille flow in the y direction
+        ! max number of node that will require filling
+        ! umax is determined from poiseuille flow in the y direction
         vmax = ((force_in_y*force_mag*nx**2)/(8*visc))
         maxbfill = vmax*msize*(pi*rad**2)
         if(myid == 0)write(*,*) maxbfill
-! maximum number of boundary links per local domain
-! Five = avg number of vertexes a plane crosses in D3Q19
+        ! maximum number of boundary links per local domain
+        ! 5 = avg number of vertexes a plane crosses in D3Q19
         maxlink = 5*msize*(4*pi*rad**2)
  
         wwp = (/ww1, ww1, ww1, ww1, ww1, ww1, ww2, ww2, ww2,           &
                 ww2, ww2, ww2, ww2, ww2, ww2, ww2, ww2, ww2/) 
 
       end if
-
+!=======================================================
 ! Computing wave numbers and other values for the forcing
-!What is this even used for?
+! Not used in particle laden
+!=======================================================
       do i = 1, nx, 2
        kxr(i)   = int(i/2)
        kxr(i+1) = kxr(i)
@@ -335,13 +347,15 @@
       b3r = 0.0
       
       end subroutine para
-!==================================================================
-
+!=============================================================================
+!@subroutine allocarray
+!@desc Allocates all globally used arrays in the var_inc module
+!=============================================================================  
       subroutine allocarray
       use var_inc
       implicit none
 
-      allocate (f(0:npop-1,lx,ly,lz))
+      allocate (f(0:npop-1,lx,ly,lz,2))
       allocate (rho(lx,ly,lz))
       allocate (rhop(lx,ly,lz))
       allocate (ux(lx,ly,lz))
@@ -369,7 +383,7 @@
 
       ibnodes = -1
 
-      if(ipart)then
+      if(ipart)then !If particles are being used
       
       allocate (ovlpflag(npart))
       allocate (ovlpflagt(npart))
@@ -436,43 +450,26 @@
       allocate (beads_filling_bnch(nsteps))
 
       end subroutine allocarray
-!==================================================================
-
+!=============================================================================
+!@subroutine constructMPItypes
+!@desc Creates any custom MPI datatypes used
+!=============================================================================  
       subroutine constructMPItypes
       use mpi
       use var_inc
       implicit none
 
-      integer blockcounts(0:1), types(0:1), baseaddr, addr1
-      integer(KIND=MPI_ADDRESS_KIND) offsets(0:1), lb, extent
-      type(ipf_node) temp
- 
-      offsets(0) = 0
-      blockcounts(0) = 4
-      blockcounts(1) = 1
-      types(0) = MPI_INTEGER
-      types(1) = MPI_LOGICAL
-
-       !call MPI_Type_extent(MPI_INTEGER, extent, ierr)
-       !call MPI_GET_ADDRESS(temp%sdist, addr1, ierr)
-       !offsets(1)= 4*extent
-
-       !call MPI_TYPE_CREATE_STRUCT(2, blockcounts, offsets, types, MPI_IPF_NODE, ierr)
-       !call MPI_TYPE_COMMIT(MPI_IPF_NODE, ierr)
-       !call MPI_TYPE_GET_EXTENT(MPI_BOOL, lb, extent, ierr)
-       ! Note we do 4 ints here, the next double must be placed on an address divisible by 8
-       !extent = extent + offsets(1)
-       !lb = 0
-       !call MPI_TYPE_CREATE_RESIZED(MPI_BCDATA_NRS, lb, extent, MPI_BCDATA, ierr)
-       !call MPI_TYPE_COMMIT(MPI_BCDATA, ierr)
-       !call MPI_TYPE_FREE(MPI_BCDATA_NRS, ierr)
-
       call MPI_TYPE_CONTIGUOUS(5, MPI_INTEGER, MPI_IPF_NODE, ierr)
       call MPI_TYPE_COMMIT(MPI_IPF_NODE, ierr)
 
       end subroutine constructMPItypes
-!==================================================================
-
+!=============================================================================
+!@subroutine makedir
+!@desc Makes sure that the given directory exists, if it does not it attempts
+!      to create it.
+!@param dirPath = character array which holds the directory path that needs
+!                 to be checked
+!=============================================================================  
       subroutine makedir (dirPath)
       use var_inc
 
@@ -484,7 +481,7 @@
       inquire(directory = trim(dirPath), exist = dirExist)  ! Works with ifort (yellowstone)
       if(.NOT.dirExist)then
         write(*,*) trim(dirPath)//' not found. Creating...'
-        call system('mkdir -p '// trim(dirPath));
+        call system('mkdir -p '// trim(dirPath)) !Execute system command to create directory
       endif
 
       end subroutine makedir

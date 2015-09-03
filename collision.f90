@@ -5,11 +5,15 @@
 ! involving the "zero" elements of the sparce matrix [M], which transfers 
 ! velocity space into moment space.
 
-      subroutine collision_MRT     
+      subroutine collision_MRT    
+      use mpi
       use var_inc
       implicit none 
 
       real, dimension(0:npop-1) :: f9
+      real, dimension(0:npop-1) :: Fbar
+      real, dimension(0:npop-1,lx,ly)     :: tmpzpS, tmpzmS
+      real, dimension(0:npop-1,lx,0:lz+1) :: tmpypS,tmpymS
       real rho9, ux9, uy9, uz9, ux9s, uy9s, uz9s
       real t1, tl1, tl2, tl3, tl4, tl5, tl6, tl7, tl8, tl9, tl10, tl11,&
            tl12, tl13, tl14, tl15, tl16, tl17, tl18, tl19, tl20, tl21
@@ -23,10 +27,19 @@
            eqmc9, eqmc10, eqmc11, eqmc12, eqmc13, eqmc14, eqmc15
       real suma, sumb, sumc, sumd, sume, sumf, sumg, sumh, sumi, sumk, &
            sump, sum67, sum89, sum1011
-      integer ix, iy, iz 
-      integer ip
+      integer ip, ix, iy, iz, imove, jmove, kmove, snext
       real fx9,fy9,fz9,G1,G2,G3
-      real, dimension(0:npop-1) :: Fbar
+
+      tmpzpS(:,:,:) = 1 
+      tmpzmS(:,:,:) = 2
+      tmpypS(:,:,:) = 3
+      tmpymS(:,:,:) = 4
+
+      if(s .eq. 1)then
+        snext = 2
+      else
+        snext = 1
+      endif
 
       do iz = 1,lz
       do iy = 1,ly
@@ -59,9 +72,9 @@
           G1 = cix(ip)*fx9 + ciy(ip)*fy9 + ciz(ip)*fz9
           G2 = cix(ip)*ux9 + ciy(ip)*uy9 + ciz(ip)*uz9
           Fbar(ip) = ww2*(3.*G1 + 9.*G1*G2 - 3.*G3)
-        enddo
+        enddo 
 
-        f9 = f(:,ix,iy,iz) + Fbar(:)/2.
+        f9(:) = f(:,ix,iy,iz,s) + 0.5*Fbar(:)
 
         t1 = ux9s + uy9s + uz9s
         eqm1 = -11.0*rho9 + 19.0*t1
@@ -198,17 +211,125 @@
         f9(16) = sumb - sum89 + sum1011 + sump - tl17 - tl20 - tl21
         f9(17) = sumb + sum89 - sum1011 + sump - tl17 + tl20 + tl21
         f9(18) = sumb - sum89 - sum1011 + sump + tl17 - tl20 + tl21
+        
+        do ip = 0,npop-1
+          imove = ix + cix(ip) 
+          jmove = iy + ciy(ip)
+          kmove = iz + ciz(ip)
+          if(imove < 1 .or. imove > lx)then
+            f(ipopp(ip),ix,iy,iz,snext) = f9(ip) + 0.5*Fbar(ip)
+          elseif(jmove < 1)then
+             tmpymS(ip,imove,kmove) =  f9(ip) + 0.5*Fbar(ip)
+          elseif(jmove > ly)then
+            tmpypS(ip,imove,kmove) = f9(ip) + 0.5*Fbar(ip)
+          elseif(kmove < 1)then
+            tmpzmS(ip,imove,jmove) = f9(ip) + 0.5*Fbar(ip)
+          elseif(kmove > lz)then
+            tmpzpS(ip,imove,jmove) = f9(ip) + 0.5*Fbar(ip)
+          else
+            f(ip,imove,jmove,kmove,snext) = f9(ip) + 0.5*Fbar(ip)
+          endif
+        enddo
+      endif
 
-        f(:,ix,iy,iz) = f9 + 0.5*Fbar
+      end do
+      end do
+      end do
 
-      end if 
-      end do
-      end do
-      end do
+      if(s .eq. 1)then
+        s = 2
+      else
+        s =1
+      endif
+
+      call collisionExchnge(tmpymS,tmpypS,tmpzmS,tmpzpS)
 
       end subroutine collision_MRT
 !===================================================================
+      subroutine collisionExchnge(tmpymSi,tmpypSi,tmpzmSi,tmpzpSi)
+      use var_inc
+      use mpi
+      implicit none
 
+      integer ilen
+      integer status_array(MPI_STATUS_SIZE,4), req(4)
+      real, dimension(0:npop-1,lx,0:lz+1) ::  tmpypSi, tmpymSi
+      real, dimension(0:npop-1,lx,ly)     :: tmpzpSi, tmpzmSi
+      real, dimension(5,lx,0:lz+1):: tmpypS, tmpymS, tmpypR, tmpymR
+      real, dimension(5,lx,ly):: tmpzpS, tmpzmS, tmpzmR, tmpzpR
+
+      tmpypS(1,:,:) = tmpypSi(3,:,:)
+      tmpypS(2,:,:) = tmpypSi(7,:,:)
+      tmpypS(3,:,:) = tmpypSi(8,:,:)
+      tmpypS(4,:,:) = tmpypSi(15,:,:)
+      tmpypS(5,:,:) = tmpypSi(17,:,:)
+
+      tmpymS(1,:,:) = tmpymSi(4,:,:)
+      tmpymS(2,:,:) = tmpymSi(9,:,:)
+      tmpymS(3,:,:) = tmpymSi(10,:,:)
+      tmpymS(4,:,:) = tmpymSi(16,:,:)
+      tmpymS(5,:,:) = tmpymSi(18,:,:)
+
+      ilen = 5 * lx * (lz + 2)
+      call MPI_IRECV(tmpymR,ilen,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(1),ierr)
+      call MPI_IRECV(tmpypR,ilen,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(2),ierr)
+
+      call MPI_ISEND(tmpymS,ilen,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(3),ierr)
+      call MPI_ISEND(tmpypS,ilen,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(4),ierr)
+      call MPI_WAITALL(4,req,status_array,ierr)
+
+      f(3,:,1,:,s) = tmpymR(1,:,1:lz)
+      f(7,2:lx,1,:,s) = tmpymR(2,2:lx,1:lz)
+      f(8,1:lx-1,1,:,s) = tmpymR(3,1:lx-1,1:lz)
+      f(15,:,1,:,s) = tmpymR(4,:,1:lz)
+      f(17,:,1,:,s) = tmpymR(5,:,1:lz)
+
+      f(4,:,ly,:,s) = tmpypR(1,:,1:lz)
+      f(9,2:lx,ly,:,s) = tmpypR(2,2:lx,1:lz)
+      f(10,1:lx-1,ly,:,s) = tmpypR(3,1:lx-1,1:lz)
+      f(16,:,ly,:,s) = tmpypR(4,:,1:lz)
+      f(18,:,ly,:,s) = tmpypR(5,:,1:lz)
+      
+      tmpzmSi(17,:,1) = tmpymR(5,:,0)
+      tmpzmSi(18,:,ly) = tmpypR(5,:,0)
+      tmpzpSi(15,:,1) = tmpymR(4,:,lz+1)
+      tmpzpSi(16,:,ly) = tmpypR(4,:,lz+1)
+
+      tmpzpS(1,:,:) = tmpzpSi(5,:,:)
+      tmpzpS(2,:,:) = tmpzpSi(11,:,:)
+      tmpzpS(3,:,:) = tmpzpSi(12,:,:)
+      tmpzpS(4,:,:) = tmpzpSi(15,:,:)
+      tmpzpS(5,:,:) = tmpzpSi(16,:,:)
+
+      tmpzmS(1,:,:) = tmpzmSi(6,:,:)
+      tmpzmS(2,:,:) = tmpzmSi(13,:,:)
+      tmpzmS(3,:,:) = tmpzmSi(14,:,:)
+      tmpzmS(4,:,:) = tmpzmSi(17,:,:)
+      tmpzmS(5,:,:) = tmpzmSi(18,:,:)
+
+      ilen = 5*lx*ly
+      call MPI_IRECV(tmpzmR,ilen,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(1),ierr)
+      call MPI_IRECV(tmpzpR,ilen,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(2),ierr)
+
+      call MPI_ISEND(tmpzmS,ilen,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(3),ierr)
+      call MPI_ISEND(tmpzpS,ilen,MPI_REAL8,mzp,0,MPI_COMM_WORLD,req(4),ierr)
+      call MPI_WAITALL(4,req,status_array,ierr)
+
+      f(5,:,:,1,s) = tmpzmR(1,:,:)
+      f(11,2:lx,:,1,s) = tmpzmR(2,2:lx,:)
+      f(12,1:lx-1,:,1,s) = tmpzmR(3,1:lx-1,:)
+      f(15,:,:,1,s) = tmpzmR(4,:,:)
+      f(16,:,:,1,s) = tmpzmR(5,:,:)
+
+      f(6,:,:,lz,s) = tmpzpR(1,:,:)
+      f(13,2:lx,:,lz,s) = tmpzpR(2,2:lx,:)
+      f(14,1:lx-1,:,lz,s) = tmpzpR(3,1:lx-1,:)
+      f(17,:,:,lz,s) = tmpzpR(4,:,:)
+      f(18,:,:,lz,s) = tmpzpR(5,:,:)
+
+
+      end subroutine
+!===================================================================
       subroutine rhoupdat 
       use var_inc
       implicit none 
@@ -220,9 +341,9 @@
 
       integer ip
 
-      rho = f(0,:,:,:)
+      rho = f(0,:,:,:,s)
       do ip = 1,npop-1
-        rho = rho + f(ip,:,:,:)
+        rho = rho + f(ip,:,:,:,s)
       end do
 
       end subroutine rhoupdat 
@@ -245,7 +366,7 @@
       do iz = 1,lz
       do iy = 1,ly
       do ix = 1,lx
-      f9 = f(:,ix,iy,iz)
+      f9 = f(:,ix,iy,iz,s)
 
       sum1 = f9(7) - f9(10)
       sum2 = f9(9) - f9(8)

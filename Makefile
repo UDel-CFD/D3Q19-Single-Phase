@@ -8,7 +8,7 @@ FCOMP = mpif90 -c ${FFLAG}
 LINK = mpif90 
 LIBS = -lm
 
-OBJ = var_inc.o main.o para.o collision.o streaming.o initial.o partlib.o saveload.o benchmark.o
+OBJ = var_inc.o main.o para.o collision.o initial.o partlib.o saveload.o benchmark.o
 #Defines file siffixes we'll use
 .SUFFIXES: .o .f90
 
@@ -16,7 +16,7 @@ OBJ = var_inc.o main.o para.o collision.o streaming.o initial.o partlib.o savelo
 	${FCOMP} $*.f90 ${LIBS}
 main: ${OBJ}
 	${LINK} ${FFLAG} ${OBJ} ${LIBS} -o main
-	#Optional auto clean object files
+#Optional auto clean object files
 	rm -rf *.o *.mod
 # Debug build changes flags to assist in program debugging
 debug: FFLAG = -g -r8 -C -CB -traceback -debug all -fp-model precise

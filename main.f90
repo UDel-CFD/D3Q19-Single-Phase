@@ -1,11 +1,11 @@
-! -------------------------------------------------------------------------
+!=============================================================================
 !       MPI F90 Code for Simulating 3D Decaying Homogeneous Isotropic 
 !       Turbulence (DHIT) with finite-size freely-moving particles 
 !       embedded in the cube.
 !
 !       Using LBM D3Q19 MRT Model.
 !
-!       MPI version applicable on bluefire.ucar.edu.
+!       MPI version is designed to operate on NCAR's Yellowstone
 !
 !       The DHIT code was originally written by Dr. Lian-Ping Wang, June 2000.
 !
@@ -35,259 +35,248 @@
 !       {   0   -   +   }      dir  16
 !       {   0   +   -   }      dir  17
 !       {   0   -   -   }      dir  18
-! -------------------------------------------------------------------------
-! this code is identical with test23 code, except that new subroutines
-! for statistics of particle and fluid rms velocities are added 
+!=============================================================================
       PROGRAM main
       use mpi
       use var_inc
       implicit none
-!     real,dimension(4999) :: time_stream_max_array
+
       integer:: i,j,k
 
+      !Initialize MPI library and get rank/ topology size
       call MPI_INIT(ierr)
       call MPI_COMM_RANK(MPI_COMM_WORLD,myid,ierr)
       call MPI_COMM_SIZE(MPI_COMM_WORLD,nproc,ierr)      
 
-
-      call para  
+      !Initialize all variables used
+      !@file para.f90
+      call para
+      !Allocate all global arrays used in var_inc module
+      !@file para.f90
       call allocarray
+      !Construct custom MPI data types
+      !@file para.f90
       call constructMPItypes
 
-      IF(newrun)THEN   
+!=======================================================
+! FLOW INITIALIZATION/ LOADING
+!=======================================================
+      IF(newrun)THEN
+        if(newinitflow)then  
 
-      if(newinitflow)then  
+          !call initrand(iflowseed)
+          ! Initialize velocity feild for the flow
+          !@file intial.f90
+          call initvel
+          ! Calculate forcing values used in collision_MRT
+          !@file collision.f90
+          call FORCING
 
-!        call initrand(iflowseed)
-         call initvel
-! FORCING has to be called as it is used in collision_MRT
-         call FORCING
+          ux = 0.0
+          uy = 0.0
+          uz = 0.0
 
-        ux = 0.0
-        uy = 0.0
-        uz = 0.0
+          !Initialize particle populations on each node
+          !@file partlib.f90
+          call initpop
 
-        call initpop
-        istep = 0
+          istep = 0
 
-! For testing
-!       call macrovar
-!       call statistc 
-!
-! pre-relaxation of density field after initial forcing
-! Note: during this stage, ONLY update density,  keep velocity unchanged
-        do
+          ! Pre-relaxation of density field after initial forcing
+          do
+            rhop = rho
+            !Update density values
+            !@file collision.f90
+            call rhoupdat
 
-          call streaming
+            call collision_MRT !@file collision.f90
 
-          rhop = rho
-          call rhoupdat
+            !Determine the maximum density change
+            rhoerr = maxval(abs(rho - rhop))        
+            call MPI_ALLREDUCE(rhoerr,rhoerrmax,1,MPI_REAL8, &
+                        MPI_MAX,MPI_COMM_WORLD,ierr)
+            if(myid == 0 .and. mod(istep,1) == 0) write(*,*)istep, rhoerrmax
 
-          call collision_MRT 
+            !If density change is smaller than tolerance or loop has executed enough, break
+            if(rhoerrmax <= rhoepsl .or. istep > 15000)then
+              if(myid == 0) write(*,*)'final relaxation => ',istep, rhoerrmax
+              exit
+            end if
+            istep = istep + 1 
+          end do
 
-          rhoerr = maxval(abs(rho - rhop))        
-
-          call MPI_ALLREDUCE(rhoerr,rhoerrmax,1,MPI_REAL8, &
-                      MPI_MAX,MPI_COMM_WORLD,ierr)
-
-          if(myid == 0 .and. mod(istep,1) == 0) &
-            write(*,*)istep, rhoerrmax 
-
-          if(rhoerrmax <= rhoepsl .or. istep > 15000)then
-            if(myid == 0) write(*,*)'final relaxation => ', &
-                                    istep, rhoerrmax
-            exit
-          end if
-          istep = istep + 1 
-
-        end do 
-! Check the maximum density fluctuations relative to rho0 = 1.0
+          ! Check the maximum density fluctuations relative to rho0 = 1.0
           rhoerr = maxval(rho)        
-          call MPI_ALLREDUCE(rhoerr,rhomax,1,MPI_REAL8,MPI_MAX, &
-                             MPI_COMM_WORLD,ierr)
+          call MPI_ALLREDUCE(rhoerr, rhomax, 1, MPI_REAL8, MPI_MAX, MPI_COMM_WORLD, ierr)
           rhoerr = minval(rho)        
-          call MPI_ALLREDUCE(rhoerr,rhomin,1,MPI_REAL8,MPI_MIN, &
-                             MPI_COMM_WORLD,ierr)
+          call MPI_ALLREDUCE(rhoerr, rhomin, 1, MPI_REAL8, MPI_MIN, MPI_COMM_WORLD, ierr)
           if(myid == 0 ) write(*,*)istep, rhomax, rhomin
 
 
-! save population for input of next run 
+          ! save initial pre-relaxed flow      
+          call saveinitflow !@file saveload.f90
+          call macrovar !@file collison.f90
+          istep0 = 0
+          istep = istep0
+          !For testing only
+          call statistc !@file saveload.f90
+          call statistc2 !@file saveload.f90
 
-! The next line is for checking only
-!       call statistc
-        
-        call saveinitflow    
-        call macrovar 
-        istep0 = 0
-        istep = istep0
+        else ! Load initial pre-relaxed flow
+          call loadinitflow !@file saveload.f90
+          call macrovar !@file collison.f90
+          istep0=0
+          istep = istep0
+          !For testing only
+          call statistc !@file saveload.f90
+          call statistc2 !@file saveload.f90
+        end if  
 
-! The next two lines for checking only
-!       call outputflow
-        call statistc
-        call statistc2
+      ELSE !Load an existing flow
+        if(myid == 0)write(*,*)'Loading flow...'
+        call loadcntdflow !@file saveload.f90
 
-      else     
-! readin population from previous saving
+        if(ipart .and. istpload > irelease)then
+          call loadcntdpart  !@file saveload.f90
+          call beads_links !@file partlib.f90
+          released = .TRUE.
+        end if
 
-        call loadinitflow     
-!        goto 101
-        call macrovar 
-        istep0=0
-        istep = istep0
-        call statistc
-        call statistc2
-      
-      end if     
-
-      ELSE
-      if(myid == 0)write(*,*)'Loading flow...'
-! load data from same number of processes  
-      call loadcntdflow      
-!     call input_outputf(1)
-
-      if(ipart .and. istpload > irelease)then
-        call loadcntdpart  
-
-        call beads_links
-        released = .TRUE.
-      end if
-
-      call macrovar
-
+        call macrovar !@file collision.f90
       END IF
+!=======================================================
+! END OF FLOW INITIALIZATION/ LOADING
+!=======================================================
 
-
-! Forcing is independent of time so only call once here
-        call FORCING
-!       call FORCINGP
-
+      ! Calculate forcing values used in collision_MRT
+      ! Forcing is independent of time so only call once here
+      !@file collision.f90
+      call FORCING
+!     call FORCINGP
       time_start = MPI_WTIME()
-! main loop
+
+!=======================================================
+! MAIN LOOP
+!=======================================================
       do istep = istep0+1,istep0+nsteps 
 
-      if(myid.eq.0 .and. mod(istep,50).eq.0)then
-      	write(*,*) 'istep=',istep
-      endif
+        if(myid.eq.0 .and. mod(istep,50).eq.0)then
+        	write(*,*) 'istep=',istep
+        endif
 
+        ! Release partilces only after proper skewness (~ -0.5) has been established
+        ! Initialise particle center position and velocity
+        if(ipart .and. istep == irelease)then
+          istep00 = 0
+          if(myid.eq.0) write(*,*) 'Releasing beads'
+          
+          call initpartpos !@file partlib.f90
+          call initpartvel !@file partlib.f90
+          call initpartomg !@file partlib.f90
+          call beads_links !@file partlib.f90
 
-! Release partilces only after proper skewness (~ -0.5) has been established
-! Initialise particle center position and velocity
-      if(ipart .and. istep == irelease)then
-        istep00 = 0
-        if(myid.eq.0) write(*,*) 'Releasing beads'
-        
-        call initpartpos
-!        call loadinitpartpos
+          istep00 = 1
+          released = .TRUE.
+        end if
 
-        call initpartvel
-
-        call initpartomg 
-
-        call beads_links
-
-        istep00 = 1
-        
-        released = .TRUE.
-
-      end if
-
-!        if(istep==2) call writeflowfieldstart
-
-!       if(myid == 0 .and. mod(istep-1,1) == 0)                        &
-!         write(*,*) 'istep = ', istep 
-
-!       call FORCING
-!       call FORCINGP
+        !Executes Collision and Propagation of the Fluid
+        !@file collision.f90
         bnchstart = MPI_WTIME()
         call collision_MRT
         collision_MRT_bnch(istep-istpload) = MPI_WTIME() - bnchstart
-! The next two lines are FOR TESTING
-!       call macrovar 
-!       call statistc
 
-        bnchstart = MPI_WTIME()
-        call streaming
-        streaming_bnch(istep-istpload) = MPI_WTIME() - bnchstart
 
-        if(ipart .and. istep >= irelease)then
+        if(ipart .and. istep >= irelease)then !If we have solid particles in our flow
+          !Calculates interpolation bounce back for the fluid off the solid particles
+          !@file partlib.f90
           bnchstart = MPI_WTIME()
           call beads_collision
           beads_collision_bnch(istep-istpload) = MPI_WTIME() - bnchstart
 
+          !Determine the lubrication forces acting on the solid particles
+          !@file partlib.f90
           bnchstart = MPI_WTIME()
           call beads_lubforce
           beads_lubforce_bnch(istep-istpload) = MPI_WTIME() - bnchstart
 
+          !Update the position of the solid particles
+          !@file partlib.f90
           bnchstart = MPI_WTIME()
           call beads_move
           beads_move_bnch(istep-istpload) = MPI_WTIME() - bnchstart
 
+          !Redistribute solid particles to their respective MPI task based on their global position
+          !@file partlib.f90
           bnchstart = MPI_WTIME()
           call beads_redistribute
           beads_redistribute_bnch(istep-istpload) = MPI_WTIME() - bnchstart
 
+          !Determine which lattice links cross the fluid/ solid particle boundary,
+          !the position the boundary is located on the link, which nodes are inside a solid particle,
+          !and what data we will need from neighboring MPI tasks for interpolation bounce back
+          !@file partlib.f90
           bnchstart = MPI_WTIME()
           call beads_links
           beads_links_bnch(istep-istpload) = MPI_WTIME() - bnchstart
 
+          !Repopulate nodes that previously existed inside a solid particle
+          !@file partlib.f90
           bnchstart = MPI_WTIME()
           call beads_filling
           beads_filling_bnch(istep-istpload) = MPI_WTIME() - bnchstart
         end if
 
+        !Calculate macroscopic variables
+        !@file collision.f90
         bnchstart = MPI_WTIME()
         call macrovar
         macrovar_bnch(istep-istpload) = MPI_WTIME() - bnchstart
-! THE NEXT LINE IS FOR TESTING
-!       call statistc
 
-!       call outputflow
-!       call diag
-!       call statistc
+        !Calculate and output respective data/diagnostics
+        if(mod(istep,ndiag) == 0)  call diag !@file saveload.f90
+        if(mod(istep,nstat) == 0)  call statistc !@file saveload.f90
+        if(mod(istep,nstat) == 0)  call statistc2 !@file saveload.f90
+        if(mod(istep,nflowout) == 0) call outputflow !@file saveload.f90
 
-         if(mod(istep,ndiag) == 0)then
-            call diag
-!            call probe
-         endif
-         if(mod(istep,nstat) == 0)  call statistc 
-         if(mod(istep,nstat) == 0)  call statistc2
-         if(mod(istep,nflowout) == 0) call outputflow 
+        if(ipart .and. istep >= irelease .and. mod(istep,npartout) == 0)call outputpart !@file saveload.f90
 
-         if(ipart .and. istep >= irelease .and. mod(istep,npartout) == 0)call outputpart
-
-! output fiels and profiles from the particle surface
-!        if(ipart .and. istep >= irelease .and. mod(istep,nmovieout) == 0) then
+!       if(ipart .and. istep >= irelease .and. mod(istep,nmovieout) == 0) then
 !          call moviedata
 !          call sijstat03
 !          go to 101
-!        end if
+!       end if
 
-!        if(mod(istep,nstat) == 0) call rmsstat
-!        if(mod(istep,nsij) == 0) call sijstat03   
-!        if(mod(istep,nsij) == 0) call sijstat 
+!       if(mod(istep,nstat) == 0) call rmsstat
+!       if(mod(istep,nsij) == 0) call sijstat03   
+!       if(mod(istep,nsij) == 0) call sijstat 
 
-! stop and save in the middle to meet the 6 hour time limit
-        if(time_max > time_bond) exit
+        !Check current wall-clock time
+        if(mod(istep,ntime) == 0)then
+           !Determine current runtime and collect all runtimes from MPI tasks
+           time_end = MPI_WTIME()
+           time_diff = time_end - time_start
 
-
-!      call MPI_ALLREDUCE(time_stream,time_stream_max,1,   &
-!                 MPI_REAL8,MPI_MAX,MPI_COMM_WORLD,ierr)
-
-!     time_stream_max_array(istep) = time_stream_max
+           call MPI_BARRIER(MPI_COMM_WORLD,ierr)
+           call MPI_ALLREDUCE(time_diff, time_max, 1, MPI_REAL8, MPI_MAX, MPI_COMM_WORLD, ierr)
+          ! If our current runtime exceeds our specified limit, stop and save the run
+          if(time_max > time_bond) exit
+        endif
 
       end do
+!=======================================================
+! END OF MAIN LOOP
+!=======================================================
 
-! main loop ends here
+      !Get main loop wall-clock time 
+      time_end = MPI_WTIME()
+      time_diff = time_end - time_start
 
-       time_end = MPI_WTIME()
-       time_diff = time_end - time_start
+      call MPI_BARRIER(MPI_COMM_WORLD,ierr)
+      call MPI_ALLREDUCE(time_diff,time_max,1,MPI_REAL8, MPI_MAX,MPI_COMM_WORLD,ierr)
 
-       call MPI_BARRIER(MPI_COMM_WORLD,ierr)
-       call MPI_ALLREDUCE(time_diff,time_max,1,MPI_REAL8,  &
-                           MPI_MAX,MPI_COMM_WORLD,ierr)
 !Probe each processor for final flow comparing
        call probe
-       call outputvort
+       !call outputvort
 ! save data for continue run
       !call savecntdflow
 !save param variables

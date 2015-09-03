@@ -956,7 +956,7 @@
       real,dimension(2*msize):: idfbeads, xfbeads, yfbeads, zfbeads
 
       !Reset indexers and flag array
-      ifsc_inject = 0; ipf_mymc = 0; ipf_mypc = 0; ipf_mzmc = 0; ipf_mzpc = 0
+      ipf_mymc = 0; ipf_mypc = 0; ipf_mzmc = 0; ipf_mzpc = 0
       iblinks(:,:,:) = 0
 
       ibnodes(:,0,0:lz+1)=-1
@@ -1431,7 +1431,7 @@
         uwpro = uwx*real(ix) + uwy*real(iy) + uwz*real(iz)
 
        if(iblinks(0,1,n) == 0)then
-          ff1 = f(ip,ip1,jp1,kp1)
+          ff1 = f(ip,ip1,jp1,kp1,s)
        elseif(iblinks(0,1,n) == 1)then
           ff1 = mymIpfRecv(iblinks(0,2,n))
        elseif(iblinks(0,1,n) == 2)then
@@ -1445,12 +1445,12 @@
 ! If alpha is > 0.5
        IF(alpha > 0.5)then
         if(im1 < 1 .or. im1 > lx)then
-          ff2 = f(ip,i,j,k)
+          ff2 = f(ip,i,j,k,s)
           goto 112
         endif
         !Get ff2
         if(iblinks(1,1,n) == 0)then !Pre-Stream Location at interpolation node
-          ff2 = f(ipp,im1,jm1,km1)
+          ff2 = f(ipp,im1,jm1,km1,s)
         elseif(iblinks(1,1,n) == 1)then
           ff2 = mymIpfRecv(iblinks(1,2,n))
         elseif(iblinks(1,1,n) == 2)then
@@ -1468,12 +1468,12 @@
         !Get ff3
         if(iblinks(2,1,n) == 0)then
           if(im2 == 0 .or. im2 == lx+1)then !If we're only one out use bounce back!
-            ff3 = f(ip,im1,jm1,km1)
+            ff3 = f(ip,im1,jm1,km1,s)
           else
             if(ibnodes(im1,jm1,km1)>0)then !Check Pre-Stream Location
               ff3 = IBNODES_TRUE
             else
-              ff3 = f(ipp,im2,jm2,km2)
+              ff3 = f(ipp,im2,jm2,km2,s)
             endif
           endif
         elseif(iblinks(2,1,n) == 1)then
@@ -1490,12 +1490,12 @@
         if(ff3 > IBNODES_TRUE - 1)then! use 2-point interpolation
             c1 = 0.5 / alpha
             c2 = 1.0 - c1
-            f(ipp,i,j,k) = c1*ff1 + c2*ff2 - 6.0*wwp(ip)*c1*uwpro
+            f(ipp,i,j,k,s) = c1*ff1 + c2*ff2 - 6.0*wwp(ip)*c1*uwpro
         else! use 3-point interpolation scheme of Lallemand and Luo (2003) JCP
             c1 = 1.0 / alpha / (2.0*alpha + 1.0)
             c2 = (2.0*alpha - 1.0) / alpha
             c3 = 1.0 - c1 - c2
-            f(ipp,i,j,k) = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ip)*c1*uwpro
+            f(ipp,i,j,k,s) = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ip)*c1*uwpro
         endif
 
 ! If alpha is <= 0.5
@@ -1504,7 +1504,7 @@
             ff2 = IBNODES_TRUE
             goto 113
         else
-            ff2 = f(ip,i,j,k)
+            ff2 = f(ip,i,j,k,s)
         endif
 
         if(im1 < 1 .or. im1 > lx)then
@@ -1516,7 +1516,7 @@
           if(ibnodes(im2,jm2,km2)>0)then !Check Pre-Stream Location
             ff3 = IBNODES_TRUE
           else
-            ff3 = f(ip,im1,jm1,km1)
+            ff3 = f(ip,im1,jm1,km1,s)
           endif
         elseif(iblinks(1,1,n) == 1)then
           ff3 = mymIpfRecv(iblinks(1,2,n))
@@ -1531,27 +1531,27 @@
 
         !*note* wwp weights are 1/2 the true value hence 6 instead of 3
         if(ff2 > IBNODES_TRUE - 1)then ! no interpolation, use simple bounce back
-          f(ipp,i,j,k) = ff1 - 6.0*wwp(ip)*uwpro
+          f(ipp,i,j,k,s) = ff1 - 6.0*wwp(ip)*uwpro
         else if(ff3 > IBNODES_TRUE - 1)then ! use 2-point interpolation
-          f(ipp,i,j,k) = 2.0*alpha*(ff1 - ff2) + ff2 - 6.0*wwp(ip)*uwpro
+          f(ipp,i,j,k,s) = 2.0*alpha*(ff1 - ff2) + ff2 - 6.0*wwp(ip)*uwpro
         else ! use 3-point interpolation scheme of Lallemand and Luo (2003) JCP
           c1 = alpha*(1.0 + 2.0*alpha)
           c2 = 1.0 - 4.0*alpha*alpha
           c3 = -alpha*(1.0 - 2.0*alpha)
-          f(ipp,i,j,k) = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ip)*uwpro
+          f(ipp,i,j,k,s) = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ip)*uwpro
         end if
        ENDIF
 
         ! compute force and torque acting on particles
-        if(abs(f(ipp,i,j,k)) > 1e-2)then
-          write(*,*)'=',myid,f(ipp,i,j,k),alpha,'='
+        if(abs(f(ipp,i,j,k,s)) > 1e-2)then
+          write(*,*)'=',myid,f(ipp,i,j,k,s),alpha,'='
           write(*,*)ip,i,j,k,iblinks(0,1,n),iblinks(1,1,n),iblinks(2,1,n)
           write(*,*),iblinks(0,2,n),iblinks(1,2,n),iblinks(2,2,n)
           write(*,*)im1,jm1,km1,im2,jm2,km2
           write(*,*)ff1,ff2,ff3,n
         endif
 
-        dff = ff1 + f(ipp,i,j,k)
+        dff = ff1 + f(ipp,i,j,k,s)
         dxmom = dff*real(ix)
         dymom = dff*real(iy)
         dzmom = dff*real(iz)
@@ -1647,19 +1647,19 @@
 
             if(status(MPI_SOURCE) == myp)then
               if(ipfReq(j)%x == 0 .or.  ipfReq(j)%x == lx+1)then
-                mypIpfSend(j) = f(ipopp(ip), xm1, ym1, zm1) !Should only occur for q>.5
+                mypIpfSend(j) = f(ipopp(ip), xm1, ym1, zm1,s) !Should only occur for q>.5
               elseif(ipfReq(j)%sdist .ne. 1 .AND. ibnodes(xm1,ym1,zm1) > 0)then
                 mypIpfSend(j) = IBNODES_TRUE
               else
-                mypIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
+                mypIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z,s)
               endif
             else
               if(ipfReq(j)%x == 0 .or.  ipfReq(j)%x == lx+1)then
-                mymIpfSend(j) = f(ipopp(ip), xm1, ym1, zm1) !Should only occur for q>.5
+                mymIpfSend(j) = f(ipopp(ip), xm1, ym1, zm1,s) !Should only occur for q>.5
               elseif(ipfReq(j)%sdist .ne. 1  .AND. ibnodes(xm1,ym1,zm1) > 0)then
                 mymIpfSend(j) = IBNODES_TRUE
               else
-                mymIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
+                mymIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z,s)
               endif
             endif
           endif         
@@ -1704,11 +1704,11 @@
             ym1 = ipfReq(j)%y-ciy(ipfReq(j)%ip)
             zm1 = ipfReq(j)%z-ciz(ipfReq(j)%ip)
             if(ipfReq(j)%x == 0 .or.  ipfReq(j)%x == lx+1)then
-              mzpIpfSend(j) = f(ipopp(ip), xm1, ym1, zm1) !Should only occur for q>.5
+              mzpIpfSend(j) = f(ipopp(ip), xm1, ym1, zm1,s) !Should only occur for q>.5
             elseif(ipfReq(j)%sdist .ne. 1  .AND. ibnodes(xm1,ym1,zm1) > 0)then
               mzpIpfSend(j) = IBNODES_TRUE
             else
-              mzpIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
+              mzpIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z,s)
             endif
           enddo
           call MPI_ISEND(mzpIpfSend, zpcount, MPI_REAL8, mzp, 97, MPI_COMM_WORLD, req(5), ierr)
@@ -1723,11 +1723,11 @@
               zm1 = ipfReq(j)%z-ciz(ipfReq(j)%ip)
 
             if(ipfReq(j)%x == 0 .or.  ipfReq(j)%x == lx+1)then
-                mzmIpfSend(j) = f(ipopp(ip), xm1, ym1, zm1) !Should only occur for q>.5
+                mzmIpfSend(j) = f(ipopp(ip), xm1, ym1, zm1,s) !Should only occur for q>.5
             elseif(ipfReq(j)%sdist .ne. 1  .AND. ibnodes(xm1,ym1,zm1) > 0)then
               mzmIpfSend(j) = IBNODES_TRUE
             else
-              mzmIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
+              mzmIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z,s)
             endif
           enddo
           call MPI_ISEND(mzmIpfSend, zmcount, MPI_REAL8, mzm, 97, MPI_COMM_WORLD, req(6), ierr)
@@ -2539,7 +2539,7 @@
               else if(kp1 < 1 ) then
               f9 = fillRecvZm(:,ip1,jp1)
               else
-              f9 = f(:,ip1,jp1,kp1)
+              f9 = f(:,ip1,jp1,kp1,s)
               end if
             end if
    
@@ -2551,9 +2551,9 @@
           end do
           call feqpnt(u9,v9,w9,rho9,feq9)
 ! note: below LHS = f(:,i,j,k), NOT f9(:,i,j,k)
-          f(:,i,j,k) = f9 - feq9
+          f(:,i,j,k,s) = f9 - feq9
         ELSE
-          f(:,i,j,k) = 0.0
+          f(:,i,j,k,s) = 0.0
         END IF
 
 ! now calculate the equilibrium part
@@ -2591,7 +2591,7 @@
               else if(kp1 < 1 ) then
               f9 = fillRecvZm(:,ip1,jp1)
               else
-              f9 = f(:,ip1,jp1,kp1)
+              f9 = f(:,ip1,jp1,kp1,s)
               end if
             end if
 
@@ -2631,7 +2631,7 @@
         call feqpnt(u9,v9,w9,rho9,feq9)
 
 ! equilibrium + non-equilibrium refill
-        f(:,i,j,k) = f(:,i,j,k) + feq9
+        f(:,i,j,k,s) = f(:,i,j,k,s) + feq9
       end do
 
       end subroutine beads_filling
@@ -2667,12 +2667,12 @@
 ! Sending Z+
       if(fillMPIrequest(mzp,2) .or. fillMPIrequest(mymzp,8) .or. fillMPIrequest(mypzp,7))then
         nreq = nreq + 1
-        call MPI_ISEND(f(:,:,:,lz),ilenz,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(nreq),ierr)
+        call MPI_ISEND(f(:,:,:,lz,s),ilenz,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(nreq),ierr)
       endif
 ! Sending Z-
       if(fillMPIrequest(mzm,1) .or. fillMPIrequest(mymzm,6) .or. fillMPIrequest(mypzm,5))then
         nreq = nreq + 1
-        call MPI_ISEND(f(:,:,:,1),ilenz,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(nreq),ierr)
+        call MPI_ISEND(f(:,:,:,1,s),ilenz,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(nreq),ierr)
       endif
       
       if(nreq > 0)then
@@ -2694,7 +2694,7 @@
       if(fillMPIrequest(mym,4))then
         nreq = nreq + 1
         if(dtempinit) tmpYm(:,:,0) = fillRecvZm(:,:,1)
-        tmpYm(:,:,1:lz) = f(:,:,1,:)
+        tmpYm(:,:,1:lz) = f(:,:,1,:,s)
         if(utempinit) tmpYm(:,:,lz+1) = fillRecvZp(:,:,1)
         call MPI_ISEND(tmpYm,ileny,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(nreq),ierr)
       endif
@@ -2702,7 +2702,7 @@
       if(fillMPIrequest(myp,3))then
         nreq = nreq + 1
         if(dtempinit) tmpYp(:,:,0) = fillRecvZm(:,:,ly)
-        tmpYp(:,:,1:lz) = f(:,:,ly,:)
+        tmpYp(:,:,1:lz) = f(:,:,ly,:,s)
         if(utempinit) tmpYp(:,:,lz+1) = fillRecvZp(:,:,ly)
         call MPI_ISEND(tmpYp,ileny,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(nreq),ierr)
       endif

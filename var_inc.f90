@@ -5,12 +5,6 @@
       sequence
         integer ip, x, y, z, sdist
       endtype
-      !Distribution of fluid colliding with solid particle surface
-      type fs_collis !Fluid-solid collision
-        sequence
-        real dist !Distribution
-        integer ip, x, y, z !Location
-      endtype
 
       integer,parameter:: FFTW_FORWARD = -1, FFTW_BACKWARD = 1
       integer,parameter:: FFTW_REAL_TO_COMPLEX = -1,                   &
@@ -30,8 +24,8 @@
       integer,parameter:: npop = 19
       integer,parameter:: iflowseed = 54321
       integer,parameter:: NTAB = 32 
-      integer,parameter:: ndiag = 50, nstat = 50  , nspec=1000
-      integer,parameter:: nflowout = 10000, npartout = 1000
+      integer,parameter:: ndiag = 100, nstat = 100  , nspec=1000
+      integer,parameter:: nflowout = 10000, npartout = 1000, ntime = 100
 !     integer,parameter:: ndiag = 10, nstat = 2000  , nspec=2000
 !     integer,parameter:: nflowout = 10000, npartout = 10
 
@@ -111,16 +105,16 @@
       logical,allocatable,dimension(:,:):: fillMPIrequest
       logical,allocatable,dimension(:):: localReqData
 
-      real,allocatable,dimension(:,:,:,:):: f
+      integer s
+      real,allocatable,dimension(:,:,:,:,:):: f
 
       real,allocatable,dimension(:):: xlink, ylink, zlink
       real,allocatable,dimension(:):: iplink, alink, mlink
       real,allocatable,dimension(:,:):: oldlink
       integer,allocatable,dimension(:,:,:):: iblinks
-      integer ifsc_inject, ipf_mymc, ipf_mypc, ipf_mzmc, ipf_mzpc
+      integer ipf_mymc, ipf_mypc, ipf_mzmc, ipf_mzpc
       integer MPI_IPF_NODE, IBNODES_TRUE
       type(ipf_node), allocatable,dimension(:):: ipf_mym, ipf_myp, ipf_mzm, ipf_mzp
-      type(fs_collis), allocatable,dimension(:):: fsc_inject !Fluid-solid collision inject
       real,allocatable,dimension(:,:,:):: fillRecvYm, fillRecvYp    
       real,allocatable,dimension(:,:,:):: fillRecvZm, fillRecvZp
 
