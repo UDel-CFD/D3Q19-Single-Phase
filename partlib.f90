@@ -1,5 +1,10 @@
+!=============================================================================
+!@subroutine initpartpos
+!@desc Randomly spawns solid particles into the flow such that the amount of
+!      solid particles per local MPI task does not exceed the set maximum and
+!      all solid particles do not overlap.
+!=============================================================================
       subroutine initpartpos
-
       use mpi
       use var_inc
       implicit none
@@ -11,83 +16,86 @@
 
       radpgap = rad + mingap_w
 
-      iseedp = -iseedp
+      iseedp = -iseedp !Random seed
       iyp = 0
       ivp = 0
-      ovlpflagt = 1
+      ovlpflagt = 1 !Solid particle overlap flags
 
       DO
-
-      if(myid == 0)then
-       do ip = 1,npart
-         if(ovlpflagt(ip) > 0)then
-           ypglb(1,ip) = radpgap +(real(nx)-2.0*radpgap)*ranpp(iseedp,iyp,ivp)
-           ypglb(2,ip) = real(ny)*ranpp(iseedp,iyp,ivp)
-           ypglb(3,ip) = real(nz)*ranpp(iseedp,iyp,ivp)
-         end if
-       end do
-      end if
-
-      call MPI_BARRIER(MPI_COMM_WORLD,ierr)
-      call MPI_BCAST(ypglb,3*npart,MPI_REAL8,0,MPI_COMM_WORLD,ierr)
-
-      nps = 0
-      ipglb = 0
-      yp = 0.0
-
-      do ip = 1,npart
-        idfy = floor(ypglb(2,ip)/real(ny)*real(nprocY))
-        idfz = floor(ypglb(3,ip)/real(nz)*real(nprocZ))
-        idf =  idfz * nprocY + idfy 
-        if(idf == myid)then
-          nps = nps + 1
-          yp(1,nps) = ypglb(1,ip)
-          yp(2,nps) = ypglb(2,ip)
-          yp(3,nps) = ypglb(3,ip)
-          ipglb(nps) = ip
+        if(myid == 0)then
+        !For each solid particle that needs a new location generate new global position
+         do ip = 1,npart
+           if(ovlpflagt(ip) > 0)then
+             ypglb(1,ip) = radpgap +(real(nx)-2.0*radpgap)*ranpp(iseedp,iyp,ivp)
+             ypglb(2,ip) = real(ny)*ranpp(iseedp,iyp,ivp)
+             ypglb(3,ip) = real(nz)*ranpp(iseedp,iyp,ivp)
+           end if
+         end do
         end if
-      end do
 
-      npsflag = 0
-      if(nps > msize)then
-        write(*,*) 'fault: nps = ', nps, ' > msize',msize,'nproc,npart',nproc,npart
-       npsflag = 1
-      end if
-      call MPI_ALLREDUCE(npsflag,npsflagt,1,MPI_INTEGER,               &
-                         MPI_SUM,MPI_COMM_WORLD,ierr)
-      if(npsflagt > 0) stop
+        !Distribute all global solid particle positions across all MPI tasks
+        call MPI_BARRIER(MPI_COMM_WORLD,ierr)
+        call MPI_BCAST(ypglb,3*npart,MPI_REAL8,0,MPI_COMM_WORLD,ierr)
 
-      ovlpflag = 0
-      ovlpflagt = 0
-      call ovlpchk
-      call MPI_ALLREDUCE(ovlpflag,ovlpflagt,npart,MPI_INTEGER,         &
-                         MPI_SUM,MPI_COMM_WORLD,ierr)
-      ovlpcnt = count(ovlpflagt /= 0)
-      if(myid == 0) write(*,*) 'ovlpcnt = ', ovlpcnt
-      if(ovlpcnt == 0) then
-        if(myid==0)write(*,*) 'Particle position initialization done.'
-!        write(*,*) 'nps = ',nps
-        call MPI_ALLREDUCE(nps,npst,1,MPI_INTEGER,MPI_SUM,             &
-                           MPI_COMM_WORLD,ierr)
-        if(npst == npart)then
-!          write(*,*) 'npst == npart = ', npst
-        else
-          write(*,*) 'fault: npst != npart'
-          stop
+        nps = 0
+        ipglb = 0
+        yp = 0.0
+
+        !Determine which solid particle centers reside within the MPI tasks local domain
+        do ip = 1,npart
+          idfy = floor(ypglb(2,ip)/real(ny)*real(nprocY))
+          idfz = floor(ypglb(3,ip)/real(nz)*real(nprocZ))
+          idf =  idfz * nprocY + idfy 
+          if(idf == myid)then
+            nps = nps + 1
+            yp(1,nps) = ypglb(1,ip)
+            yp(2,nps) = ypglb(2,ip)
+            yp(3,nps) = ypglb(3,ip)
+            ipglb(nps) = ip
+          end if
+        end do
+
+        !Check to see if the number of solid particles in the local domain exceeds set limit
+        npsflag = 0
+        if(nps > msize)then
+          write(*,*) 'fault: nps = ', nps, ' > msize',msize,'nproc,npart',nproc,npart
+         npsflag = 1
         end if
-        exit
-      end if
+        call MPI_ALLREDUCE(npsflag,npsflagt,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+        if(npsflagt > 0) stop
 
+        !Now check for particle overlap
+        ovlpflag = 0
+        ovlpflagt = 0
+        call ovlpchk !@file partlib.f90
+        call MPI_ALLREDUCE(ovlpflag,ovlpflagt,npart,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+        ovlpcnt = count(ovlpflagt /= 0)
+        if(myid == 0) write(*,*) 'ovlpcnt = ', ovlpcnt
+
+        !If there's no particle overlap, we are done with initialization
+        if(ovlpcnt == 0) then
+          if(myid==0)write(*,*) 'Particle position initialization done.'
+          call MPI_ALLREDUCE(nps,npst,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+          if(npst .ne. npart)then
+            write(*,*) 'fault: npst != npart'
+            stop
+          end if
+          exit !Break out of loop
+        end if
+        !Other wise respawn particles that do overlap to new random locations
       END DO
 
       end subroutine initpartpos
-!===========================================================================
-
+!=============================================================================
+!@subroutine ranpp
+!@desc Minimal random number generator of Park and Miller with Bays-Durham 
+!      shuffle and added safegards, see Numerical Recipes.
+!@param idum = integer
+!@param iy1 = integer
+!@param iv1 = integer
+!=============================================================================
       Function ranpp(idum,iy1,iv1)
       implicit none
-
-!     Minimal random number generator of Park and Miller with
-!     Bays-Durham shuffle and added safegards, see Numerical Recipes
 
       integer idum, IA,IM,IQ,IR,NTAB,NDIV
       real ranpp,AM,EPS,RNMX
@@ -116,8 +124,10 @@
 
       return
       end
-!===========================================================================
-
+!=============================================================================
+!@subroutine ovlpchk
+!@desc Checks for solid particle overlap
+!=============================================================================
       subroutine ovlpchk
       use var_inc
       implicit none
@@ -125,55 +135,54 @@
       integer ip, id, ii, iflag
       real xc, yc, zc, xb, yb, zb, dist, hgap
 
+      !Loop through particles with center in local domain
       do ip = 1,nps
-! particles with center in local processor
         xc = yp(1,ip)
         yc = yp(2,ip)
         zc = yp(3,ip)
         id = ipglb(ip)
 
         if(id < npart)then
+          iflag = 0
+          !Parse through other particles with a id greater than current
+          do ii = id+1,npart
+            xb = ypglb(1,ii)
+            yb = ypglb(2,ii)
+            zb = ypglb(3,ii)
 
-        iflag = 0
-        do ii = id+1,npart
-          xb = ypglb(1,ii)
-          yb = ypglb(2,ii)
-          zb = ypglb(3,ii)
+            !Get closest center with periodic boundaries
+            !if((xb - xc) > real(nxh)) xb = xb - real(nx)
+            !if((xb - xc) < -real(nxh)) xb = xb + real(nx)
 
-! the algorithm below is designed by my wife, Dr. Hui Li
-!       if((xb - xc) > real(nxh)) xb = xb - real(nx)
-!       if((xb - xc) < -real(nxh)) xb = xb + real(nx)
+            if((yb - yc) > real(nyh)) yb = yb - real(ny)
+            if((yb - yc) < -real(nyh)) yb = yb + real(ny)
 
-          if((yb - yc) > real(nyh)) yb = yb - real(ny)
-          if((yb - yc) < -real(nyh)) yb = yb + real(ny)
+            if((zb - zc) > real(nzh)) zb = zb - real(nz)
+            if((zb - zc) < -real(nzh)) zb = zb + real(nz)
 
-          if((zb - zc) > real(nzh)) zb = zb - real(nz)
-          if((zb - zc) < -real(nzh)) zb = zb + real(nz)
+            dist = sqrt((xc - xb)**2 + (yc - yb)**2 + (zc -zb)**2)
+            hgap = dist - 2.0*rad
 
-          dist = sqrt((xc - xb)**2 + (yc - yb)**2 + (zc -zb)**2)
+            if(istep00 == 0) hgap = hgap - mingap
 
-          hgap = dist - 2.0*rad
+            !If we have particle overlap something when wrong
+            if(hgap < 0.0)then
+              iflag = 1
+               if(istep .gt. irelease)then
+                write(*,'(A20,F14.8)')'In ovlpchk hgap < 0:',hgap
+                write(*,'(A6,I10)')'Istep ',istep
+                write(*,'(A44,3I4)')'Ip(Direction), Id(Bead 1 Id), Ii(Bead 2 Id):',ip,id,ii
+                write(*,'(A41,2I4)')'MyId(Processor), nps(Beads in Processor):',myid,nps
+                write(*,'(A15)')'X Y Z Positions'
+                write(*,'(A7,3(2X,F15.8))')'Bead 1:',xc,yc,zc
+                write(*,'(A7,3(2X,F15.8))')'Bead 2:',ypglb(1,ii),ypglb(2,ii),ypglb(3,ii)
+                write(*,'(A10)')'=========='
+               endif
+              exit
+            end if
+          end do
 
-          if(istep00 == 0) hgap = hgap - mingap
-
-          if(hgap < 0.0)then
-            iflag = 1
-             if(istep .gt. irelease)then
-              write(*,'(A20,F14.8)')'In ovlpchk hgap < 0:',hgap
-              write(*,'(A6,I10)')'Istep ',istep
-              write(*,'(A44,3I4)')'Ip(Direction), Id(Bead 1 Id), Ii(Bead 2 Id):',ip,id,ii
-              write(*,'(A41,2I4)')'MyId(Processor), nps(Beads in Processor):',myid,nps
-              write(*,'(A15)')'X Y Z Positions'
-              write(*,'(A7,3(2X,F15.8))')'Bead 1:',xc,yc,zc
-              write(*,'(A7,3(2X,F15.8))')'Bead 2:',ypglb(1,ii),ypglb(2,ii),ypglb(3,ii)
-              write(*,'(A10)')'=========='
-             endif
-            exit
-          end if
-        end do
-
-        if(iflag > 0) ovlpflag(id) = 1
-
+          if(iflag > 0) ovlpflag(id) = 1
         end if
       end do
 
@@ -1183,7 +1192,7 @@
       subroutine parse_MPI_links(ipi,i,j,k,alpha,n)
       use var_inc
 
-      integer ipi, i, j, k, ip, ix, iy, ik, n
+      integer ipi, i, j, k, ip, ip2, ix, iy, ik, n
       integer im1, jm1, km1, im2, jm2, km2, ip1, jp1, kp1
       real alpha
       logical im2f
@@ -1208,15 +1217,18 @@
       
       if(alpha > 0.5)then
         ip = ipopp(ipi)
+        ip2 = ipopp(ipi)
         if(im1 < 1 .or. im1 > lx)then
           goto 116
-        elseif((im2 == 0 .or. im2 == lx+1) .and. (0 < jm1 .and. jm1 < ly + 1 .and. 0 < km1 .and. km1 < lz + 1))then
-          im2f = .FALSE.
-        elseif(im2 < 0 .or. im2 > lx+1)then
-          im2f = .FALSE.
+        elseif(im2 < 1 .or. im2 > lx)then
+          ip2 = ipi
+          im2 = i - ix
+          jm2 = j - iy
+          km2 = k - iz
         endif
       else
         ip = ipi
+        ip2 = ipi
         if(im1 < 1 .or. im1 > lx)then
           goto 116
         elseif(im2 < 1 .or. im2 > lx)then
@@ -1252,9 +1264,9 @@
         ipf_mym(ipf_mymc) = ipf_node(ip, im1, jm1, km1, 0)
         iblinks(1,1,n) = 1
         iblinks(1,2,n) = ipf_mymc
-        if(alpha > 0.5 .and. im2f)then
+        if(alpha > 0.5 .and. jm2 < 1 .and. im2f)then
           ipf_mymc = ipf_mymc + 1
-          ipf_mym(ipf_mymc) = ipf_node(ip, im2, jm2, km2, 0)
+          ipf_mym(ipf_mymc) = ipf_node(ip2, im2, jm2, km2, 0)
           iblinks(2,1,n) = 1
           iblinks(2,2,n) = ipf_mymc
         endif
@@ -1263,9 +1275,9 @@
         ipf_myp(ipf_mypc) = ipf_node(ip, im1, jm1, km1, 0)
         iblinks(1,1,n) = 2
         iblinks(1,2,n) = ipf_mypc
-        if(alpha > 0.5 .and. im2f)then
+        if(alpha > 0.5 .and. jm2 > ly .and. im2f)then
           ipf_mypc = ipf_mypc + 1
-          ipf_myp(ipf_mypc) = ipf_node(ip, im2, jm2, km2, 0)
+          ipf_myp(ipf_mypc) = ipf_node(ip2, im2, jm2, km2, 0)
           iblinks(2,1,n) = 2
           iblinks(2,2,n) = ipf_mypc
         endif
@@ -1277,17 +1289,17 @@
         if(alpha > 0.5 .and. im2f)then
           if(jm2 < 1)then
             ipf_mymc = ipf_mymc + 1
-            ipf_mym(ipf_mymc) = ipf_node(ip, im2, jm2, km2, 0)
+            ipf_mym(ipf_mymc) = ipf_node(ip2, im2, jm2, km2, 0)
             iblinks(2,1,n) = 1
             iblinks(2,2,n) = ipf_mymc
           elseif(jm2 > ly)then
             ipf_mypc = ipf_mypc + 1
-            ipf_myp(ipf_mypc) = ipf_node(ip, im2, jm2, km2, 0)
+            ipf_myp(ipf_mypc) = ipf_node(ip2, im2, jm2, km2, 0)
             iblinks(2,1,n) = 2
             iblinks(2,2,n) = ipf_mypc
           else
             ipf_mzmc = ipf_mzmc + 1
-            ipf_mzm(ipf_mzmc) = ipf_node(ip, im2, jm2, km2, 0)
+            ipf_mzm(ipf_mzmc) = ipf_node(ip2, im2, jm2, km2, 0)
             iblinks(2,1,n) = 3
             iblinks(2,2,n) = ipf_mzmc
           endif
@@ -1300,17 +1312,17 @@
         if(alpha > 0.5 .and. im2f)then
           if(jm2 < 1)then
             ipf_mymc = ipf_mymc + 1
-            ipf_mym(ipf_mymc) = ipf_node(ip, im2, jm2, km2, 0)
+            ipf_mym(ipf_mymc) = ipf_node(ip2, im2, jm2, km2, 0)
             iblinks(2,1,n) = 1
             iblinks(2,2,n) = ipf_mymc
           elseif(jm2 > ly)then
             ipf_mypc = ipf_mypc + 1
-            ipf_myp(ipf_mypc) = ipf_node(ip, im2, jm2, km2, 0)
+            ipf_myp(ipf_mypc) = ipf_node(ip2, im2, jm2, km2, 0)
             iblinks(2,1,n) = 2
             iblinks(2,2,n) = ipf_mypc
           else
             ipf_mzpc = ipf_mzpc + 1
-            ipf_mzp(ipf_mzpc) = ipf_node(ip, im2, jm2, km2, 0)
+            ipf_mzp(ipf_mzpc) = ipf_node(ip2, im2, jm2, km2, 0)
             iblinks(2,1,n) = 4
             iblinks(2,2,n) = ipf_mzpc
           endif
@@ -1319,22 +1331,22 @@
         if(alpha > 0.5 .and. im2f)then
           if(jm2 < 1)then
             ipf_mymc = ipf_mymc + 1
-            ipf_mym(ipf_mymc) = ipf_node(ip, im2, jm2, km2, 0)
+            ipf_mym(ipf_mymc) = ipf_node(ip2, im2, jm2, km2, 0)
             iblinks(2,1,n) = 1
             iblinks(2,2,n) = ipf_mymc
           elseif(jm2 > ly)then
             ipf_mypc = ipf_mypc + 1
-            ipf_myp(ipf_mypc) = ipf_node(ip, im2, jm2, km2, 0)
+            ipf_myp(ipf_mypc) = ipf_node(ip2, im2, jm2, km2, 0)
             iblinks(2,1,n) = 2
             iblinks(2,2,n) = ipf_mypc
           elseif(km2 < 1)then
             ipf_mzmc = ipf_mzmc + 1
-            ipf_mzm(ipf_mzmc) = ipf_node(ip, im2, jm2, km2, 0)
+            ipf_mzm(ipf_mzmc) = ipf_node(ip2, im2, jm2, km2, 0)
             iblinks(2,1,n) = 3
             iblinks(2,2,n) = ipf_mzmc
           elseif(km2 > lz)then
             ipf_mzpc = ipf_mzpc + 1
-            ipf_mzp(ipf_mzpc) = ipf_node(ip, im2, jm2, km2, 0)
+            ipf_mzp(ipf_mzpc) = ipf_node(ip2, im2, jm2, km2, 0)
             iblinks(2,1,n) = 4
             iblinks(2,2,n) = ipf_mzpc
            endif
@@ -1591,7 +1603,7 @@
       real,allocatable,dimension(:):: mymIpfSend, mypIpfSend, mzmIpfSend, mzpIpfSend, ipfRecv
       integer ipf_mzmtc, ipf_mzptc, count, ymcount, ypcount, zmcount, zpcount
       integer status(MPI_STATUS_SIZE), status_array(MPI_STATUS_SIZE,10), req(10)
-      integer ip, i, j, dir, xm1, ym1, zm1, ipt
+      integer ip, i, j, dir, xm1, ym1, zm1
 
       type(cornerNode), dimension(2*19*lx):: mzmt_index, mzpt_index
       type(ipf_node),allocatable,dimension(:):: ipfReq
@@ -1646,17 +1658,13 @@
             zm1 = ipfReq(j)%z-ciz(ipfReq(j)%ip)
 
             if(status(MPI_SOURCE) == myp)then
-              if(ipfReq(j)%x == 0 .or.  ipfReq(j)%x == lx+1)then
-                mypIpfSend(j) = f(ipopp(ip), xm1, ym1, zm1,s) !Should only occur for q>.5
-              elseif(ipfReq(j)%sdist .ne. 1 .AND. ibnodes(xm1,ym1,zm1) > 0)then
+              if(ipfReq(j)%sdist .ne. 1 .AND. ibnodes(xm1,ym1,zm1) > 0)then
                 mypIpfSend(j) = IBNODES_TRUE
               else
                 mypIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z,s)
               endif
             else
-              if(ipfReq(j)%x == 0 .or.  ipfReq(j)%x == lx+1)then
-                mymIpfSend(j) = f(ipopp(ip), xm1, ym1, zm1,s) !Should only occur for q>.5
-              elseif(ipfReq(j)%sdist .ne. 1  .AND. ibnodes(xm1,ym1,zm1) > 0)then
+              if(ipfReq(j)%sdist .ne. 1  .AND. ibnodes(xm1,ym1,zm1) > 0)then
                 mymIpfSend(j) = IBNODES_TRUE
               else
                 mymIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z,s)
@@ -1670,18 +1678,10 @@
       ! If corner data was requested from Y neighbors add it to vertical requests
       ! Corner requests are always on the end of the array
       do j=1,ipf_mzptc
-        ipf_mzp(ipf_mzpc+j)%ip = ipf_mzpt(j)%ip
-        ipf_mzp(ipf_mzpc+j)%x = ipf_mzpt(j)%x
-        ipf_mzp(ipf_mzpc+j)%y = ipf_mzpt(j)%y
-        ipf_mzp(ipf_mzpc+j)%z = ipf_mzpt(j)%z
-        ipf_mzp(ipf_mzpc+j)%sdist = ipf_mzpt(j)%sdist
+        ipf_mzp(ipf_mzpc+j) = ipf_mzpt(j)
       enddo
       do j=1,ipf_mzmtc
-        ipf_mzm(ipf_mzmc+j)%ip = ipf_mzmt(j)%ip
-        ipf_mzm(ipf_mzmc+j)%x = ipf_mzmt(j)%x
-        ipf_mzm(ipf_mzmc+j)%y = ipf_mzmt(j)%y
-        ipf_mzm(ipf_mzmc+j)%z = ipf_mzmt(j)%z
-        ipf_mzm(ipf_mzmc+j)%sdist = ipf_mzmt(j)%sdist
+        ipf_mzm(ipf_mzmc+j) = ipf_mzmt(j)
       enddo
 
       ! Send/ Receive requests from Z direction neighbors
@@ -1703,9 +1703,7 @@
             xm1 = ipfReq(j)%x-cix(ipfReq(j)%ip)
             ym1 = ipfReq(j)%y-ciy(ipfReq(j)%ip)
             zm1 = ipfReq(j)%z-ciz(ipfReq(j)%ip)
-            if(ipfReq(j)%x == 0 .or.  ipfReq(j)%x == lx+1)then
-              mzpIpfSend(j) = f(ipopp(ip), xm1, ym1, zm1,s) !Should only occur for q>.5
-            elseif(ipfReq(j)%sdist .ne. 1  .AND. ibnodes(xm1,ym1,zm1) > 0)then
+            if(ipfReq(j)%sdist .ne. 1  .AND. ibnodes(xm1,ym1,zm1) > 0)then
               mzpIpfSend(j) = IBNODES_TRUE
             else
               mzpIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z,s)
@@ -1721,10 +1719,7 @@
               xm1 = ipfReq(j)%x-cix(ipfReq(j)%ip)
               ym1 = ipfReq(j)%y-ciy(ipfReq(j)%ip)
               zm1 = ipfReq(j)%z-ciz(ipfReq(j)%ip)
-
-            if(ipfReq(j)%x == 0 .or.  ipfReq(j)%x == lx+1)then
-                mzmIpfSend(j) = f(ipopp(ip), xm1, ym1, zm1,s) !Should only occur for q>.5
-            elseif(ipfReq(j)%sdist .ne. 1  .AND. ibnodes(xm1,ym1,zm1) > 0)then
+            if(ipfReq(j)%sdist .ne. 1  .AND. ibnodes(xm1,ym1,zm1) > 0)then
               mzmIpfSend(j) = IBNODES_TRUE
             else
               mzmIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z,s)
@@ -1734,6 +1729,7 @@
         endif        
         deallocate(ipfReq)
       enddo
+      
       !Recieve z neighbor interpolation fluid node data
       do i = 1, 2
         call MPI_PROBE(MPI_ANY_SOURCE, 97, MPI_COMM_WORLD, status, ierr)
@@ -2741,5 +2737,3 @@
 
       end subroutine feqpnt 
 !===========================================================================
-
-

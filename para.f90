@@ -375,7 +375,7 @@
       allocate (wx(lx+2,ly+lyext,lz))
       allocate (wy(lx+2,ly+lyext,lz))
       allocate (wz(lx+2,ly+lyext,lz))
-      allocate (ibnodes(lx,0:ly+1,0:lz+1))
+      allocate (ibnodes(0:lx+1,0:ly+1,0:lz+1))
 
       allocate(force_realx(lx,ly,lz))
       allocate(force_realy(lx,ly,lz))
@@ -417,7 +417,7 @@
       allocate (ipf_mzm(2*19*lx*ly))
       allocate (ipf_mzp(2*19*lx*ly))
 
-      allocate (ibnodes0(lx,0:ly+1,0:lz+1))
+      allocate (ibnodes0(0:lx+1,0:ly+1,0:lz+1))
       allocate (isnodes(lx,ly,lz))
       allocate (isnodes0(lx,ly,lz))
 

@@ -717,7 +717,7 @@
         ilen = lx*ly*lz
 
         if(myid == 0)then
-          ibnodes9(:,1:ly,1:lz) = ibnodes 
+          ibnodes9(:,1:ly,1:lz) = ibnodes(1:lx,1:ly,1:lz) 
 
           do ip = 1,nproc-1
             call MPI_RECV(ibnodes1,ilen,MPI_INTEGER,ip,1,              &
@@ -726,7 +726,7 @@
        indy9 = mod(ip,nprocY)
        indz9 = int(ip/nprocY)
 
-       ibnodes9(:,indy9*ly+1:indy9*ly+ly,indz9*lz+1:indz9*lz+lz)=ibnodes1 
+       ibnodes9(1:lx,indy9*ly+1:indy9*ly+ly,indz9*lz+1:indz9*lz+lz)=ibnodes1 
        end do
 
        else
@@ -1726,16 +1726,16 @@
       real omgpxrms, omgpyrms, omgpzrms  
 
 ! first calculate fluid rms velocity
-      nf0 = count(ibnodes < 0) 
+      nf0 = count(ibnodes(1:lx,1:ly,1:lz) < 0) 
       call MPI_REDUCE(nf0,nf,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      uxt0 = sum(ux, MASK = (ibnodes < 0))
+      uxt0 = sum(ux, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uxt0,uxt,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      uyt0 = sum(uy, MASK = (ibnodes < 0))
+      uyt0 = sum(uy, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uyt0,uyt,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      uzt0 = sum(uz, MASK = (ibnodes < 0))
+      uzt0 = sum(uz, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uzt0,uzt,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       if(myid == 0)then
@@ -1748,13 +1748,13 @@
       call MPI_BCAST(uymn,1,MPI_REAL8,0,MPI_COMM_WORLD,ierr)
       call MPI_BCAST(uzmn,1,MPI_REAL8,0,MPI_COMM_WORLD,ierr)
 
-      uxrms0 = sum((ux - uxmn)**2, MASK = (ibnodes < 0))
+      uxrms0 = sum((ux - uxmn)**2, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uxrms0,uxrms,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      uyrms0 = sum((uy - uymn)**2, MASK = (ibnodes < 0))
+      uyrms0 = sum((uy - uymn)**2, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uyrms0,uyrms,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      uzrms0 = sum((uz - uzmn)**2, MASK = (ibnodes < 0))
+      uzrms0 = sum((uz - uzmn)**2, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uzrms0,uzrms,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       if(myid == 0)then
@@ -1803,13 +1803,13 @@
 ! prepare vorticity field ox, oy, and oz
       call vortcalc
 
-      oxt0 = sum(ox, MASK = (ibnodes < 0))
+      oxt0 = sum(ox, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(oxt0,oxt,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      oyt0 = sum(oy, MASK = (ibnodes < 0))
+      oyt0 = sum(oy, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(oyt0,oyt,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      ozt0 = sum(oz, MASK = (ibnodes < 0))
+      ozt0 = sum(oz, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(ozt0,ozt,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       if(myid == 0)then
@@ -1822,13 +1822,13 @@
       call MPI_BCAST(oymn,1,MPI_REAL8,0,MPI_COMM_WORLD,ierr)
       call MPI_BCAST(ozmn,1,MPI_REAL8,0,MPI_COMM_WORLD,ierr)
 
-      oxrms0 = sum((ox - oxmn)**2, MASK = (ibnodes < 0))
+      oxrms0 = sum((ox - oxmn)**2, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(oxrms0,oxrms,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      oyrms0 = sum((oy - oymn)**2, MASK = (ibnodes < 0))
+      oyrms0 = sum((oy - oymn)**2, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(oyrms0,oyrms,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      ozrms0 = sum((oz - ozmn)**2, MASK = (ibnodes < 0))
+      ozrms0 = sum((oz - ozmn)**2, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(ozrms0,ozrms,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       if(myid == 0)then
@@ -2010,16 +2010,16 @@
 
 ! to calculate urms*urms as a local array of (lx,ly,lz)
 ! first calculate fluid rms velocity
-      nf0 = count(ibnodes < 0)
+      nf0 = count(ibnodes(1:lx,1:ly,1:lz) < 0)
       call MPI_REDUCE(nf0,nf,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      uxt0 = sum(ux, MASK = (ibnodes < 0))
+      uxt0 = sum(ux, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uxt0,uxt,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      uyt0 = sum(uy, MASK = (ibnodes < 0))
+      uyt0 = sum(uy, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uyt0,uyt,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      uzt0 = sum(uz, MASK = (ibnodes < 0))
+      uzt0 = sum(uz, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uzt0,uzt,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       if(myid == 0)then
@@ -2355,16 +2355,16 @@
 
 ! to calculate urms*urms as a local array of (lx,ly,lz)
 ! first calculate fluid rms velocity
-      nf0 = count(ibnodes < 0)
+      nf0 = count(ibnodes(1:lx,1:ly,1:lz) < 0)
       call MPI_REDUCE(nf0,nf,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      uxt0 = sum(ux, MASK = (ibnodes < 0))
+      uxt0 = sum(ux, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uxt0,uxt,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      uyt0 = sum(uy, MASK = (ibnodes < 0))
+      uyt0 = sum(uy, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uyt0,uyt,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      uzt0 = sum(uz, MASK = (ibnodes < 0))
+      uzt0 = sum(uz, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uzt0,uzt,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       if(myid == 0)then
@@ -2385,15 +2385,15 @@
 
 ! to calculate the averaged value of Sij2_m1, Sij2_m2, and uprm2 
 ! over all the fluid nodes in the domain
-      Sij2_m1t0 = sum(Sij2_m1, MASK = (ibnodes < 0))
+      Sij2_m1t0 = sum(Sij2_m1, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(Sij2_m1t0,Sij2_m1t,1,MPI_REAL8,MPI_SUM,0,         &
                       MPI_COMM_WORLD,ierr)
 
-      Sij2_m2t0 = sum(Sij2_m2, MASK = (ibnodes < 0))
+      Sij2_m2t0 = sum(Sij2_m2, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(Sij2_m2t0,Sij2_m2t,1,MPI_REAL8,MPI_SUM,0,         &
                       MPI_COMM_WORLD,ierr)
 
-      uprm2t0 = sum(uprm2, MASK = (ibnodes < 0))
+      uprm2t0 = sum(uprm2, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uprm2t0,uprm2t,1,MPI_REAL8,MPI_SUM,0,             &
                       MPI_COMM_WORLD,ierr)
 
@@ -2713,16 +2713,16 @@
 
 ! to calculate urms*urms as a local array of (lx,ly,lz)
 ! first calculate fluid rms velocity
-      nf0 = count(ibnodes < 0)
+      nf0 = count(ibnodes(1:lx,1:ly,1:lz) < 0)
       call MPI_REDUCE(nf0,nf,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      uxt0 = sum(ux, MASK = (ibnodes < 0))
+      uxt0 = sum(ux, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uxt0,uxt,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      uyt0 = sum(uy, MASK = (ibnodes < 0))
+      uyt0 = sum(uy, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uyt0,uyt,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      uzt0 = sum(uz, MASK = (ibnodes < 0))
+      uzt0 = sum(uz, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uzt0,uzt,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       if(myid == 0)then
@@ -2741,15 +2741,15 @@
 
 ! to calculate the averaged value of Sij2_m1, Sij2_m2, and uprm2
 ! over all the fluid nodes in the domain
-      Sij2_m1t0 = sum(Sij2_m1, MASK = (ibnodes < 0))
+      Sij2_m1t0 = sum(Sij2_m1, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(Sij2_m1t0,Sij2_m1t,1,MPI_REAL8,MPI_SUM,0,         &
                       MPI_COMM_WORLD,ierr)
 
-      Sij2_m2t0 = sum(Sij2_m2, MASK = (ibnodes < 0))
+      Sij2_m2t0 = sum(Sij2_m2, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(Sij2_m2t0,Sij2_m2t,1,MPI_REAL8,MPI_SUM,0,         &
                       MPI_COMM_WORLD,ierr)
 
-      uprm2t0 = sum(uprm2, MASK = (ibnodes < 0))
+      uprm2t0 = sum(uprm2, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uprm2t0,uprm2t,1,MPI_REAL8,MPI_SUM,0,             &
                       MPI_COMM_WORLD,ierr)
 
@@ -3081,16 +3081,16 @@
 
 ! to calculate urms*urms as a local array of (lx,ly,lz)
 ! first calculate fluid rms velocity
-      nf0 = count(ibnodes < 0)
+      nf0 = count(ibnodes(1:lx,1:ly,1:lz) < 0)
       call MPI_REDUCE(nf0,nf,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      uxt0 = sum(ux, MASK = (ibnodes < 0))
+      uxt0 = sum(ux, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uxt0,uxt,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      uyt0 = sum(uy, MASK = (ibnodes < 0))
+      uyt0 = sum(uy, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uyt0,uyt,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      uzt0 = sum(uz, MASK = (ibnodes < 0))
+      uzt0 = sum(uz, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uzt0,uzt,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       if(myid == 0)then
@@ -3107,19 +3107,19 @@
 
 ! to calculate the averaged value of Sij2_m1, Sij2_m2, and uprm2
 ! over all the fluid nodes in the domain
-      Sij2_m1t0 = sum(Sij2_m1, MASK = (ibnodes < 0))
+      Sij2_m1t0 = sum(Sij2_m1, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(Sij2_m1t0,Sij2_m1t,1,MPI_REAL8,MPI_SUM,0,         &
                       MPI_COMM_WORLD,ierr)
 
-      Sij2_m2t0 = sum(Sij2_m2, MASK = (ibnodes < 0))
+      Sij2_m2t0 = sum(Sij2_m2, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(Sij2_m2t0,Sij2_m2t,1,MPI_REAL8,MPI_SUM,0,         &
                       MPI_COMM_WORLD,ierr)
 
-      uprm2t0 = sum(uprm2, MASK = (ibnodes < 0))
+      uprm2t0 = sum(uprm2, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uprm2t0,uprm2t,1,MPI_REAL8,MPI_SUM,0,             &
                       MPI_COMM_WORLD,ierr)
 
-      vort2t0 = sum(vort2, MASK = (ibnodes < 0))
+      vort2t0 = sum(vort2, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(vort2t0,vort2t,1,MPI_REAL8,MPI_SUM,0,             &
                       MPI_COMM_WORLD,ierr)
 
@@ -3316,9 +3316,9 @@
       iroot = nprocZ/2
 
 !Set vortivity to zero inside particles
-      where(ibnodes > 0) uprm2 = 0.0
-      where(ibnodes > 0) sij2_m1 = 0.0
-      where(ibnodes > 0) sij2_m2 = 0.0
+      where(ibnodes(1:lx,1:ly,1:lz) > 0) uprm2 = 0.0
+      where(ibnodes(1:lx,1:ly,1:lz) > 0) sij2_m1 = 0.0
+      where(ibnodes(1:lx,1:ly,1:lz) > 0) sij2_m2 = 0.0
 
       tke9 = 0.0d0
       diss_m1_9 = 0.0d0
@@ -3507,16 +3507,16 @@
 
 ! to calculate urms*urms as a local array of (lx,ly,lz)
 ! first calculate fluid rms velocity
-      nf0 = count(ibnodes < 0)
+      nf0 = count(ibnodes(1:lx,1:ly,1:lz) < 0)
       call MPI_REDUCE(nf0,nf,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      uxt0 = sum(ux, MASK = (ibnodes < 0))
+      uxt0 = sum(ux, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uxt0,uxt,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      uyt0 = sum(uy, MASK = (ibnodes < 0))
+      uyt0 = sum(uy, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uyt0,uyt,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      uzt0 = sum(uz, MASK = (ibnodes < 0))
+      uzt0 = sum(uz, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uzt0,uzt,1,MPI_REAL8,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       if(myid == 0)then
@@ -3533,15 +3533,15 @@
 
 ! to calculate the averaged value of Sij2_m1, Sij2_m2, and uprm2
 ! over all the fluid nodes in the domain
-      Sij2_m1t0 = sum(Sij2_m1, MASK = (ibnodes < 0))
+      Sij2_m1t0 = sum(Sij2_m1, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(Sij2_m1t0,Sij2_m1t,1,MPI_REAL8,MPI_SUM,0,         &
                       MPI_COMM_WORLD,ierr)
 
-      Sij2_m2t0 = sum(Sij2_m2, MASK = (ibnodes < 0))
+      Sij2_m2t0 = sum(Sij2_m2, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(Sij2_m2t0,Sij2_m2t,1,MPI_REAL8,MPI_SUM,0,         &
                       MPI_COMM_WORLD,ierr)
 
-      uprm2t0 = sum(uprm2, MASK = (ibnodes < 0))
+      uprm2t0 = sum(uprm2, MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       call MPI_REDUCE(uprm2t0,uprm2t,1,MPI_REAL8,MPI_SUM,0,             &
                       MPI_COMM_WORLD,ierr)
 
@@ -3574,7 +3574,7 @@
       open(31, file = trim(fnm), status = 'unknown',                 &
                form = 'unformatted')
 
-      write(31) Sij2_m1, Sij2_m2, uprm2, ibnodes  
+      write(31) Sij2_m1, Sij2_m2, uprm2, ibnodes(1:lx,1:ly,1:lz)  
       if(myid == 0) write(31) ypglb, Sij2_m1_avg, Sij2_m2_avg, uprm2_avg
 
 
