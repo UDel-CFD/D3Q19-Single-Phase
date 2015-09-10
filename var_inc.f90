@@ -3,7 +3,7 @@
       !Interpolation fluid node
       type ipf_node
       sequence
-        integer ip, x, y, z, sdist
+        integer ip, x, y, z
       endtype
 
       integer,parameter:: FFTW_FORWARD = -1, FFTW_BACKWARD = 1

@@ -459,7 +459,7 @@
       use var_inc
       implicit none
 
-      call MPI_TYPE_CONTIGUOUS(5, MPI_INTEGER, MPI_IPF_NODE, ierr)
+      call MPI_TYPE_CONTIGUOUS(4, MPI_INTEGER, MPI_IPF_NODE, ierr)
       call MPI_TYPE_COMMIT(MPI_IPF_NODE, ierr)
 
       end subroutine constructMPItypes

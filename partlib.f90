@@ -187,11 +187,11 @@
       end do
 
       end subroutine ovlpchk
-!===========================================================================
-! this memory-optimized subroutine is the same as the original version of 
-! "initpartvel00" above, except that the large arrays "uxt, uyt, uzt" with
-! dimension of (lx,ly,0:lz+1) are no longer employed as in the original version.
-
+!=============================================================================
+!@subroutine initpartvel
+!@desc Initialize solid particle linear velocity through interpolation of the
+!      surrounding fluid
+!=============================================================================
       subroutine initpartvel
       use mpi
       use var_inc
@@ -201,134 +201,212 @@
       real xc, yc, zc, v0      
 
       real, dimension(3,npart):: wp0
-      real,allocatable,dimension(:,:):: tmpL, tmpR
-      real,allocatable,dimension(:,:):: tmpU, tmpD
+      real,allocatable,dimension(:,:):: tmpYm, tmpYp, tmpZm, tmpZp
 
+      allocate (tmpYm(lx,0:lz+1))   
+      allocate (tmpYp(lx,0:lz+1))
+      allocate (tmpZm(lx,ly))
+      allocate (tmpZp(lx,ly))
 
-      allocate (tmpL(lx,ly))   
-      allocate (tmpR(lx,ly))   
-      allocate (tmpU(lx,0:lz+1))
-      allocate (tmpD(lx,0:lz+1))
-
+      !Set all solid particle velocities to 0
       wp0 = 0.0
 
-! "iflag = 1", indicates velocity interpolation
+      !"iflag = 1", indicates velocity interpolation
       iflag = 1
 
-! interpolate ux       
-
-      call exchng1(ux(:,:,1),tmpR,ux(:,:,lz),tmpL,ux(:,1,:),tmpU,ux(:,ly,:),tmpD)
-
+      !Interpolate solid particle velocity in the x direction
+      !Get neighboring task velocity data      
+      call initpart_exchng(ux(:,1,:),tmpYm,ux(:,ly,:),tmpYp,ux(:,:,1),tmpZm,ux(:,:,lz),tmpZp)
+      !Parse through solid particles
       do ip = 1,nps
         xc = yp(1,ip)
         yc = yp(2,ip)
         zc = yp(3,ip)
         id = ipglb(ip)
-
         idir =  1 
-
-        call trilinear(tmpL,tmpR,tmpU,tmpD,xc,yc,zc,idir,iflag,v0,id)
-
-
+        !Interpolated velocity v0
+        call trilinear(tmpZm,tmpZp,tmpYp,tmpYm,xc,yc,zc,idir,iflag,v0,id)
         wp0(1,id) = v0
       end do
 
-! interpolate uy    
-
-      call exchng1(uy(:,:,1),tmpR,uy(:,:,lz),tmpL,uy(:,1,:),tmpU,uy(:,ly,:),tmpD)
-
-
+      !Interpolate solid particle velocity in the y direction
+      !Get neighboring task velocity data  
+      call initpart_exchng(uy(:,1,:),tmpYm,uy(:,ly,:),tmpYp,uy(:,:,1),tmpZm,uy(:,:,lz),tmpZp)
+      !Parse through solid particles
       do ip = 1,nps
         xc = yp(1,ip)
         yc = yp(2,ip)
         zc = yp(3,ip)
         id = ipglb(ip)
-
         idir = 2
-
-        call trilinear(tmpL,tmpR,tmpU,tmpD,xc,yc,zc,idir,iflag,v0,id)
-
+        !Interpolated velocity v0
+        call trilinear(tmpZm,tmpZp,tmpYp,tmpYm,xc,yc,zc,idir,iflag,v0,id)
         wp0(2,id) = v0
       end do
 
-! interpolate uz  
-
-      call exchng1(uz(:,:,1),tmpR,uz(:,:,lz),tmpL,uz(:,1,:),tmpU,uz(:,ly,:),tmpD)
-
-
+      !Interpolate solid particle velocity in the z direction
+      !Get neighboring task velocity data  
+      call initpart_exchng(uz(:,1,:),tmpYm,uz(:,ly,:),tmpYp,uz(:,:,1),tmpZm,uz(:,:,lz),tmpZp)
+      !Parse through solid particles
       do ip = 1,nps
         xc = yp(1,ip)
         yc = yp(2,ip)
         zc = yp(3,ip)
         id = ipglb(ip)
-
         idir = 3  
-
-        call trilinear(tmpL,tmpR,tmpU,tmpD,xc,yc,zc,idir,iflag,v0,id)
-
+        !Interpolated velocity v0
+        call trilinear(tmpZm,tmpZp,tmpYp,tmpYm,xc,yc,zc,idir,iflag,v0,id)
         wp0(3,id) = v0
       end do
 
-      deallocate (tmpL)   
-      deallocate (tmpR)   
-      deallocate (tmpU)
-      deallocate (tmpD)
+      deallocate (tmpYm)   
+      deallocate (tmpYp)   
+      deallocate (tmpZp)
+      deallocate (tmpZm)
       
-! collect info. for wp
+      !Collect velocity of all solid particles across all tasks
       ilen = 3*npart
       call MPI_ALLREDUCE(wp0,wp,ilen,MPI_REAL8,MPI_SUM,MPI_COMM_WORLD,ierr)
 
       end subroutine initpartvel
-!===========================================================================
-
-      subroutine exchng1(tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8)
+!=============================================================================
+!@subroutine initpartomg
+!@desc Initialize solid particle rotational velocity through interpolation of
+!      the vorticity of the surrounding fluid
+!=============================================================================
+      subroutine initpartomg
       use mpi
       use var_inc
       implicit none
 
-!                 tmp1   tmp2   tmp3     tmp4   tmp5    tmp6    tmp7    tmp8
-!      exchng1(ux(:,:,1),tmpR,ux(:,:,lz),tmpL,ux(:,1,:),tmpU,ux(:,ly,:),tmpD)
+      integer ip, id, ilen, idir, iflag  
+      real xc, yc, zc, v0  
 
+      real, dimension(3,npart):: omgp0
+      real,allocatable,dimension(:,:):: tmpYm, tmpYp, tmpZm, tmpZp
+
+      allocate (tmpYm(lx,0:lz+1))   
+      allocate (tmpYp(lx,0:lz+1))
+      allocate (tmpZm(lx,ly))
+      allocate (tmpZp(lx,ly))
+            omgp0 = 0.0
+
+      !Prepare vorticity field ox, oy, and oz
+      call vortcalc
+
+      !"iflag = 2", indicates vorticity interpolation
+      iflag = 2  
+
+      !Interpolate solid particle vorticity in the x direction
+      !Get neighboring task vorticity data  
+      call initpart_exchng(ox(:,1,:),tmpYm,ox(:,ly,:),tmpYp,ox(:,:,1),tmpZm,ox(:,:,lz),tmpZp)
+      !Parse through solid particles
+      do ip = 1,nps
+        xc = yp(1,ip)
+        yc = yp(2,ip)
+        zc = yp(3,ip)
+        id = ipglb(ip)
+        idir = 1
+        !Interpolated vorticity v0
+        call trilinear(tmpZm,tmpZp,tmpYp,tmpYm,xc,yc,zc,idir,iflag,v0,id)   
+        ! vorticity is twice the rotation rate of a small fluid line segment
+        ! oriented along a principal direction of rate-of-strain tensor
+        omgp0(1,id) = 0.5*v0
+      end do
+
+      !Interpolate solid particle vorticity in the y direction
+      !Get neighboring task vorticity data  
+      call initpart_exchng(oy(:,1,:),tmpYm,oy(:,ly,:),tmpYp,oy(:,:,1),tmpZm,oy(:,:,lz),tmpZp)
+      !Parse through solid particles
+      do ip = 1,nps
+        xc = yp(1,ip)
+        yc = yp(2,ip)
+        zc = yp(3,ip)
+        id = ipglb(ip)
+        idir = 2
+        !Interpolated vorticity v0
+        call trilinear(tmpZm,tmpZp,tmpYp,tmpYm,xc,yc,zc,idir,iflag,v0,id)   
+        omgp0(2,id) = 0.5*v0
+      end do
+
+      !Interpolate solid particle vorticity in the z direction
+      !Get neighboring task vorticity data  
+      call initpart_exchng(oz(:,1,:),tmpYm,oz(:,ly,:),tmpYp,oz(:,:,1),tmpZm,oz(:,:,lz),tmpZp)
+      !Parse through solid particles
+      do ip = 1,nps
+        xc = yp(1,ip)
+        yc = yp(2,ip)
+        zc = yp(3,ip)
+        id = ipglb(ip)
+        idir = 3
+        !Interpolated vorticity v0
+        call trilinear(tmpZm,tmpZp,tmpYp,tmpYm,xc,yc,zc,idir,iflag,v0,id)
+        omgp0(3,id) = 0.5*v0
+      end do
+
+      deallocate (tmpYm)   
+      deallocate (tmpYp)   
+      deallocate (tmpZp)
+      deallocate (tmpZm)
+
+      !Collect vorticity of all solid particles across all tasks
+      ilen = 3*npart
+      call MPI_ALLREDUCE(omgp0,omgp,ilen,MPI_REAL8,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+      omgp = 0.0 !Not sure why this is here
+
+      end subroutine initpartomg
+!=============================================================================
+!@subroutine initpart_exchng
+!@desc MPI exchange to send/receive velocity or vorticity data with neighboring
+!      tasks. Used for initializing solid particles
+!@param tmpYmSi,tmpYpSi = real arrays of local data to be sent to neighboring Y tasks
+!@param tmpYmR, tmpYpR = real arrays for storing data recieved from Y tasks
+!@param tmpZmS,tmpZpS = real arrays of local data to be sent to neighboring Z tasks
+!@param tmpZmR, tmpZpR = real arrays for storing data recieved from Z tasks
+!=============================================================================
+      subroutine initpart_exchng(tmpYmSi,tmpYmR,tmpYpSi,tmpYpR,tmpZmS,tmpZmR,tmpZpS,tmpZpR)
+      use mpi
+      use var_inc
+      implicit none
 
       integer ilenz, ileny
-      real, dimension(lx,ly)  :: tmp1, tmp2, tmp3, tmp4
-      real, dimension(lx,lz)  :: tmp5, tmp7
-      real, dimension(lx,0:lz+1):: tmp5l, tmp6, tmp7l, tmp8  
+      real, dimension(lx,ly)  :: tmpZmS, tmpZmR, tmpZpS, tmpZpR
+      real, dimension(lx,lz)  :: tmpYmSi, tmpYpSi
+      real, dimension(lx,0:lz+1):: tmpYmS, tmpYmR, tmpYpS, tmpYpR  
 
       integer status_array(MPI_STATUS_SIZE,4), req(4)
      
       ilenz = lx*ly
       ileny = lx*(lz+2)
+      !Send data to neighboring MPI tasks in the Z direction
+      call MPI_IRECV(tmpZpR,ilenz,MPI_REAL8,mzp,0,MPI_COMM_WORLD,req(1),ierr)
+      call MPI_IRECV(tmpZmR,ilenz,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(2),ierr)
 
-      call MPI_IRECV(tmp2,ilenz,MPI_REAL8,mzp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmp4,ilenz,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(2),ierr)
-
-      call MPI_ISEND(tmp1,ilenz,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmp3,ilenz,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(4),ierr)
-
-      call MPI_WAITALL(4,req,status_array,ierr)
-
-!      call MPI_BARRIER(MPI_COMM_WORLD,ierr)
-
-      tmp5l(:,0) = tmp4(:,1)
-      tmp5l(:,1:lz) = tmp5(:,:)
-      tmp5l(:,lz+1) = tmp2(:,1)
-
-      tmp7l(:,0) = tmp4(:,ly)
-      tmp7l(:,1:lz) = tmp7(:,:)
-      tmp7l(:,lz+1) = tmp2(:,ly)
-
-      call MPI_IRECV(tmp6,ileny,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(tmp8,ileny,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(2),ierr)
-
-      call MPI_ISEND(tmp5l,ileny,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(tmp7l,ileny,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(4),ierr)
+      call MPI_ISEND(tmpZmS,ilenz,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(3),ierr)
+      call MPI_ISEND(tmpZpS,ilenz,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(4),ierr)
 
       call MPI_WAITALL(4,req,status_array,ierr)
 
-!      call MPI_BARRIER(MPI_COMM_WORLD,ierr)
+      !Combine data cornor data from Z neighbor with Y send buffer
+      tmpYmS(:,0) = tmpZmR(:,1)
+      tmpYmS(:,1:lz) = tmpYmSi(:,:)
+      tmpYmS(:,lz+1) = tmpZpR(:,1)
 
-      end subroutine exchng1
+      tmpYpS(:,0) = tmpZmR(:,ly)
+      tmpYpS(:,1:lz) = tmpYpSi(:,:)
+      tmpYpS(:,lz+1) = tmpZpR(:,ly)
+
+      !Send data to neighboring MPI tasks in the Y direction
+      call MPI_IRECV(tmpYpR,ileny,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(1),ierr)
+      call MPI_IRECV(tmpYmR,ileny,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(2),ierr)
+
+      call MPI_ISEND(tmpYmS,ileny,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(3),ierr)
+      call MPI_ISEND(tmpYpS,ileny,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(4),ierr)
+
+      call MPI_WAITALL(4,req,status_array,ierr)
+
+      end subroutine initpart_exchng
 !===========================================================================
 
 !===========================================================================
@@ -848,106 +926,6 @@
 
       end subroutine trilinear
 !===========================================================================
-! this memory-optimized subroutine is the same as the original version of 
-! "initpartomg00" above, except that the large arrays "oxt, oyt, ozt" with
-! dimension of (lx,ly,0:lz+1) are no longer employed as in the original version.
-
-      subroutine initpartomg
-      use mpi
-      use var_inc
-      implicit none
-
-      integer ip, id, ilen, idir, iflag  
-      real xc, yc, zc, v0  
-
-      real, dimension(3,npart):: omgp0
-      real,allocatable,dimension(:,:):: tmpL, tmpR
-      real,allocatable,dimension(:,:):: tmpU, tmpD
-
-
-! prepare vorticity field ox, oy, and oz
-      call vortcalc
-
-      allocate (tmpL(lx,ly))
-      allocate (tmpR(lx,ly))
-      allocate (tmpU(lx,0:lz+1))
-      allocate (tmpD(lx,0:lz+1))
-
-      omgp0 = 0.0
-
-! "iflag = 2", indicates vorticity interpolation
-      iflag = 2  
-
-! interpolate ox
-
-      call exchng1(ox(:,:,1),tmpR,ox(:,:,lz),tmpL,ox(:,1,:),tmpU,ox(:,ly,:),tmpD)
-
-      do ip = 1,nps
-        xc = yp(1,ip)
-        yc = yp(2,ip)
-        zc = yp(3,ip)
-        id = ipglb(ip)
-
-        idir = 1
-        call trilinear(tmpL,tmpR,tmpU,tmpD,xc,yc,zc,idir,iflag,v0,id)   
-
-! vorticity is twice the rotation rate of a small fluid line segment
-! oriented along a principal direction of rate-of-strain tensor
-        omgp0(1,id) = 0.5*v0
-      end do
-
-! interpolate oy   
-
-      call exchng1(oy(:,:,1),tmpR,oy(:,:,lz),tmpL,oy(:,1,:),tmpU,oy(:,ly,:),tmpD)
-
-      do ip = 1,nps
-        xc = yp(1,ip)
-        yc = yp(2,ip)
-        zc = yp(3,ip)
-        id = ipglb(ip)
-
-        idir = 2    
-        call trilinear(tmpL,tmpR,tmpU,tmpD,xc,yc,zc,idir,iflag,v0,id)   
-
-        omgp0(2,id) = 0.5*v0
-      end do
-
-! interpolate oz       
-
-      call exchng1(oz(:,:,1),tmpR,oz(:,:,lz),tmpL,oz(:,1,:),tmpU,oz(:,ly,:),tmpD)
-
-      do ip = 1,nps
-        xc = yp(1,ip)
-        yc = yp(2,ip)
-        zc = yp(3,ip)
-        id = ipglb(ip)
-
-        idir = 3  
-        call trilinear(tmpL,tmpR,tmpU,tmpD,xc,yc,zc,idir,iflag,v0,id)
-
-        omgp0(3,id) = 0.5*v0
-      end do
-
-      deallocate (tmpL)
-      deallocate (tmpR)
-      deallocate (tmpU)
-      deallocate (tmpD)
-
-! collect info. for omgp
-      ilen = 3*npart
-      call MPI_ALLREDUCE(omgp0,omgp,ilen,MPI_REAL8,MPI_SUM,             &
-                         MPI_COMM_WORLD,ierr)
-
-!      if(myid==0)then
-!      write(*,*)'omgp',omgp
-!      endif
-
-110   continue    
-! to compare with Elghobashi's data
-      omgp = 0.0
-
-      end subroutine initpartomg
-!===========================================================================
       subroutine beads_links
       use var_inc
       implicit none
@@ -1239,90 +1217,90 @@
       !Determine if we need to request data from neighboring tasks
       if(jp1 < 1)then
         ipf_mymc = ipf_mymc + 1
-        ipf_mym(ipf_mymc) = ipf_node(ipi, ip1, jp1, kp1, 1)
+        ipf_mym(ipf_mymc) = ipf_node(ipi, ip1, jp1, kp1)
         iblinks(0,1,n) = 1
         iblinks(0,2,n) = ipf_mymc
       elseif(jp1 > ly)then
         ipf_mypc = ipf_mypc + 1
-        ipf_myp(ipf_mypc) = ipf_node(ipi, ip1, jp1, kp1, 1)
+        ipf_myp(ipf_mypc) = ipf_node(ipi, ip1, jp1, kp1)
         iblinks(0,1,n) = 2
         iblinks(0,2,n) = ipf_mypc
       elseif(kp1 < 1)then
         ipf_mzmc = ipf_mzmc + 1
-        ipf_mzm(ipf_mzmc) = ipf_node(ipi, ip1, jp1, kp1, 1)
+        ipf_mzm(ipf_mzmc) = ipf_node(ipi, ip1, jp1, kp1)
         iblinks(0,1,n) = 3
         iblinks(0,2,n) = ipf_mzmc
       elseif(kp1 > lz)then
         ipf_mzpc = ipf_mzpc + 1
-        ipf_mzp(ipf_mzpc) = ipf_node(ipi, ip1, jp1, kp1, 1)
+        ipf_mzp(ipf_mzpc) = ipf_node(ipi, ip1, jp1, kp1)
         iblinks(0,1,n) = 4
         iblinks(0,2,n) = ipf_mzpc
       endif
 
       if(jm1 < 1)then
         ipf_mymc = ipf_mymc + 1
-        ipf_mym(ipf_mymc) = ipf_node(ip, im1, jm1, km1, 0)
+        ipf_mym(ipf_mymc) = ipf_node(ip, im1, jm1, km1)
         iblinks(1,1,n) = 1
         iblinks(1,2,n) = ipf_mymc
         if(alpha > 0.5 .and. jm2 < 1 .and. im2f)then
           ipf_mymc = ipf_mymc + 1
-          ipf_mym(ipf_mymc) = ipf_node(ip2, im2, jm2, km2, 0)
+          ipf_mym(ipf_mymc) = ipf_node(ip2, im2, jm2, km2)
           iblinks(2,1,n) = 1
           iblinks(2,2,n) = ipf_mymc
         endif
       elseif(jm1 > ly)then
         ipf_mypc = ipf_mypc + 1
-        ipf_myp(ipf_mypc) = ipf_node(ip, im1, jm1, km1, 0)
+        ipf_myp(ipf_mypc) = ipf_node(ip, im1, jm1, km1)
         iblinks(1,1,n) = 2
         iblinks(1,2,n) = ipf_mypc
         if(alpha > 0.5 .and. jm2 > ly .and. im2f)then
           ipf_mypc = ipf_mypc + 1
-          ipf_myp(ipf_mypc) = ipf_node(ip2, im2, jm2, km2, 0)
+          ipf_myp(ipf_mypc) = ipf_node(ip2, im2, jm2, km2)
           iblinks(2,1,n) = 2
           iblinks(2,2,n) = ipf_mypc
         endif
       elseif(km1 < 1)then
         ipf_mzmc = ipf_mzmc + 1
-        ipf_mzm(ipf_mzmc) = ipf_node(ip, im1, jm1, km1, 0)
+        ipf_mzm(ipf_mzmc) = ipf_node(ip, im1, jm1, km1)
         iblinks(1,1,n) = 3
         iblinks(1,2,n) = ipf_mzmc
         if(alpha > 0.5 .and. im2f)then
           if(jm2 < 1)then
             ipf_mymc = ipf_mymc + 1
-            ipf_mym(ipf_mymc) = ipf_node(ip2, im2, jm2, km2, 0)
+            ipf_mym(ipf_mymc) = ipf_node(ip2, im2, jm2, km2)
             iblinks(2,1,n) = 1
             iblinks(2,2,n) = ipf_mymc
           elseif(jm2 > ly)then
             ipf_mypc = ipf_mypc + 1
-            ipf_myp(ipf_mypc) = ipf_node(ip2, im2, jm2, km2, 0)
+            ipf_myp(ipf_mypc) = ipf_node(ip2, im2, jm2, km2)
             iblinks(2,1,n) = 2
             iblinks(2,2,n) = ipf_mypc
           else
             ipf_mzmc = ipf_mzmc + 1
-            ipf_mzm(ipf_mzmc) = ipf_node(ip2, im2, jm2, km2, 0)
+            ipf_mzm(ipf_mzmc) = ipf_node(ip2, im2, jm2, km2)
             iblinks(2,1,n) = 3
             iblinks(2,2,n) = ipf_mzmc
           endif
         endif
       elseif(km1 > lz)then
         ipf_mzpc = ipf_mzpc + 1
-        ipf_mzp(ipf_mzpc) = ipf_node(ip, im1, jm1, km1, 0)
+        ipf_mzp(ipf_mzpc) = ipf_node(ip, im1, jm1, km1)
         iblinks(1,1,n) = 4
         iblinks(1,2,n) = ipf_mzpc
         if(alpha > 0.5 .and. im2f)then
           if(jm2 < 1)then
             ipf_mymc = ipf_mymc + 1
-            ipf_mym(ipf_mymc) = ipf_node(ip2, im2, jm2, km2, 0)
+            ipf_mym(ipf_mymc) = ipf_node(ip2, im2, jm2, km2)
             iblinks(2,1,n) = 1
             iblinks(2,2,n) = ipf_mymc
           elseif(jm2 > ly)then
             ipf_mypc = ipf_mypc + 1
-            ipf_myp(ipf_mypc) = ipf_node(ip2, im2, jm2, km2, 0)
+            ipf_myp(ipf_mypc) = ipf_node(ip2, im2, jm2, km2)
             iblinks(2,1,n) = 2
             iblinks(2,2,n) = ipf_mypc
           else
             ipf_mzpc = ipf_mzpc + 1
-            ipf_mzp(ipf_mzpc) = ipf_node(ip2, im2, jm2, km2, 0)
+            ipf_mzp(ipf_mzpc) = ipf_node(ip2, im2, jm2, km2)
             iblinks(2,1,n) = 4
             iblinks(2,2,n) = ipf_mzpc
           endif
@@ -1331,22 +1309,22 @@
         if(alpha > 0.5 .and. im2f)then
           if(jm2 < 1)then
             ipf_mymc = ipf_mymc + 1
-            ipf_mym(ipf_mymc) = ipf_node(ip2, im2, jm2, km2, 0)
+            ipf_mym(ipf_mymc) = ipf_node(ip2, im2, jm2, km2)
             iblinks(2,1,n) = 1
             iblinks(2,2,n) = ipf_mymc
           elseif(jm2 > ly)then
             ipf_mypc = ipf_mypc + 1
-            ipf_myp(ipf_mypc) = ipf_node(ip2, im2, jm2, km2, 0)
+            ipf_myp(ipf_mypc) = ipf_node(ip2, im2, jm2, km2)
             iblinks(2,1,n) = 2
             iblinks(2,2,n) = ipf_mypc
           elseif(km2 < 1)then
             ipf_mzmc = ipf_mzmc + 1
-            ipf_mzm(ipf_mzmc) = ipf_node(ip2, im2, jm2, km2, 0)
+            ipf_mzm(ipf_mzmc) = ipf_node(ip2, im2, jm2, km2)
             iblinks(2,1,n) = 3
             iblinks(2,2,n) = ipf_mzmc
           elseif(km2 > lz)then
             ipf_mzpc = ipf_mzpc + 1
-            ipf_mzp(ipf_mzpc) = ipf_node(ip2, im2, jm2, km2, 0)
+            ipf_mzp(ipf_mzpc) = ipf_node(ip2, im2, jm2, km2)
             iblinks(2,1,n) = 4
             iblinks(2,2,n) = ipf_mzpc
            endif
@@ -1554,7 +1532,6 @@
         end if
        ENDIF
 
-        ! compute force and torque acting on particles
         if(abs(f(ipp,i,j,k,s)) > 1e-2)then
           write(*,*)'=',myid,f(ipp,i,j,k,s),alpha,'='
           write(*,*)ip,i,j,k,iblinks(0,1,n),iblinks(1,1,n),iblinks(2,1,n)
@@ -1563,6 +1540,7 @@
           write(*,*)ff1,ff2,ff3,n
         endif
 
+        ! compute force and torque acting on particles
         dff = ff1 + f(ipp,i,j,k,s)
         dxmom = dff*real(ix)
         dymom = dff*real(iy)
@@ -1639,13 +1617,7 @@
           !If requested data is in the z neighbors (corner), add it to temporay array
           if(ipfReq(j)%z > lz)then 
             ipf_mzptc = ipf_mzptc + 1
-
-            ipf_mzpt(ipf_mzptc)%ip = ipfReq(j)%ip
-            ipf_mzpt(ipf_mzptc)%x = ipfReq(j)%x
-            ipf_mzpt(ipf_mzptc)%y = ipfReq(j)%y
-            ipf_mzpt(ipf_mzptc)%z = ipfReq(j)%z
-            ipf_mzpt(ipf_mzptc)%sdist = ipfReq(j)%sdist
-            
+            ipf_mzpt(ipf_mzptc) = ipfReq(j)
             mzpt_index(ipf_mzptc) = cornerNode(j,dir)
           elseif(ipfReq(j)%z < 1)then
             ipf_mzmtc = ipf_mzmtc + 1
@@ -1658,13 +1630,13 @@
             zm1 = ipfReq(j)%z-ciz(ipfReq(j)%ip)
 
             if(status(MPI_SOURCE) == myp)then
-              if(ipfReq(j)%sdist .ne. 1 .AND. ibnodes(xm1,ym1,zm1) > 0)then
+              if(ibnodes(xm1,ym1,zm1) > 0)then
                 mypIpfSend(j) = IBNODES_TRUE
               else
                 mypIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z,s)
               endif
             else
-              if(ipfReq(j)%sdist .ne. 1  .AND. ibnodes(xm1,ym1,zm1) > 0)then
+              if(ibnodes(xm1,ym1,zm1) > 0)then
                 mymIpfSend(j) = IBNODES_TRUE
               else
                 mymIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z,s)
@@ -1703,7 +1675,7 @@
             xm1 = ipfReq(j)%x-cix(ipfReq(j)%ip)
             ym1 = ipfReq(j)%y-ciy(ipfReq(j)%ip)
             zm1 = ipfReq(j)%z-ciz(ipfReq(j)%ip)
-            if(ipfReq(j)%sdist .ne. 1  .AND. ibnodes(xm1,ym1,zm1) > 0)then
+            if(ibnodes(xm1,ym1,zm1) > 0)then
               mzpIpfSend(j) = IBNODES_TRUE
             else
               mzpIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z,s)
@@ -1719,7 +1691,7 @@
               xm1 = ipfReq(j)%x-cix(ipfReq(j)%ip)
               ym1 = ipfReq(j)%y-ciy(ipfReq(j)%ip)
               zm1 = ipfReq(j)%z-ciz(ipfReq(j)%ip)
-            if(ipfReq(j)%sdist .ne. 1  .AND. ibnodes(xm1,ym1,zm1) > 0)then
+            if(ibnodes(xm1,ym1,zm1) > 0)then
               mzmIpfSend(j) = IBNODES_TRUE
             else
               mzmIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z,s)

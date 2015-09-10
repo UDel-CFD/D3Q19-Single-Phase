@@ -1,5 +1,5 @@
 # Makefile for compiling with personal F90 and
-# link with MPICH and FFTW libraries
+# link with MPI libraries
 # To compile and link write simply "make"
 #
 SHELL = /bin/bash
@@ -7,7 +7,7 @@ FFLAG = -O3 -w -r8
 FCOMP = mpif90 -c ${FFLAG}
 LINK = mpif90 
 LIBS = -lm
-
+#List of files needed to compile
 OBJ = var_inc.o main.o para.o collision.o initial.o partlib.o saveload.o benchmark.o
 #Defines file siffixes we'll use
 .SUFFIXES: .o .f90
