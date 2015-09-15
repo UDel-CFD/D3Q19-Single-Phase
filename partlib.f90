@@ -67,7 +67,7 @@
         !Now check for particle overlap
         ovlpflag = 0
         ovlpflagt = 0
-        call ovlpchk !@file partlib.f90
+        call ovlpchk
         call MPI_ALLREDUCE(ovlpflag,ovlpflagt,npart,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
         ovlpcnt = count(ovlpflagt /= 0)
         if(myid == 0) write(*,*) 'ovlpcnt = ', ovlpcnt
@@ -225,7 +225,7 @@
         id = ipglb(ip)
         idir =  1 
         !Interpolated velocity v0
-        call trilinear(tmpZm,tmpZp,tmpYp,tmpYm,xc,yc,zc,idir,iflag,v0,id)
+        call trilinear(tmpYm,tmpYp,tmpZm,tmpZp,xc,yc,zc,idir,iflag,v0,id)
         wp0(1,id) = v0
       end do
 
@@ -240,7 +240,7 @@
         id = ipglb(ip)
         idir = 2
         !Interpolated velocity v0
-        call trilinear(tmpZm,tmpZp,tmpYp,tmpYm,xc,yc,zc,idir,iflag,v0,id)
+        call trilinear(tmpYm,tmpYp,tmpZm,tmpZp,xc,yc,zc,idir,iflag,v0,id)
         wp0(2,id) = v0
       end do
 
@@ -255,7 +255,7 @@
         id = ipglb(ip)
         idir = 3  
         !Interpolated velocity v0
-        call trilinear(tmpZm,tmpZp,tmpYp,tmpYm,xc,yc,zc,idir,iflag,v0,id)
+        call trilinear(tmpYm,tmpYp,tmpZm,tmpZp,xc,yc,zc,idir,iflag,v0,id)
         wp0(3,id) = v0
       end do
 
@@ -308,7 +308,7 @@
         id = ipglb(ip)
         idir = 1
         !Interpolated vorticity v0
-        call trilinear(tmpZm,tmpZp,tmpYp,tmpYm,xc,yc,zc,idir,iflag,v0,id)   
+        call trilinear(tmpYm,tmpYp,tmpZm,tmpZp,xc,yc,zc,idir,iflag,v0,id)   
         ! vorticity is twice the rotation rate of a small fluid line segment
         ! oriented along a principal direction of rate-of-strain tensor
         omgp0(1,id) = 0.5*v0
@@ -325,7 +325,7 @@
         id = ipglb(ip)
         idir = 2
         !Interpolated vorticity v0
-        call trilinear(tmpZm,tmpZp,tmpYp,tmpYm,xc,yc,zc,idir,iflag,v0,id)   
+        call trilinear(tmpYm,tmpYp,tmpZm,tmpZp,xc,yc,zc,idir,iflag,v0,id)   
         omgp0(2,id) = 0.5*v0
       end do
 
@@ -340,7 +340,7 @@
         id = ipglb(ip)
         idir = 3
         !Interpolated vorticity v0
-        call trilinear(tmpZm,tmpZp,tmpYp,tmpYm,xc,yc,zc,idir,iflag,v0,id)
+        call trilinear(tmpYm,tmpYp,tmpZm,tmpZp,xc,yc,zc,idir,iflag,v0,id)
         omgp0(3,id) = 0.5*v0
       end do
 
@@ -360,10 +360,10 @@
 !@subroutine initpart_exchng
 !@desc MPI exchange to send/receive velocity or vorticity data with neighboring
 !      tasks. Used for initializing solid particles
-!@param tmpYmSi,tmpYpSi = real arrays of local data to be sent to neighboring Y tasks
-!@param tmpYmR, tmpYpR = real arrays for storing data recieved from Y tasks
-!@param tmpZmS,tmpZpS = real arrays of local data to be sent to neighboring Z tasks
-!@param tmpZmR, tmpZpR = real arrays for storing data recieved from Z tasks
+!@param tmpYmSi,tmpYpSi = real array; local data to be sent to neighboring Y tasks
+!@param tmpYmR, tmpYpR = real array; stores data recieved from Y tasks
+!@param tmpZmS,tmpZpS = real array; local data to be sent to neighboring Z tasks
+!@param tmpZmR, tmpZpR = real array; stores data recieved from Z tasks
 !=============================================================================
       subroutine initpart_exchng(tmpYmSi,tmpYmR,tmpYpSi,tmpYpR,tmpZmS,tmpZmR,tmpZpS,tmpZpR)
       use mpi
@@ -407,40 +407,47 @@
       call MPI_WAITALL(4,req,status_array,ierr)
 
       end subroutine initpart_exchng
-!===========================================================================
-
-!===========================================================================
-! this is the 2nd version of trilinear interpolation subroutine used 
-! in accordance with "initpartvel" and "initpartomg".
-
-      subroutine trilinear(tmpL,tmpR,tmpU,tmpD,xc,yc,zc,idir,iflag,v0,id) 
+!=============================================================================
+!@subroutine trilinear
+!@desc Uses trilinear interpolation to interpolates intial solidparticle 
+!      velocity or rotation. Used by initpartvel and initpartomg
+!@param tmpYm,tmpYp,tmpZm,tmpZp = real array; velocity or vorticity
+!      data from neighboring MPI tasks
+!@param xc,yc,zc = integer; solid particle's center local position
+!@param idir = integer, deminsion under consideration. 
+!       idir = 1 : x, idir = 2 : y, idir = 3 : z
+!@param iflag = integer; flag indicating velocity or vorticity
+!       iflag = 1 : velocity, iflag = 2 : vorticity
+!@param v0 = real; interpolated value
+!=============================================================================
+      subroutine trilinear(tmpYm,tmpYp,tmpZm,tmpZp,xc,yc,zc,idir,iflag,v0) 
       use var_inc
       implicit none
 
-!              tmp1      tmp2 tmp3       tmp4 tmp5      tmp6 tmp7       tmp8
-!      exchng1(ux(:,:,1),tmpR,ux(:,:,lz),tmpL,ux(:,1,:),tmpU,ux(:,ly,:),tmpD)
-
-      integer idir, iflag, i, j, k, ip1, jp1, kp1, id
-
-      real xc, yc, zc, dx, dy, dz   
+      integer idir, iflag, i, j, k, n, it, jt, kt
+      real xc, yc, zc, dx, dy, dz, v0
       real tx, ty, tz, tx0,  ty0, tz0
-      real v0, v1, v2, v3, v4, v5, v6, v7, v8
 
-      real, dimension(lx,ly):: tmpL, tmpR   
-      real, dimension(lx,0:lz+1):: tmpU, tmpD
+      real, dimension(lx,ly):: tmpZm,tmpZp   
+      real, dimension(lx,0:lz+1):: tmpYm, tmpYp 
+      integer, dimension(8):: trix, triy, triz
+      real, dimension(8):: v
+
+      !Hold indices used to get interpolation points
+      trix = (/0,1,1,0,0,1,1,0/)
+      triy = (/0,0,1,1,0,0,1,1/)
+      triz = (/0,0,0,0,1,1,1,1/)
 
       dx = 1.0
       dy = 1.0
       dz = 1.0
 
+      !Get the corner position of the box used to interpolate
       i = int((xc + 0.5) / dx)
       j = int((yc - real(indy*ly) + 0.5) / dy)
       k = int((zc - real(indz*lz) + 0.5) / dz)
 
-      ip1 = i + 1
-      jp1 = j + 1
-      kp1 = k + 1
-
+      !Calculate constants used for interpolation
       tx = (xc + 0.5 - real(i)) / dx
       ty = (yc - real(indy*ly) + 0.5 - real(j)) / dy
       tz = (zc - real(indz*lz) + 0.5 - real(k)) / dz
@@ -449,483 +456,70 @@
       ty0 = 1.0 - ty
       tz0 = 1.0 - tz
 
-! periodicity
-     ! if(i == 0) i = nx
-     ! if(ip1 > nx) ip1 = 1
+      !Retreive the 8 interpolation values needed
+      do n = 1, 8
+        !Get location of interpolation point
+        it = i + trix(n)
+        jt = j + triy(n)
+        kt = k + triz(n)
 
-      IF(iflag == 1)THEN  
-! translational velocity interpolation  
-
-        if(k ==  0)then
-
-         if( j == 0)then        !case 3L
-          v1 = tmpD(i,0)
-          v2 = tmpD(ip1,0)
-          v3 = tmpL(ip1,1)
-          v4 = tmpL(i,1)
-          v5 = tmpD(i,1)
-          v6 = tmpD(ip1,1)
-          if(idir == 1)then
-           v7 = ux(ip1,jp1,kp1)
-           v8 = ux(i,jp1,kp1)
-          endif
-          if(idir == 2)then
-           v7 = uy(ip1,jp1,kp1)
-           v8 = uy(i,jp1,kp1)
-          endif
-          if(idir == 3)then
-           v7 = uz(ip1,jp1,kp1)
-           v8 = uz(i,jp1,kp1)
-          endif
-
-         else if(jp1 > ly)then  !case 2L
-
-          v1 = tmpL(i,ly)
-          v2 = tmpL(ip1,ly)
-          v3 = tmpU(ip1,0)
-          v4 = tmpU(i,0)
-          if(idir == 1)then
-           v5 = ux(i,j,kp1)
-           v6 = ux(ip1,j,kp1)
-          endif
-          if(idir == 2)then
-           v5 = uy(i,j,kp1)
-           v6 = uy(ip1,j,kp1)
-          endif
-          if(idir == 3)then
-           v5 = uz(i,j,kp1)
-           v6 = uz(ip1,j,kp1)
-          endif
-          v7 = tmpU(ip1,1)
-          v8 = tmpU(i,1)
-
-         else                   !case 1L
-
-          v1 = tmpL(i,j)
-          v2 = tmpL(ip1,j)
-          v3 = tmpL(ip1,jp1)
-          v4 = tmpL(i,jp1)
-          if(idir == 1)then
-           v5 = ux(i,j,kp1)
-           v6 = ux(ip1,j,kp1)
-           v7 = ux(ip1,jp1,kp1)
-           v8 = ux(i,jp1,kp1)
-          endif
-          if(idir == 2)then
-           v5 = uy(i,j,kp1)
-           v6 = uy(ip1,j,kp1)
-           v7 = uy(ip1,jp1,kp1)
-           v8 = uy(i,jp1,kp1)
-          endif
-          if(idir == 3)then
-           v5 = uz(i,j,kp1)
-           v6 = uz(ip1,j,kp1)
-           v7 = uz(ip1,jp1,kp1)
-           v8 = uz(i,jp1,kp1)
-          endif
-         endif
-
-        else if(kp1 > lz)then 
-
-          if(j == 0)then        !case 3R
-           v1 = tmpD(i,lz)
-           v2 = tmpD(ip1,lz)
-           if(idir == 1)then
-            v3 = ux(ip1,jp1,k)
-            v4 = ux(i,jp1,k)
-           endif
-           if(idir == 2)then
-            v3 = uy(ip1,jp1,k)
-            v4 = uy(i,jp1,k)
-           endif
-           if(idir == 3)then
-            v3 = uz(ip1,jp1,k)
-            v4 = uz(i,jp1,k)
-           endif
-           v5 = tmpD(i,lz+1)
-           v6 = tmpD(ip1,lz+1)
-           v7 = tmpR(ip1,1)
-           v8 = tmpR(i,1)
-
-          else if(jp1 > ly)then !case 2R
-           if(idir == 1)then
-            v1 = ux(i,j,k)
-            v2 = ux(ip1,j,k)
-           endif
-           if(idir == 2)then
-            v1 = uy(i,j,k)
-            v2 = uy(ip1,j,k)
-           endif
-           if(idir == 3)then
-            v1 = uz(i,j,k)
-            v2 = uz(ip1,j,k)
-           endif
-           v3 = tmpU(ip1,lz)
-           v4 = tmpU(i,lz)
-           v5 = tmpR(i,ly)
-           v6 = tmpR(ip1,ly)
-           v7 = tmpU(ip1,lz+1)
-           v8 = tmpU(i,lz+1) 
-
-          else                  !case 1R
-           if(idir == 1)then
-            v1 = ux(i,j,k)
-            v2 = ux(ip1,j,k)
-            v3 = ux(ip1,jp1,k)
-            v4 = ux(i,jp1,k)
-           endif
-           if(idir == 2)then
-            v1 = uy(i,j,k)
-            v2 = uy(ip1,j,k)
-            v3 = uy(ip1,jp1,k)
-            v4 = uy(i,jp1,k)
-           endif
-           if(idir == 3)then
-            v1 = uz(i,j,k)
-            v2 = uz(ip1,j,k)
-            v3 = uz(ip1,jp1,k)
-            v4 = uz(i,jp1,k)
-           endif
-           v5 = tmpR(i,j)
-           v6 = tmpR(ip1,j)
-           v7 = tmpR(ip1,jp1)
-           v8 = tmpR(i,jp1)
-          endif
-
+        !If node point is outside our local domain
+        if(jt < 1)then
+          v(n) = tmpYm(it,kt)
+        elseif(jt > ly)then
+          v(n) = tmpYp(it,kt)
+        elseif(kt < 1)then
+          v(n) = tmpZm(it,jt)
+        elseif(kt > lz)then
+          v(n) = tmpZp(it,jt)
+        !If node point is in our local domain
         else
-
-          if(jp1 > ly)then          !case 5
-
-           if(idir == 1)then
-            v1 = ux(i,j,k)
-            v2 = ux(ip1,j,k)
-            v5 = ux(i,j,kp1)
-            v6 = ux(ip1,j,kp1)
-           endif
-           if(idir == 2)then
-            v1 = uy(i,j,k)
-            v2 = uy(ip1,j,k)
-            v5 = uy(i,j,kp1)
-            v6 = uy(ip1,j,kp1)
-           endif
-           if(idir == 3)then
-            v1 = uz(i,j,k)
-            v2 = uz(ip1,j,k)
-            v5 = uz(i,j,kp1)
-            v6 = uz(ip1,j,kp1)
-           endif
-           v3 = tmpU(ip1,k)
-           v4 = tmpU(i,k)
-           v7 = tmpU(ip1,kp1)
-           v8 = tmpU(i,kp1)
-
-          else if(j==0)then      !case 4 
-
-           v1 = tmpD(i,k)
-           v2 = tmpD(ip1,k)
-           v5 = tmpD(i,kp1)
-           v6 = tmpD(ip1,kp1)
-           if(idir == 1)then
-            v3 = ux(ip1,jp1,k)
-            v4 = ux(i,jp1,k)
-            v7 = ux(ip1,jp1,kp1)
-            v8 = ux(i,jp1,kp1)
-           endif
-           if(idir == 2)then
-            v3 = uy(ip1,jp1,k)
-            v4 = uy(i,jp1,k)
-            v7 = uy(ip1,jp1,kp1)
-            v8 = uy(i,jp1,kp1)
-           endif
-           if(idir == 3)then
-            v3 = uz(ip1,jp1,k)
-            v4 = uz(i,jp1,k)
-            v7 = uz(ip1,jp1,kp1)
-            v8 = uz(i,jp1,kp1)
-           endif
-
-          else !case for center region
-           if(idir == 1)then
-            v1 = ux(i,j,k)
-            v2 = ux(ip1,j,k)
-            v3 = ux(ip1,jp1,k)
-            v4 = ux(i,jp1,k)
-            v5 = ux(i,j,kp1)
-            v6 = ux(ip1,j,kp1)
-            v7 = ux(ip1,jp1,kp1)
-            v8 = ux(i,jp1,kp1)
-           endif
-           if(idir == 2)then
-            v1 = uy(i,j,k)
-            v2 = uy(ip1,j,k)
-            v3 = uy(ip1,jp1,k)
-            v4 = uy(i,jp1,k)
-            v5 = uy(i,j,kp1)
-            v6 = uy(ip1,j,kp1)
-            v7 = uy(ip1,jp1,kp1)
-            v8 = uy(i,jp1,kp1)
-           endif
-           if(idir == 3)then
-            v1 = uz(i,j,k)
-            v2 = uz(ip1,j,k)
-            v3 = uz(ip1,jp1,k)
-            v4 = uz(i,jp1,k)
-            v5 = uz(i,j,kp1)
-            v6 = uz(ip1,j,kp1)
-            v7 = uz(ip1,jp1,kp1)
-            v8 = uz(i,jp1,kp1)
-           endif
-
+          !Interpolate velocity
+          if(iflag == 1)then
+            if(idir == 1)then
+             v(n) = ux(it,jt,kt)
+            elseif(idir == 2)then
+             v(n) = uy(it,jt,kt)
+            elseif(idir == 3)then
+             v(n) = uz(it,jt,kt)
+            else
+              write(*,'(A39,I3)')'Trilinear (partlib.f90): Invalid idir: ', idir
+              write(*,'(A43)')'idir = 1 : x, idir = 2 : y, idir = 3 : z'
+            endif
+          !Interpolate vorticity
+          elseif(iflag == 2)then
+            if(idir == 1)then
+             v(n) = ox(it,jt,kt)
+            elseif(idir == 2)then
+             v(n) = oy(it,jt,kt)
+            elseif(idir == 3)then
+             v(n) = oz(it,jt,kt)
+            else
+              write(*,'(A39,I3)')'Trilinear (partlib.f90): Invalid idir: ', idir
+              write(*,'(A43)')'idir = 1 : x, idir = 2 : y, idir = 3 : z'
+            endif
+          else
+            write(*,'(A40,I3)')'Trilinear (partlib.f90): Invalid iflag: ', iflag
+            write(*,'(A43)')'iflag = 1 : velocity, iflag = 2 : vorticity'
           endif
-
         endif
+      enddo
 
-      ELSEIF(iflag == 2)THEN
-!! voritcity interpolation 
-        if(k ==  0)then
-
-         if( j == 0)then        !case 3L
-          v1 = tmpD(i,0)
-          v2 = tmpD(ip1,0)
-          v3 = tmpL(ip1,1)
-          v4 = tmpL(i,1)
-          v5 = tmpD(i,1)
-          v6 = tmpD(ip1,1)
-          if(idir == 1)then
-           v7 = ox(ip1,jp1,kp1)
-           v8 = ox(i,jp1,kp1)
-          endif
-          if(idir == 2)then
-           v7 = oy(ip1,jp1,kp1)
-           v8 = oy(i,jp1,kp1)
-          endif
-          if(idir == 3)then
-           v7 = oz(ip1,jp1,kp1)
-           v8 = oz(i,jp1,kp1)
-          endif
-
-
-         else if(jp1 > ly)then  !case 2L
-
-          v1 = tmpL(i,ly)
-          v2 = tmpL(ip1,ly)
-          v3 = tmpU(ip1,0)
-          v4 = tmpU(i,0)
-          if(idir == 1)then
-           v5 = ox(i,j,kp1)
-           v6 = ox(ip1,j,kp1)
-          endif
-          if(idir == 2)then
-           v5 = oy(i,j,kp1)
-           v6 = oy(ip1,j,kp1)
-          endif
-          if(idir == 3)then
-           v5 = oz(i,j,kp1)
-           v6 = oz(ip1,j,kp1)
-          endif
-          v7 = tmpU(ip1,1)
-          v8 = tmpU(i,1)
-
-         else                   !case 1L
-
-
-          v1 = tmpL(i,j)
-          v2 = tmpL(ip1,j)
-          v3 = tmpL(ip1,jp1)
-          v4 = tmpL(i,jp1)
-          if(idir == 1)then
-           v5 = ox(i,j,kp1)
-           v6 = ox(ip1,j,kp1)
-           v7 = ox(ip1,jp1,kp1)
-           v8 = ox(i,jp1,kp1)
-          endif
-          if(idir == 2)then
-           v5 = oy(i,j,kp1)
-           v6 = oy(ip1,j,kp1)
-           v7 = oy(ip1,jp1,kp1)
-           v8 = oy(i,jp1,kp1)
-          endif
-          if(idir == 3)then
-           v5 = oz(i,j,kp1)
-           v6 = oz(ip1,j,kp1)
-           v7 = oz(ip1,jp1,kp1)
-           v8 = oz(i,jp1,kp1)
-          endif
-         endif
-
-        else if(kp1 > lz)then
-
-          if(j == 0)then        !case 3R
-           v1 = tmpD(i,lz)
-           v2 = tmpD(ip1,lz)
-           if(idir == 1)then
-            v3 = ox(ip1,jp1,k)
-            v4 = ox(i,jp1,k)
-           endif
-           if(idir == 2)then
-            v3 = oy(ip1,jp1,k)
-            v4 = oy(i,jp1,k)
-           endif
-           if(idir == 3)then
-            v3 = oz(ip1,jp1,k)
-            v4 = oz(i,jp1,k)
-           endif
-           v5 = tmpD(i,lz+1)
-           v6 = tmpD(ip1,lz+1)
-           v7 = tmpR(ip1,1)
-           v8 = tmpR(i,1)
-
-
-          else if(jp1 > ly)then !case 2R
-           if(idir == 1)then
-            v1 = ox(i,j,k)
-            v2 = ox(ip1,j,k)
-           endif
-           if(idir == 2)then
-            v1 = oy(i,j,k)
-            v2 = oy(ip1,j,k)
-           endif
-           if(idir == 3)then
-            v1 = oz(i,j,k)
-            v2 = oz(ip1,j,k)
-           endif
-           v3 = tmpU(ip1,lz)
-           v4 = tmpU(i,lz)
-           v5 = tmpR(i,ly)
-           v6 = tmpR(ip1,ly)
-           v7 = tmpU(ip1,lz+1)
-           v8 = tmpU(i,lz+1)
-
-          else                  !case 1R
-           if(idir == 1)then
-            v1 = ox(i,j,k)
-            v2 = ox(ip1,j,k)
-            v3 = ox(ip1,jp1,k)
-            v4 = ox(i,jp1,k)
-           endif
-           if(idir == 2)then
-            v1 = oy(i,j,k)
-            v2 = oy(ip1,j,k)
-            v3 = oy(ip1,jp1,k)
-            v4 = oy(i,jp1,k)
-           endif
-           if(idir == 3)then
-            v1 = oz(i,j,k)
-            v2 = oz(ip1,j,k)
-            v3 = oz(ip1,jp1,k)
-            v4 = oz(i,jp1,k)
-           endif
-           v5 = tmpR(i,j)
-           v6 = tmpR(ip1,j)
-           v7 = tmpR(ip1,jp1)
-           v8 = tmpR(i,jp1)
-          endif
-
-        else
-
-          if(jp1 > ly)then          !case 5
-
-           if(idir == 1)then
-            v1 = ox(i,j,k)
-            v2 = ox(ip1,j,k)
-            v5 = ox(i,j,kp1)
-            v6 = ox(ip1,j,kp1)
-           endif
-           if(idir == 2)then
-            v1 = oy(i,j,k)
-            v2 = oy(ip1,j,k)
-            v5 = oy(i,j,kp1)
-            v6 = oy(ip1,j,kp1)
-           endif
-           if(idir == 3)then
-            v1 = oz(i,j,k)
-            v2 = oz(ip1,j,k)
-            v5 = oz(i,j,kp1)
-            v6 = oz(ip1,j,kp1)
-           endif
-           v3 = tmpU(ip1,k)
-           v4 = tmpU(i,k)
-           v7 = tmpU(ip1,kp1)
-           v8 = tmpU(i,kp1)
-
-         else if(j==0) then         !case 4
-           v1 = tmpD(i,k)
-           v2 = tmpD(ip1,k)
-           v5 = tmpD(i,kp1)
-           v6 = tmpD(ip1,kp1)
-           if(idir == 1)then
-            v3 = ox(ip1,jp1,k)
-            v4 = ox(i,jp1,k)
-            v7 = ox(ip1,jp1,kp1)
-            v8 = ox(i,jp1,kp1)
-           endif
-           if(idir == 2)then
-            v3 = oy(ip1,jp1,k)
-            v4 = oy(i,jp1,k)
-            v7 = oy(ip1,jp1,kp1)
-            v8 = oy(i,jp1,kp1)
-           endif
-           if(idir == 3)then
-            v3 = oz(ip1,jp1,k)
-            v4 = oz(i,jp1,k)
-            v7 = oz(ip1,jp1,kp1)
-            v8 = oz(i,jp1,kp1)
-           endif
-
-          else                       !case for center region
-
-           if(idir == 1)then
-            v1 = ox(i,j,k)
-            v2 = ox(ip1,j,k)
-            v3 = ox(ip1,jp1,k)
-            v4 = ox(i,jp1,k)
-            v5 = ox(i,j,kp1)
-            v6 = ox(ip1,j,kp1)
-            v7 = ox(ip1,jp1,kp1)
-            v8 = ox(i,jp1,kp1)
-           endif
-           if(idir == 2)then
-            v1 = oy(i,j,k)
-            v2 = oy(ip1,j,k)
-            v3 = oy(ip1,jp1,k)
-            v4 = oy(i,jp1,k)
-            v5 = oy(i,j,kp1)
-            v6 = oy(ip1,j,kp1)
-            v7 = oy(ip1,jp1,kp1)
-            v8 = oy(i,jp1,kp1)
-           endif
-           if(idir == 3)then
-            v1 = oz(i,j,k)
-            v2 = oz(ip1,j,k)
-            v3 = oz(ip1,jp1,k)
-            v4 = oz(i,jp1,k)
-            v5 = oz(i,j,kp1)
-            v6 = oz(ip1,j,kp1)
-            v7 = oz(ip1,jp1,kp1)
-            v8 = oz(i,jp1,kp1)
-           endif
-
-          endif
-
-        endif
-
-      END IF 
-
-
-!      if(id==1)then
-!      write(*,*)'id,idir,iflag,v1,v2,v3,v4,v5,v6,v7,v8 =',id,idir,iflag,v1,v2,v3,v4,v5,v6,v7,v8
-!      endif
-
-      v0 = tx0*ty0*tz0*v1 + tx*ty0*tz0*v2 + tx*ty*tz0*v3               &
-         + tx0*ty*tz0*v4 + tx0*ty0*tz*v5 +tx*ty0*tz*v6                 &
-         + tx*ty*tz*v7 + tx0*ty*tz*v8
-
-!      if(idir == 1 .and. iflag ==2)then
-!      write(*,*)'id,idir,iflag,v0 = ',id,idir,iflag,v0
-!      endif
+      !Interpolate
+      v0 = tx0*ty0*tz0*v(1) + tx*ty0*tz0*v(2) + tx*ty*tz0*v(3)  &
+         + tx0*ty*tz0*v(4) + tx0*ty0*tz*v(5) +tx*ty0*tz*v(6)    &
+         + tx*ty*tz*v(7) + tx0*ty*tz*v(8)
 
       end subroutine trilinear
-!===========================================================================
+!=============================================================================
+!@subroutine beads_links
+!@desc beads_links does a variety of functions. The main purpose of beads_links
+!      is to determine which velocity links cross a solid particle boundary.
+!      This subroutine also updates which nodes are inside a solid particle,
+!      which nodes will require filling, which MPI neighbors we require data for
+!      filling, and which distribution data we need from neighbors for inter-
+!      polation bounceback.
+!=============================================================================
       subroutine beads_links
       use var_inc
       implicit none
@@ -942,33 +536,31 @@
       real alphay, alphaz
       real,dimension(2*msize):: idfbeads, xfbeads, yfbeads, zfbeads
 
-      !Reset indexers and flag array
+      !Reset indexers and flag array for interpolation bounce back requests
       ipf_mymc = 0; ipf_mypc = 0; ipf_mzmc = 0; ipf_mzpc = 0
       iblinks(:,:,:) = 0
 
-      ibnodes(:,0,0:lz+1)=-1
-      ibnodes(:,ly+1,0:lz+1)=-1
-      ibnodes(:,1:ly,0)=-1
-      ibnodes(:,1:ly,lz+1)=-1
-
-      localReqData = .FALSE. !Reset fill request data
+      !Reset fill request data
+      localReqData = .FALSE.
       radp2 = rad + 2.d0
       nfbeads = 0
       nlink = 0
       nbfill = 0
       alphay = dfloat(indy*ly)+ 0.5d0
       alphaz = dfloat(indz*lz)+ 0.5d0
-! course search
+      
+      !Execute a global search for particles that are touching our local domain (course search)
       do id=1,npart
         yc = ypglb(2,id)
         zc = ypglb(3,id)
 
-        ! use the nearest particle center instead of the real center
+        !Use the nearest particle center instead of the real center
         if((yc - alphay) > dfloat(nyh)) yc = yc - dfloat(ny)
         if((yc - alphay) < -dfloat(nyh)) yc = yc + dfloat(ny)
         if((zc - alphaz) > dfloat(nzh)) zc = zc - dfloat(nz)
         if((zc - alphaz) < -dfloat(nzh)) zc = zc + dfloat(nz)
 
+        !If a solid particle is touching our local domain save its data
         if((alphay+ly+radp2)-yc > 0 .AND. (alphay-radp2)-yc < 0 &
             .AND. (alphaz+lz+radp2)-zc > 0 .AND. (alphaz-radp2)-zc < 0)then
           nfbeads = nfbeads + 1
@@ -979,7 +571,7 @@
         endif
       enddo
 
-! Fine search
+      !Interate across our local fluid domain (fine search)
       do i=1, lx
         do j=1, ly
           do k=1, lz
@@ -988,7 +580,9 @@
             zpnt = dfloat(k) - 1.d0 + alphaz
             bfilled = .FALSE.
 
+            !Loop through particles saved from the course search
             do 111 id=1, nfbeads
+              !Check to see if this node is close to the solid particle
               xc = xfbeads(id)
               xx0 = xpnt - xc
               if(xx0**2 > radp2**2)GO TO 111
@@ -1007,11 +601,14 @@
 
               if(sqrt(rr0) <= radp2)then
                 rr01 = rr0 - (rad*1.d0)**2
+                !If we are inside the solid particle update ibnodes and isnodes
                 if(rr01 <= 0.d0)then
                   ibnodes(i,j,k) = 1 
                   isnodes(i,j,k) = idfbeads(id)
                   bfilled = .TRUE.
+                !If not check links for solid particle boundary
                 else
+                  !Determine which node links are crossing the solid boundary
                   do ip = 1,npop-1
                     imove = i + cix(ip) 
                     jmove = j + ciy(ip)
@@ -1024,6 +621,8 @@
                     rr1 = xx1**2 + yy1**2 + zz1**2  
                     rr11 = rr1 - (rad*1.d0)**2  
 
+                    !If the neighboring node in the given direction is inside the solid particle
+                    !we know that this link crosses the solid boundary
                     if(rr11 <= 0.d0)then
                       nlink = nlink + 1
                       if(nlink.ge.maxlink)then
@@ -1031,6 +630,7 @@
                         stop
                       endif
 
+                      !Save link information
                       xlink(nlink) = i
                       ylink(nlink) = j
                       zlink(nlink) = k
@@ -1038,6 +638,7 @@
                       iplink(nlink) = ip
                       mlink(nlink) = idfbeads(id)
 
+                      !Calculate the position of the solid boundary on the link
                       aa = rr0 + rr1 - 2.d0*(xx0*xx1 + yy0*yy1 + zz0*zz1)
                       bb = xx1*(xx0-xx1) + yy1*(yy0-yy1) + zz1*(zz0-zz1)    
                       cc = rr11  
@@ -1045,34 +646,36 @@
                       alpha1 = sqrt(alpha0**2 - cc/aa)    
                       alpha = -alpha0 + alpha1
 
-                      alpha = 1.d0 - alpha
-                      !if(ip ==3 .and. i ==24 .and. j==49 .and. k ==1)write(*,*)aa,bb,cc,rr0,rr1,alpha0          
+                      alpha = 1.d0 - alpha      
                       alink(nlink) = alpha
 
                       if(alpha < 0.d0 .or. alpha > 1.d0)then 
                         write(*,*) 'fault: alpha = ', alpha, ' @ ilink(',      &
                                    ip, ', ', i, ', ', j, ', ', k, ')' 
                       end if
+                      !Check to see if we will need data from neighboring MPI tasks for interpolation
                       call parse_MPI_links(ip, i, j, k, alpha, nlink)
                       
                     end if
                   end do
                 end if
-              endif                      
-111          continue !npart
+              endif
 
+111          continue !npart
+              !If a node is not inside a bead and ibnodes is > 1, we know it needs to be filled
               if(.NOT. bfilled .AND. ibnodes(i,j,k) > 0)then
                 nbfill = nbfill + 1
-
                 if(nbfill.ge.maxbfill)then
                   write(*,'(A44,I5,I4)') 'Number of fill node exceeded array size, maxbfill: ',maxbfill, myid
                   stop
                 endif
 
+                !Safe filling data
                 xbfill(nbfill) = i
                 ybfill(nbfill) = j
                 zbfill(nbfill) = k
                 idbfill(nbfill) = isnodes(i,j,k)
+                !Correct ibnodes and isnodes
                 ibnodes(i,j,k) = -1
                 isnodes(i,j,k) = -1
 
@@ -1094,7 +697,8 @@
         enddo !y
       enddo !x
 
-!Update ghost nodes
+      !Update ghost in ibnodes nodes
+      !This is needed in beads filling and post streaming interpolation
       ibnodes(:,0:ly+1,0)=-1    
       ibnodes(:,0:ly+1,lz+1)=-1
       do k=0,lz+1,lz+1
@@ -1166,7 +770,16 @@
       enddo !z
 
       end subroutine beads_links
-!===========================================================================
+!=============================================================================
+!@subroutine parse_MPI_links
+!@desc Checks to see if we require any data from neighboring MPI tasks for 
+!      interpolation bounce back for a given node link that crosses a 
+!      solid boundary. If so add data to appropriate request arrays.
+!@param ipi = integer; direction of the link under consideration
+!@param i,j,k = integer; position node with the link under consideration
+!@param alpha = real; distance solid boundary is from the node 0>alpha>1
+!@param n = integer; unique index of given link
+!=============================================================================
       subroutine parse_MPI_links(ipi,i,j,k,alpha,n)
       use var_inc
 
@@ -1193,12 +806,15 @@
       jm2 = j - 2*iy
       km2 = k - 2*iz
       
+      !Determine which velocity direction is needed
       if(alpha > 0.5)then
         ip = ipopp(ipi)
         ip2 = ipopp(ipi)
+        !Mid-link bounce back handling on x boundaries
         if(im1 < 1 .or. im1 > lx)then
           goto 116
         elseif(im2 < 1 .or. im2 > lx)then
+          !Adjust for bounce back representation
           ip2 = ipi
           im2 = i - ix
           jm2 = j - iy
@@ -1207,14 +823,21 @@
       else
         ip = ipi
         ip2 = ipi
+        !Mid-link bounce back handling on x boundaries
         if(im1 < 1 .or. im1 > lx)then
           goto 116
         elseif(im2 < 1 .or. im2 > lx)then
-          im2f = .FALSE.
+          im2f = .FALSE. !No need to this if its out of bounds
         endif
       endif
 
       !Determine if we need to request data from neighboring tasks
+      !If the distribution needed is outside our local domain 4 things occur
+      !1. Indexers for storing request data are incremented (ipf_mymc, ipf_mypc, ipf_mzmc, ipf_mzpc)
+      !2. Request data of the distribution we need is stored with custom data type ipf_node (interpolation fluid node)
+      !3. A flag used to determine which array we get interpolation data from is stored in iblinks
+      !   (1 = mym, 2 = myp, 3 = mzm, 4 = mzp)
+      !4. The request array index is stored in iblinks for easy retrival of this data when needed
       if(jp1 < 1)then
         ipf_mymc = ipf_mymc + 1
         ipf_mym(ipf_mymc) = ipf_node(ipi, ip1, jp1, kp1)
@@ -1333,7 +956,13 @@
 116   continue
 
       end subroutine parse_MPI_links
-!===========================================================================
+!=============================================================================
+!@subroutine beads_collision
+!@desc Executes interpolated bounce back to represent the fluid bouncing off 
+!      a solid particle boundary. Reference Lallemand and Luo (2003) and 
+!      Bouzidia et al (2001) for information regard the interpolation scheme
+!      used. Note that this is constructed to function post streaming.
+!=============================================================================
       subroutine beads_collision
       use mpi 
       use var_inc
@@ -1347,7 +976,6 @@
       real w1, w2, w3, omg1, omg2, omg3 
       real c1, c2, c3, dff, dxmom, dymom, dzmom
       real xpnt, ypnt, zpnt
-      character (len = 100):: fnm2
 
       real,dimension(lx,ly,lz):: f9print,alphaprint,ff1print
       real, dimension(3,npart):: fHIp0, torqp0
@@ -1356,14 +984,16 @@
       fHIp0 = 0.0
       torqp0 = 0.0
 
+      !First get data needed from neighboring MPI tasks
       call exchng2direct(mymIpfRecv,mypIpfRecv,mzmIpfRecv,mzpIpfRecv)
 
+      !Parse through all boundary links found in beads_links
       do n = 1,nlink
 
         i = xlink(n)
         j = ylink(n)
         k = zlink(n)
-        ip = iplink(n)
+        ip = iplink(n)  
 
         id = mlink(n)
         alpha = alink(n)
@@ -1378,9 +1008,9 @@
         ypnt = real(j) - 0.5 + real(indy*ly)
         zpnt = real(k) - 0.5 + real(indz*lz)
 
-! use the nearest particle center instead of the real center
-!        if((xc - xpnt) > real(nxh)) xc = xc - real(nx)
-!        if((xc - xpnt) < -real(nxh)) xc = xc + real(nx)
+        !Use the nearest particle center instead of the real center
+        !if((xc - xpnt) > real(nxh)) xc = xc - real(nx) !Removed periodicity in x
+        !if((xc - xpnt) < -real(nxh)) xc = xc + real(nx)
 
         if((yc - ypnt) > real(nyh)) yc = yc - real(ny)
         if((yc - ypnt) < -real(nyh)) yc = yc + real(ny)
@@ -1420,26 +1050,30 @@
 
         uwpro = uwx*real(ix) + uwy*real(iy) + uwz*real(iz)
 
-       if(iblinks(0,1,n) == 0)then
+        !Get interpolation fluid node 1 inside the solid particle (fb)
+        !Use iblinks(0,1,:) to determine which array to get data from. (1 = mym, 2 = myp, 3 = mzm, 4 = mzp)
+        !Use iblinks(0,2,n) to get index of the distribution needed
+        if(iblinks(0,1,n) == 0)then
           ff1 = f(ip,ip1,jp1,kp1,s)
-       elseif(iblinks(0,1,n) == 1)then
+        elseif(iblinks(0,1,n) == 1)then
           ff1 = mymIpfRecv(iblinks(0,2,n))
-       elseif(iblinks(0,1,n) == 2)then
+        elseif(iblinks(0,1,n) == 2)then
           ff1 = mypIpfRecv(iblinks(0,2,n))
-       elseif(iblinks(0,1,n) == 3)then
+        elseif(iblinks(0,1,n) == 3)then
           ff1 = mzmIpfRecv(iblinks(0,2,n))
-       else
+        else
           ff1 = mzpIpfRecv(iblinks(0,2,n))
-       endif
+        endif
 
-! If alpha is > 0.5
+      !If the solid boundary's distance from the fluid node is > 0.5
        IF(alpha > 0.5)then
+        !Mid-link bounce back handling
         if(im1 < 1 .or. im1 > lx)then
           ff2 = f(ip,i,j,k,s)
           goto 112
         endif
-        !Get ff2
-        if(iblinks(1,1,n) == 0)then !Pre-Stream Location at interpolation node
+        !Get interpolation fluid node 2 (ff2)
+        if(iblinks(1,1,n) == 0)then
           ff2 = f(ipp,im1,jm1,km1,s)
         elseif(iblinks(1,1,n) == 1)then
           ff2 = mymIpfRecv(iblinks(1,2,n))
@@ -1450,17 +1084,19 @@
         else
           ff2 = mzpIpfRecv(iblinks(1,2,n))
         endif
-
+        !Node is out of bonds so set to IBNODES_TRUE
         if(im2 < 0 .or. im2 > lx+1)then
           ff3 = IBNODES_TRUE
           goto 112
-        endif  
-        !Get ff3
+        endif
+
+        !Get interpolation fluid node 3 (ff3)
         if(iblinks(2,1,n) == 0)then
           if(im2 == 0 .or. im2 == lx+1)then !If we're only one out use bounce back!
             ff3 = f(ip,im1,jm1,km1,s)
           else
-            if(ibnodes(im1,jm1,km1)>0)then !Check Pre-Stream Location
+            !Check Pre-Stream location for solid node conflicts
+            if(ibnodes(im1,jm1,km1)>0)then
               ff3 = IBNODES_TRUE
             else
               ff3 = f(ipp,im2,jm2,km2,s)
@@ -1475,35 +1111,39 @@
         else
           ff3 = mzpIpfRecv(iblinks(2,2,n))
         endif
-112     continue
 
-        if(ff3 > IBNODES_TRUE - 1)then! use 2-point interpolation
+112     continue
+        !If solid node conflict with ff3, use 2-point interpolation
+        if(ff3 > IBNODES_TRUE - 1)then
             c1 = 0.5 / alpha
             c2 = 1.0 - c1
             f(ipp,i,j,k,s) = c1*ff1 + c2*ff2 - 6.0*wwp(ip)*c1*uwpro
-        else! use 3-point interpolation scheme of Lallemand and Luo (2003) JCP
+        else !Use 3-point interpolation scheme
             c1 = 1.0 / alpha / (2.0*alpha + 1.0)
             c2 = (2.0*alpha - 1.0) / alpha
             c3 = 1.0 - c1 - c2
             f(ipp,i,j,k,s) = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ip)*c1*uwpro
         endif
 
-! If alpha is <= 0.5
+       !If the solid boundary's distance from the fluid node is <= 0.5
        ELSE
-        if(ibnodes(im1,jm1,km1)>0)then !Check Pre-Stream Location
+        !Check Pre-Stream location for solid node conflicts
+        if(ibnodes(im1,jm1,km1)>0)then
             ff2 = IBNODES_TRUE
             goto 113
         else
             ff2 = f(ip,i,j,k,s)
         endif
-
+        !ff3 is out of bounds so set to IBNODES_TRUE
         if(im1 < 1 .or. im1 > lx)then
           ff3 = IBNODES_TRUE
           goto 113
         endif
 
+        !Get interpolation fluid node 3 (ff3)
         if(iblinks(1,1,n) == 0)then
-          if(ibnodes(im2,jm2,km2)>0)then !Check Pre-Stream Location
+          !Check Pre-Stream location for solid node conflicts
+          if(ibnodes(im2,jm2,km2)>0)then
             ff3 = IBNODES_TRUE
           else
             ff3 = f(ip,im1,jm1,km1,s)
@@ -1519,12 +1159,12 @@
         endif
 113     continue
 
-        !*note* wwp weights are 1/2 the true value hence 6 instead of 3
-        if(ff2 > IBNODES_TRUE - 1)then ! no interpolation, use simple bounce back
+        !If solid node conflict with ff2, use simple bounce back with momentum term
+        if(ff2 > IBNODES_TRUE - 1)then
           f(ipp,i,j,k,s) = ff1 - 6.0*wwp(ip)*uwpro
-        else if(ff3 > IBNODES_TRUE - 1)then ! use 2-point interpolation
+        else if(ff3 > IBNODES_TRUE - 1)then !If solid node conflict with ff3, use 2-point interpolation
           f(ipp,i,j,k,s) = 2.0*alpha*(ff1 - ff2) + ff2 - 6.0*wwp(ip)*uwpro
-        else ! use 3-point interpolation scheme of Lallemand and Luo (2003) JCP
+        else !Use 3-point interpolation scheme
           c1 = alpha*(1.0 + 2.0*alpha)
           c2 = 1.0 - 4.0*alpha*alpha
           c3 = -alpha*(1.0 - 2.0*alpha)
@@ -1532,6 +1172,7 @@
         end if
        ENDIF
 
+       !Just a back up check to ensure something didn't go wrong, can get removed...
         if(abs(f(ipp,i,j,k,s)) > 1e-2)then
           write(*,*)'=',myid,f(ipp,i,j,k,s),alpha,'='
           write(*,*)ip,i,j,k,iblinks(0,1,n),iblinks(1,1,n),iblinks(2,1,n)
@@ -1540,7 +1181,7 @@
           write(*,*)ff1,ff2,ff3,n
         endif
 
-        ! compute force and torque acting on particles
+        !Compute force and torque acting on particles
         dff = ff1 + f(ipp,i,j,k,s)
         dxmom = dff*real(ix)
         dymom = dff*real(iy)
@@ -1556,18 +1197,21 @@
  
       end do     
 
-! collect info. for fHIp, and torqp
+      !Sum up forcing and torque on all solid particles across all MPI tasks
       ilen = 3*npart
-
       call MPI_BARRIER(MPI_COMM_WORLD,ierr)
-
-      call MPI_ALLREDUCE(fHIp0,fHIp,ilen,MPI_REAL8,MPI_SUM,             &
-                         MPI_COMM_WORLD,ierr)      
-      call MPI_ALLREDUCE(torqp0,torqp,ilen,MPI_REAL8,MPI_SUM,           &
-                         MPI_COMM_WORLD,ierr)
+      call MPI_ALLREDUCE(fHIp0, fHIp, ilen, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, ierr)      
+      call MPI_ALLREDUCE(torqp0, torqp, ilen, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, ierr)
 
       end subroutine beads_collision
-!===========================================================================
+!=============================================================================
+!@subroutine exchng2direct
+!@desc Handles the exchange of distribution data between MPI tasks needed for
+!      interpolation bounce back with the solid particles. Consult Nicholas
+!      Geneva for further algorithm details.
+!@param mymIpfRecv, mypIpfRecv, mzmIpfRecv, mzpIpfRecv = real array; stores
+!       distributions requested from neighboring MPI tasks.
+!=============================================================================
       subroutine exchng2direct(mymIpfRecv, mypIpfRecv, mzmIpfRecv, mzpIpfRecv)
       use mpi
       use var_inc
@@ -1589,16 +1233,17 @@
 
       ipf_mzmtc = 0; ipf_mzptc = 0;
 
-      ! Send/ Receive data from Y direction neighbors
+      !Send request arrays to Y direction neighbors
       call MPI_ISEND(ipf_myp(1:ipf_mypc), ipf_mypc, MPI_IPF_NODE, myp, 99, MPI_COMM_WORLD, req(1), ierr)
       call MPI_ISEND(ipf_mym(1:ipf_mymc), ipf_mymc, MPI_IPF_NODE, mym, 99, MPI_COMM_WORLD, req(2), ierr)
-
+      !Recieve requests from Y neighbors
       do i = 1, 2
+        !Note, this process allows us to recieve a dynamic amount of data!
         call MPI_PROBE(MPI_ANY_SOURCE, 99, MPI_COMM_WORLD, status, ierr)
         call MPI_GET_COUNT(status, MPI_IPF_NODE, count, ierr)
         allocate(ipfReq(count))
         call MPI_RECV(ipfReq, count, MPI_IPF_NODE, status(MPI_SOURCE), status(MPI_TAG), MPI_COMM_WORLD, status, ierr)
-        ! Allocate send buffers, and ajust cords to local grid
+        !Allocate send buffers, and adjust cordinates to local grid
         if(status(MPI_SOURCE) == myp)then
           allocate(mypIpfSend(count))
           mypIpfSend = 0
@@ -1623,19 +1268,23 @@
             ipf_mzmtc = ipf_mzmtc + 1
             ipf_mzmt(ipf_mzmtc) = ipfReq(j)
             mzmt_index(ipf_mzmtc) = cornerNode(j,dir)
-          else
+          else !If distribution is in local domain
             ip =  ipfReq(j)%ip
+            !Get pre stream location
             xm1 = ipfReq(j)%x-cix(ipfReq(j)%ip)
             ym1 = ipfReq(j)%y-ciy(ipfReq(j)%ip)
             zm1 = ipfReq(j)%z-ciz(ipfReq(j)%ip)
 
+            !Note that this assumes you have correctly handled wall boundary conditions in parseMPIlinks!
             if(status(MPI_SOURCE) == myp)then
+              !Check Pre-Stream location for solid node conflicts (Ignores x wall)
               if(ibnodes(xm1,ym1,zm1) > 0)then
                 mypIpfSend(j) = IBNODES_TRUE
               else
                 mypIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z,s)
               endif
             else
+              !Check Pre-Stream location for solid node conflicts (Ignores x wall)
               if(ibnodes(xm1,ym1,zm1) > 0)then
                 mymIpfSend(j) = IBNODES_TRUE
               else
@@ -1656,47 +1305,57 @@
         ipf_mzm(ipf_mzmc+j) = ipf_mzmt(j)
       enddo
 
-      ! Send/ Receive requests from Z direction neighbors
+      !Send request arrays to Z direction neighbors
       call MPI_ISEND(ipf_mzp(1:ipf_mzpc+ipf_mzptc), ipf_mzpc+ipf_mzptc, MPI_IPF_NODE, mzp, 98, MPI_COMM_WORLD, req(3), ierr)
       call MPI_ISEND(ipf_mzm(1:ipf_mzmc+ipf_mzmtc), ipf_mzmc+ipf_mzmtc, MPI_IPF_NODE, mzm, 98, MPI_COMM_WORLD, req(4), ierr)
-
+      !Recieve requests from Z neighbors
       do i = 1, 2
         call MPI_PROBE(MPI_ANY_SOURCE, 98, MPI_COMM_WORLD, status, ierr)
         call MPI_GET_COUNT(status, MPI_IPF_NODE, count, ierr)
         allocate(ipfReq(count))
         call MPI_RECV(ipfReq, count, MPI_IPF_NODE, status(MPI_SOURCE), status(MPI_TAG), MPI_COMM_WORLD, status, ierr)
-        ! Allocate send buffers with requested data and send
+
         if(status(MPI_SOURCE) == mzp)then
+          !Allocate send buffers, and adjust cordinates to local grid
           allocate(mzpIpfSend(count))
           zpcount = count
           ipfReq(:)%z = ipfReq(:)%z + lz
+
           do j=1, count
             ip =  ipfReq(j)%ip
+            !Get pre stream location
             xm1 = ipfReq(j)%x-cix(ipfReq(j)%ip)
             ym1 = ipfReq(j)%y-ciy(ipfReq(j)%ip)
             zm1 = ipfReq(j)%z-ciz(ipfReq(j)%ip)
+
             if(ibnodes(xm1,ym1,zm1) > 0)then
               mzpIpfSend(j) = IBNODES_TRUE
             else
               mzpIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z,s)
             endif
           enddo
+          !Send distribution data back
           call MPI_ISEND(mzpIpfSend, zpcount, MPI_REAL8, mzp, 97, MPI_COMM_WORLD, req(5), ierr)
         else
+          !Allocate send buffers, and adjust cordinates to local grid
           allocate(mzmIpfSend(count))
           zmcount = count
           ipfReq(:)%z = ipfReq(:)%z - lz
+
           do j=1, count
-              ip =  ipfReq(j)%ip
-              xm1 = ipfReq(j)%x-cix(ipfReq(j)%ip)
-              ym1 = ipfReq(j)%y-ciy(ipfReq(j)%ip)
-              zm1 = ipfReq(j)%z-ciz(ipfReq(j)%ip)
+            ip =  ipfReq(j)%ip
+            !Get pre stream location
+            xm1 = ipfReq(j)%x-cix(ipfReq(j)%ip)
+            ym1 = ipfReq(j)%y-ciy(ipfReq(j)%ip)
+            zm1 = ipfReq(j)%z-ciz(ipfReq(j)%ip)
+
             if(ibnodes(xm1,ym1,zm1) > 0)then
               mzmIpfSend(j) = IBNODES_TRUE
             else
               mzmIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z,s)
             endif
           enddo
+          !Send distribution data back
           call MPI_ISEND(mzmIpfSend, zmcount, MPI_REAL8, mzm, 97, MPI_COMM_WORLD, req(6), ierr)
         endif        
         deallocate(ipfReq)
@@ -1730,6 +1389,7 @@
         endif        
         deallocate(ipfRecv)
       enddo
+
       !Send/receive Y interpolation fluid node data to
       call MPI_IRECV(mypIpfRecv,ipf_mypc,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(7),ierr)
       call MPI_IRECV(mymIpfRecv,ipf_mymc,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(8),ierr)
@@ -1740,7 +1400,11 @@
       call MPI_WAITALL(10,req,status_array,ierr)
 
       end subroutine exchng2direct
-!==================================================================================
+!=============================================================================
+!@subroutine exchng2direct
+!@desc Calculates the lubrication forces acting on the particle from either
+!      other solid particles or walls
+!=============================================================================
       subroutine beads_lubforce
       use mpi 
       use var_inc
@@ -1758,24 +1422,24 @@
 
       flubp0 = 0.0
 
-! First particle-particle lubrication add-on
+      !Particle-particle lubrication add-on
+      !Parse through local solid particles
       do ii = 1,nps
         xc = yp(1,ii)
         yc = yp(2,ii)
         zc = yp(3,ii)
         id = ipglb(ii)
-                
-
+        
         if(id < npart)then
-
+        !Check other particles with a greater index
         do jj = id+1,npart
           xb = ypglb(1,jj)
           yb = ypglb(2,jj)
           zb = ypglb(3,jj)
 
-! use the nearest particle center instead of the real center
-         ! if((xb - xc) > real(nxh)) xb = xb - real(nx)
-         ! if((xb - xc) < -real(nxh)) xb = xb + real(nx)
+          !Use the nearest particle center instead of the real center
+          !if((xb - xc) > real(nxh)) xb = xb - real(nx)
+          !if((xb - xc) < -real(nxh)) xb = xb + real(nx)
 
           if((yb - yc) > real(nyh)) yb = yb - real(ny)
           if((yb - yc) < -real(nyh)) yb = yb + real(ny)
@@ -1790,81 +1454,66 @@
           dist = sqrt(dxij*dxij + dyij*dyij + dzij*dzij)
           hgap = dist - 2.0*rad
 
+          !If solid particles are too close add some forcing
+          !From Feng & Michaelides (2005) JCP 202, pp 20-51, eqn(28)
           if(dist < dist0)then
-! adopt from Feng & Michaelides (2005) JCP 202, pp 20-51, eqn(28)
             dist1 = 0.0
             if(hgap < 0.0) dist1 = -hgap
-
-            fp = (((dist0 - dist) / mingap)**2 / stf0                  &
-               + dist1 / mingap / stf1)*fpc
-          fpd = fp / dist 
+            fp = (((dist0 - dist) / mingap)**2 / stf0 + dist1 / mingap / stf1)*fpc
+            fpd = fp / dist 
           
-          flubp0(1,id) = flubp0(1,id) + fpd*dxij          
-          flubp0(2,id) = flubp0(2,id) + fpd*dyij          
-          flubp0(3,id) = flubp0(3,id) + fpd*dzij          
+            flubp0(1,id) = flubp0(1,id) + fpd*dxij          
+            flubp0(2,id) = flubp0(2,id) + fpd*dyij          
+            flubp0(3,id) = flubp0(3,id) + fpd*dzij          
 
-          flubp0(1,jj) = flubp0(1,jj) - fpd*dxij          
-          flubp0(2,jj) = flubp0(2,jj) - fpd*dyij          
-          flubp0(3,jj) = flubp0(3,jj) - fpd*dzij          
+            flubp0(1,jj) = flubp0(1,jj) - fpd*dxij          
+            flubp0(2,jj) = flubp0(2,jj) - fpd*dyij          
+            flubp0(3,jj) = flubp0(3,jj) - fpd*dzij          
           end if
           
         end do
         end if
       end do
       
-! Next particle-wall lubrication add-on
+      !Particle-wall lubrication add-on
       dist0 = mingap_w + rad
-
+      !Parse through local solid particles
       do ii = 1,nps
-      id = ipglb(ii)
+        id = ipglb(ii)
+        xd = yp(1,ii)
+        !Bottom wall
+        dist = xd
+        hgap = dist - rad
+        !If solid particle is too close to the the wall add some forcing
+        if (dist < dist0) then 
+          dist1 = 0.0
+          if(hgap < 0.0)  dist1 = -hgap
+          fp = (((dist0 - dist) / mingap_w)**2 / stf0_w + dist1 / mingap_w / stf1_w)*fpc
+          flubp0(1,id) = flubp0(1,id) + fp
+         end if
 
-      xd = yp(1,ii)
-
-! bottom wall first
-      dist = xd
-! the truncation distance of lubforce from walls
-      hgap = dist - rad
-      if (dist < dist0) then 
-!when the distance between particle and wall is less than mingap_w 
-! the wall start to give a lubforce to particles
-        dist1 = 0.0
-        if(hgap < 0.0)  dist1 = -hgap
-            fp = (((dist0 - dist) / mingap_w)**2 / stf0_w            &
-               + dist1 / mingap_w / stf1_w)*fpc
-        flubp0(1,id) = flubp0(1,id) + fp
-!       write(*,*)'id,fp=',id,fp
-       end if
-
-! top wall
-      dist = real(nx) - xd
-! the truncation distance of lubforce from walls
-      hgap = dist - rad
-      if (dist < dist0) then
-!when the distance between particle and wall is less than mingap_w &
-! the wall start to give a lubforce to particles
-        dist1 = 0.0
-        if(hgap < 0.0) dist1 = -hgap
-            fp = (((dist0 - dist) / mingap_w)**2 / stf0_w                  &
-               + dist1 / mingap_w / stf1_w)*fpc
+        !Top wall
+        dist = real(nx) - xd
+        hgap = dist - rad
+        !If solid particle is too close to the the wall add some forcing
+        if (dist < dist0) then
+          dist1 = 0.0
+          if(hgap < 0.0) dist1 = -hgap
+          fp = (((dist0 - dist) / mingap_w)**2 / stf0_w + dist1 / mingap_w / stf1_w)*fpc
           flubp0(1,id) = flubp0(1,id) - fp
-!         write(*,*)'id,fp=',id,fp
-       end if
- 
+         end if
       end do
 
-! collect info. for flubp
+      !Sum up forcing on all solid particles across all MPI tasks
       ilen = 3*npart
-
-      call MPI_ALLREDUCE(flubp0,flubp,ilen,MPI_REAL8,MPI_SUM,           &
-                         MPI_COMM_WORLD,ierr)      
-
-!      do ii=1,npart
-!      if(myid==0)write(*,*)'istep,i,flubp(:,ii)',istep,ii,flubp(:,ii)
-!      enddo
+      call MPI_ALLREDUCE(flubp0, flubp, ilen, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, ierr)      
 
       end subroutine beads_lubforce
-!===========================================================================
-
+!=============================================================================
+!@subroutine beads_move
+!@desc Uses forcing values to update solid particles position, angular 
+!      displacment, velocity, and rotational velocity
+!=============================================================================
       subroutine beads_move
       use mpi 
       use var_inc
@@ -1882,89 +1531,64 @@
 
       if(istep == irelease) thetap = 0.0
 
-! save as previous values for wp and omgp 
+      !Save as previous values for wp and omgp 
       wpp = wp
       omgpp = omgp
-
       call MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
+      !Parse through local solid particles
       do ip = 1,nps
         id = ipglb(ip)
-
-
-! update particle translational velocity
+        !Combine fluid ounce back forces and lubrication forces
         forcep(:,ip) = fHIp(:,id) + flubp(:,id)
         
+        !If gravity is desired in "-x" dir
+        !forcep(1,ip) = forcep(1,ip) - volp*rhog
 
-
-!       if(myid==0 .and. ip==1)then
-!       write(*,*)'ip',ip,'fHIp(:,id)',fHIp(:,id),'flubp(:,id)',flubp(:,id),'forcep(:,ip)',forcep(:,ip)
-!       endif
-
-
-! if gravity is desired in "-x" dir
-!       forcep(1,ip) = forcep(1,ip) - volp*rhog
-! Add the pressure-gradient force for the particle in "+y" direction
+        !Add the pressure-gradient force for the particle in "+y" direction
         forcep(2,ip) = forcep(2,ip) + volp*force_in_y
 
-
+        !Update particle translational velocity
         if(istep == irelease) forcepp(:,ip) = forcep(:,ip)
         dwdtn = 0.5*(forcep(:,ip) + forcepp(:,ip)) / amp
-
         if(istep == irelease) dwdt(:,ip) = dwdtn
         wp(:,id) = wpp(:,id) + 0.5*dt*(dwdt(:,ip) + dwdtn)
 
-
-! update particle position
+        !Update particle position
         yp(:,ip) = yp(:,ip) + 0.5*dt*(wp(:,id) + wpp(:,id))        
  
-! update particle angular velocity
+        !Update particle angular velocity
         if(istep == irelease) torqpp(:,ip) = torqp(:,id)
         domgdtn = 0.5*(torqp(:,id) + torqpp(:,ip)) / aip
-
         if(istep == irelease) domgdt(:,ip) = domgdtn
         omgp(:,id) = omgpp(:,id) + 0.5*dt*(domgdt(:,ip) + domgdtn)
 
-
-! update particle angular displacement
+        !Update particle angular displacement
         thetap(:,ip) = thetap(:,ip) + 0.5*dt*(omgp(:,id) + omgpp(:,id))
 
-! update d(wp)/dt, d(omgp)/dt
-!        dwdt(:,ip) = (wp(:,id) - wpp(:,id)) / dt  
+        !Update d(wp)/dt, d(omgp)/dt
+        !dwdt(:,ip) = (wp(:,id) - wpp(:,id)) / dt  
         dwdt(:,ip) = dwdtn 
 
-!        domgdt(:,ip) = (omgp(:,id) - omgpp(:,id)) / dt
+        !domgdt(:,ip) = (omgp(:,id) - omgpp(:,id)) / dt
         domgdt(:,ip) = domgdtn  
 
-! save as previous values
+        !Save as previous values for central differencing
         forcepp(:,ip) = forcep(:,ip)
-
         torqpp(:,ip) = torqp(:,id)
-
-! update wp0 and mgp0 
+ 
         wp0(:,id) = wp(:,id)
-
         omgp0(:,id) = omgp(:,id)
 
       end do
 
-! save as previous values for ibnodes and isnodes
+      !Save as previous values for ibnodes and isnodes
       ibnodes0 = ibnodes
 
-! update info. for wp and omgp
+      !Collect velocity and rotational velocity data for all solid particles
       ilen = 3*npart
-
-
-!      write(*,*)'myid,wp0',myid,wp0
-!      write(*,*)'myid,omgp0',myid,omgp0
-
       call MPI_ALLREDUCE(wp0,wp,ilen,MPI_REAL8,MPI_SUM,MPI_COMM_WORLD,ierr)
       call MPI_ALLREDUCE(omgp0,omgp,ilen,MPI_REAL8,MPI_SUM,MPI_COMM_WORLD,ierr)
-
-!       if(myid==0)then
-!       write(*,*)'wp =',wp
-!       write(*,*)'omgp = ',omgp
-!       endif
 
       end subroutine beads_move
 !===========================================================================
@@ -2367,8 +1991,10 @@
       end if
 
       end subroutine concat
-!===========================================================================
-
+!=============================================================================
+!@subroutine beads_filling
+!@desc Repopulates nodes that previously existed inside a solid particle.
+!=============================================================================
       subroutine beads_filling
       use mpi
       use var_inc
@@ -2384,21 +2010,22 @@
       real xp1, yp1, zp1, xp2, yp2, zp2
       real xx0, yy0, zz0, prod0, prod
       real rho9, u9, v9, w9
-!Temporary array for sending filling request data      
-      logical, dimension(nproc*8):: temp
+      !Temporary array for sending filling request data      
+      logical, dimension(nproc*8):: tempFlags
 
       real, dimension(0:npop-1):: f9, feq9 
 
-! Gather all request data
-      call MPI_ALLGATHER(localReqData, 8, MPI_LOGICAL, temp, 8, MPI_LOGICAL, MPI_COMM_WORLD, ierr)
-! Gather dumps into 1d array, lets convert it to a 2d for better intuition
+      !Gather all fill flags for all MPI tasks
+      call MPI_ALLGATHER(localReqData, 8, MPI_LOGICAL, tempFlags, 8, MPI_LOGICAL, MPI_COMM_WORLD, ierr)
+      !Gather dumps into 1d array, lets convert it to a 2d for better intuition
       do n=0, nproc-1
-        fillMPIrequest(n,:) = temp(n*8+1:n*8+8)
+        fillMPIrequest(n,:) = tempFlags(n*8+1:n*8+8)
       enddo
 
-! Send and recieve data for filling
-      call exchng5
+      ! Send and recieve data for filling
+      call exchngFill
 
+      !Parse through fill nodes
       do n=1, nbfill
         id = idbfill(n)
         xc = ypglbp(1,id)*1.d0      
@@ -2413,9 +2040,9 @@
         ypnt = dfloat(j) - 0.5d0 + dfloat(indy*ly)   
         zpnt = dfloat(k) - 0.5d0 + dfloat(indz*lz)
 
-! use the nearest particle center instead of the real center
-!      if((xc - xpnt) > dfloat(nxh)) xc = xc - dfloat(nx)
-!      if((xc - xpnt) < -dfloat(nxh)) xc = xc + dfloat(nx)
+        !Use the nearest particle center instead of the real center
+        !if((xc - xpnt) > dfloat(nxh)) xc = xc - dfloat(nx)
+        !if((xc - xpnt) < -dfloat(nxh)) xc = xc + dfloat(nx)
 
         if((yc - ypnt) > dfloat(nyh)) yc = yc - dfloat(ny)
         if((yc - ypnt) < -dfloat(nyh)) yc = yc + dfloat(ny)
@@ -2445,8 +2072,8 @@
         yp1 = ypnt + w2*ddt
         zp1 = zpnt + w3*ddt
 
-! (xp2, yp2, zp2) is the point on the particle surface. It is THROUGH this
-! point the previous solid node (xpnt, ypnt, zpnt) moves to fluid region.
+        ! (xp2, yp2, zp2) is the point on the particle surface. It is THROUGH this
+        ! point the previous solid node (xpnt, ypnt, zpnt) moves to fluid region.
         xp2 = xp1 + (omg2*(zp1-zc) - omg3*(yp1-yc))*ddt
         yp2 = yp1 + (omg3*(xp1-xc) - omg1*(zp1-zc))*ddt
         zp2 = zp1 + (omg1*(yp1-yc) - omg2*(xp1-xc))*ddt
@@ -2455,10 +2082,10 @@
         yy0 = yp2 - yc
         zz0 = zp2 - zc
 
-! Lallemand and Luo, JCP 184, 2003, pp.414
-! identify ipmx, the discrete velocity direction which maximizes the
-! quantity n^(hat) dot e_alpha, where n^(hat) is the out-normal vector
-! of the wall at the point (xp2, yp2, zp2).
+        ! Lallemand and Luo, JCP 184, 2003, pp.414
+        ! identify ipmx, the discrete velocity direction which maximizes the
+        ! quantity n^(hat) dot e_alpha, where n^(hat) is the out-normal vector
+        ! of the wall at the point (xp2, yp2, zp2).
         prod0 = -100.0
         do ipop = 1,npop-1
           ix = cix(ipop)
@@ -2472,10 +2099,10 @@
           end if
         end do
 
-! Caiazzo A. progress in CFD, vol. 8, 2008
-! equilibrium + non-equilibrium refill
-! first obtain the non-equilibrium part by copying from the neighbouring
-! fluid node along the ipmx direction
+        ! Caiazzo A. progress in CFD, vol. 8, 2008
+        ! equilibrium + non-equilibrium refill
+        ! first obtain the non-equilibrium part by copying from the neighbouring
+        ! fluid node along the ipmx direction
         ix = cix(ipmx)
         iy = ciy(ipmx)
         iz = ciz(ipmx)
@@ -2484,42 +2111,41 @@
         jp1 = j + iy
         kp1 = k + iz
 
-! periodicity
-!     if(ip1 < 1) ip1 = ip1 + lx
-!     if(ip1 > lx) ip1 = ip1 - lx
+        !Periodicity (Removed because of wall)
+        !if(ip1 < 1) ip1 = ip1 + lx
+        !if(ip1 > lx) ip1 = ip1 - lx
 
-          ibp1 = ibnodes(ip1,jp1,kp1)
-          ib0p1 = ibnodes0(ip1,jp1,kp1)
-!!!!!
-          IF(ibp1 < 0 .and. ib0p1 < 0)THEN
+        ibp1 = ibnodes(ip1,jp1,kp1)
+        ib0p1 = ibnodes0(ip1,jp1,kp1)
+
+        IF(ibp1 < 0 .and. ib0p1 < 0)THEN
           rho9 = 0.0 
           u9 = 0.0
           v9 = 0.0
           w9 = 0.0
-        
-            if(jp1 > ly) then
-            f9 = fillRecvYp(:,ip1,kp1)
-            else if (jp1 < 1) then
-            f9 = fillRecvYm(:,ip1,kp1)
+      
+          if(jp1 > ly) then
+          f9 = fillRecvYp(:,ip1,kp1)
+          else if (jp1 < 1) then
+          f9 = fillRecvYm(:,ip1,kp1)
+          else
+            if(kp1 > lz) then
+            f9 = fillRecvZp(:,ip1,jp1)
+            else if(kp1 < 1 ) then
+            f9 = fillRecvZm(:,ip1,jp1)
             else
-              if(kp1 > lz) then
-              f9 = fillRecvZp(:,ip1,jp1)
-              else if(kp1 < 1 ) then
-              f9 = fillRecvZm(:,ip1,jp1)
-              else
-              f9 = f(:,ip1,jp1,kp1,s)
-              end if
+            f9 = f(:,ip1,jp1,kp1,s)
             end if
-   
-          do ipop = 0,npop-1
-            rho9 = rho9 + f9(ipop)  
-            u9 = u9 + real(cix(ipop))*f9(ipop)    
-            v9 = v9 + real(ciy(ipop))*f9(ipop)   
-            w9 = w9 + real(ciz(ipop))*f9(ipop)   
-          end do
-          call feqpnt(u9,v9,w9,rho9,feq9)
-! note: below LHS = f(:,i,j,k), NOT f9(:,i,j,k)
-          f(:,i,j,k,s) = f9 - feq9
+          end if
+ 
+        do ipop = 0,npop-1
+          rho9 = rho9 + f9(ipop)  
+          u9 = u9 + real(cix(ipop))*f9(ipop)    
+          v9 = v9 + real(ciy(ipop))*f9(ipop)   
+          w9 = w9 + real(ciz(ipop))*f9(ipop)   
+        end do
+        call feqpnt(u9,v9,w9,rho9,feq9)
+        f(:,i,j,k,s) = f9 - feq9
         ELSE
           f(:,i,j,k,s) = 0.0
         END IF
@@ -2603,9 +2229,16 @@
       end do
 
       end subroutine beads_filling
-!===========================================================================
-
-      subroutine exchng5
+!=============================================================================
+!@subroutine exchngFill
+!@desc Exchanges information needed for repopulating fluid nodes in beads_filling
+!      This follows a flag based algorithm. If a MPI needs some data from
+!      a given neighbor it sets the respective flag to true in beads_links. 
+!      These flags are distributed across all MPI task which allows any MPI 
+!      task to determine which neighbors it will be sending or recieving data 
+!      from. For further details contact Nicholas Geneva.
+!=============================================================================
+      subroutine exchngFill
       use mpi
       use var_inc
       implicit none
@@ -2620,24 +2253,24 @@
       ilenz = npop*lx*ly
       ileny = npop*lx*(lz+2)
       nreq = 0
-! Recieving Z+
+      !Recieving Z+
       if(fillMPIrequest(myid,1) .or. fillMPIrequest(mym,6) .or. fillMPIrequest(myp,5))then
         nreq = nreq + 1
         utempinit = .TRUE.
         call MPI_IRECV(fillRecvZp,ilenz,MPI_REAL8,mzp,0,MPI_COMM_WORLD,req(nreq),ierr)
       endif
-! Recieving Z-
+      !Recieving Z-
       if(fillMPIrequest(myid,2) .or. fillMPIrequest(mym,8) .or. fillMPIrequest(myp,7))then
         nreq = nreq + 1
         dtempinit = .TRUE.
         call MPI_IRECV(fillRecvZm,ilenz,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(nreq),ierr)
       endif
-! Sending Z+
+      !Sending Z+
       if(fillMPIrequest(mzp,2) .or. fillMPIrequest(mymzp,8) .or. fillMPIrequest(mypzp,7))then
         nreq = nreq + 1
         call MPI_ISEND(f(:,:,:,lz,s),ilenz,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(nreq),ierr)
       endif
-! Sending Z-
+      !Sending Z-
       if(fillMPIrequest(mzm,1) .or. fillMPIrequest(mymzm,6) .or. fillMPIrequest(mypzm,5))then
         nreq = nreq + 1
         call MPI_ISEND(f(:,:,:,1,s),ilenz,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(nreq),ierr)
@@ -2648,27 +2281,29 @@
       endif
       nreq = 0
 
-!Receiving Y-
+      !Receiving Y-
       if(fillMPIrequest(myid,3))then
         nreq = nreq + 1
         call MPI_IRECV(fillRecvYm,ileny,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(nreq),ierr)
       endif
-!Recieving Y+
+      !Recieving Y+
       if(fillMPIrequest(myid,4))then
         nreq = nreq + 1
         call MPI_IRECV(fillRecvYp,ileny,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(nreq),ierr)
       endif
-!Sending Y-
+      !Sending Y-
       if(fillMPIrequest(mym,4))then
         nreq = nreq + 1
+        !If we have corner data from the z neighbors that needs to be sent add it
         if(dtempinit) tmpYm(:,:,0) = fillRecvZm(:,:,1)
         tmpYm(:,:,1:lz) = f(:,:,1,:,s)
         if(utempinit) tmpYm(:,:,lz+1) = fillRecvZp(:,:,1)
         call MPI_ISEND(tmpYm,ileny,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(nreq),ierr)
       endif
-! Sending Y+
+      !Sending Y+
       if(fillMPIrequest(myp,3))then
         nreq = nreq + 1
+        !If we have corner data from the z neighbors that needs to be sent add it
         if(dtempinit) tmpYp(:,:,0) = fillRecvZm(:,:,ly)
         tmpYp(:,:,1:lz) = f(:,:,ly,:,s)
         if(utempinit) tmpYp(:,:,lz+1) = fillRecvZp(:,:,ly)
@@ -2679,9 +2314,14 @@
         call MPI_WAITALL(nreq,req,status_array,ierr)
       endif
 
-      end subroutine exchng5
-!===========================================================================
-
+      end subroutine exchngFill
+!=============================================================================
+!@subroutine feqpnt
+!@desc Calculates equilibirum distributions based of given input parameters
+!@param u9,v9,w9 = real; macro-scopic velocities at the given point
+!@param rho9 = real; density at the given point
+!@param feq9 = real array; stores calculated equilibrium distribution
+!=============================================================================
       subroutine feqpnt(u9,v9,w9,rho9,feq9)
       use mpi
       use var_inc
@@ -2708,4 +2348,3 @@
       end do
 
       end subroutine feqpnt 
-!===========================================================================
