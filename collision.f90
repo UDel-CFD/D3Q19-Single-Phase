@@ -1,10 +1,10 @@
-!===========================================================================
-! This subroutine is based on element-wise operations to increase efficiency.
-! Tests show that this can reduce the running time compared
-! with array operations, due to the elimination of unnecessary operations
-! involving the "zero" elements of the sparce matrix [M], which transfers 
-! velocity space into moment space.
-
+!=============================================================================
+!@subroutine collision_MRT 
+!@desc Executes collision and propagation of the fluid. Current follows the
+!      two-array algorythm which fuses collision and propagation together
+!      into a single step. Calculations have be movef to element-wise
+!      operations to help increase performance. May change in the future.
+!=============================================================================
       subroutine collision_MRT    
       use mpi
       use var_inc
@@ -30,20 +30,18 @@
       integer ip, ix, iy, iz, imove, jmove, kmove, snext
       real fx9,fy9,fz9,G1,G2,G3
 
-      tmpzpS(:,:,:) = 1 
-      tmpzmS(:,:,:) = 2
-      tmpypS(:,:,:) = 3
-      tmpymS(:,:,:) = 4
-
+      !Determine which array we will place updated distributions into
       if(s .eq. 1)then
         snext = 2
       else
         snext = 1
       endif
 
+      !Index through fluid nodes
       do iz = 1,lz
       do iy = 1,ly
       do ix = 1,lx
+      !If we are not in a solid particle execute collision
       if(ibnodes(ix,iy,iz) < 0)then
 
         rho9 = rho(ix,iy,iz)
@@ -54,7 +52,7 @@
         uy9s = uy9*uy9
         uz9s = uz9*uz9
 
-!I'm merging the forcing term with the collision operator
+        !Merging the forcing term with the collision operator
         fx9 = force_realx(ix,iy,iz)
         fy9 = force_realy(ix,iy,iz)
         fz9 = force_realz(ix,iy,iz)
@@ -212,6 +210,8 @@
         f9(17) = sumb + sum89 - sum1011 + sump - tl17 + tl20 + tl21
         f9(18) = sumb - sum89 - sum1011 + sump + tl17 - tl20 + tl21
         
+        !Place updated distributions into post-stream locations
+        !If that location is ina MPI neighbor place into proper send buffer
         do ip = 0,npop-1
           imove = ix + cix(ip) 
           jmove = iy + ciy(ip)
@@ -230,22 +230,30 @@
             f(ip,imove,jmove,kmove,snext) = f9(ip) + 0.5*Fbar(ip)
           endif
         enddo
+      
       endif
+      end do !x
+      end do !y
+      end do !z
 
-      end do
-      end do
-      end do
-
+      !Update two-array switch which indicates which array contians the updated distributions
       if(s .eq. 1)then
         s = 2
       else
         s =1
       endif
 
+      !Exchange information with MPI neighbors to update edges
       call collisionExchnge(tmpymS,tmpypS,tmpzmS,tmpzpS)
 
       end subroutine collision_MRT
-!===================================================================
+!=============================================================================
+!@subroutine collisionExchnge 
+!@desc Exchanges updated fluid distributions between neighboring MPI tasks and
+!      updates the local domains edges with distributions recieved
+!@param tmpymSi,tmpypSi,tmpzmSi,tmpzpSi = real array; contains fluid
+!       distributions that need to be passed to nieghboring MPI tasks
+!=============================================================================
       subroutine collisionExchnge(tmpymSi,tmpypSi,tmpzmSi,tmpzpSi)
       use var_inc
       use mpi
@@ -258,6 +266,8 @@
       real, dimension(5,lx,0:lz+1):: tmpypS, tmpymS, tmpypR, tmpymR
       real, dimension(5,lx,ly):: tmpzpS, tmpzmS, tmpzmR, tmpzpR
 
+      !Create send buffers
+      !Note that we only pass the distributions needed to decrease message size
       tmpypS(1,:,:) = tmpypSi(3,:,:)
       tmpypS(2,:,:) = tmpypSi(7,:,:)
       tmpypS(3,:,:) = tmpypSi(8,:,:)
@@ -271,6 +281,7 @@
       tmpymS(5,:,:) = tmpymSi(18,:,:)
 
       ilen = 5 * lx * (lz + 2)
+      !Send/Recieve updated distributions with Y MPI neighbors
       call MPI_IRECV(tmpymR,ilen,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(1),ierr)
       call MPI_IRECV(tmpypR,ilen,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(2),ierr)
 
@@ -278,6 +289,8 @@
       call MPI_ISEND(tmpypS,ilen,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(4),ierr)
       call MPI_WAITALL(4,req,status_array,ierr)
 
+      !Update local domain Y edge nodes
+      !Note we must account for wall bounce back here!
       f(3,:,1,:,s) = tmpymR(1,:,1:lz)
       f(7,2:lx,1,:,s) = tmpymR(2,2:lx,1:lz)
       f(8,1:lx-1,1,:,s) = tmpymR(3,1:lx-1,1:lz)
@@ -290,11 +303,13 @@
       f(16,:,ly,:,s) = tmpypR(4,:,1:lz)
       f(18,:,ly,:,s) = tmpypR(5,:,1:lz)
       
+      !Add corner distributions to Z buffer
       tmpzmSi(17,:,1) = tmpymR(5,:,0)
       tmpzmSi(18,:,ly) = tmpypR(5,:,0)
       tmpzpSi(15,:,1) = tmpymR(4,:,lz+1)
       tmpzpSi(16,:,ly) = tmpypR(4,:,lz+1)
 
+      !Add local data to Z send buffers
       tmpzpS(1,:,:) = tmpzpSi(5,:,:)
       tmpzpS(2,:,:) = tmpzpSi(11,:,:)
       tmpzpS(3,:,:) = tmpzpSi(12,:,:)
@@ -308,6 +323,7 @@
       tmpzmS(5,:,:) = tmpzmSi(18,:,:)
 
       ilen = 5*lx*ly
+      !Send/Recieve updated distributions with Z MPI neighbors
       call MPI_IRECV(tmpzmR,ilen,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(1),ierr)
       call MPI_IRECV(tmpzpR,ilen,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(2),ierr)
 
@@ -315,6 +331,8 @@
       call MPI_ISEND(tmpzpS,ilen,MPI_REAL8,mzp,0,MPI_COMM_WORLD,req(4),ierr)
       call MPI_WAITALL(4,req,status_array,ierr)
 
+      !Update local domain Z edge nodes
+      !Note we must account for wall bounce back here!
       f(5,:,:,1,s) = tmpzmR(1,:,:)
       f(11,2:lx,:,1,s) = tmpzmR(2,2:lx,:)
       f(12,1:lx-1,:,1,s) = tmpzmR(3,1:lx-1,:)
@@ -327,23 +345,12 @@
       f(17,:,:,lz,s) = tmpzpR(4,:,:)
       f(18,:,:,lz,s) = tmpzpR(5,:,:)
 
-
       end subroutine
-!===================================================================
-      subroutine rhoupdat 
-      use var_inc
-      implicit none 
-
-      integer ip
-
-      rho = f(0,:,:,:,s)
-      do ip = 1,npop-1
-        rho = rho + f(ip,:,:,:,s)
-      end do
-
-      end subroutine rhoupdat 
-!===================================================================
-
+!=============================================================================
+!@subroutine macrovar 
+!@desc Calculates macroscopic fluid properties density(rho), x-velocity(ux),
+!      y-velocity(uy), and z-velocity(uz)
+!=============================================================================
       subroutine macrovar 
       use var_inc
       implicit none 
@@ -358,93 +365,97 @@
       real  rho9
       real, dimension(0:npop-1) :: f9
 
+      !Calculate denisty and velocities of the fluid
       do iz = 1,lz
       do iy = 1,ly
       do ix = 1,lx
-      f9 = f(:,ix,iy,iz,s)
+        if(ibnodes(i,j,k) < 0)then
+          !If we are not inside a solid particle
+          f9 = f(:,ix,iy,iz,s)
 
-      sum1 = f9(7) - f9(10)
-      sum2 = f9(9) - f9(8)
+          sum1 = f9(7) - f9(10)
+          sum2 = f9(9) - f9(8)
 
-      sum3 = f9(11) - f9(14)
-      sum4 = f9(13) - f9(12)
+          sum3 = f9(11) - f9(14)
+          sum4 = f9(13) - f9(12)
 
-      sum5 = f9(15) - f9(18)
-      sum6 = f9(17) - f9(16)
+          sum5 = f9(15) - f9(18)
+          sum6 = f9(17) - f9(16)
 
-      ux9 = f9(1) - f9(2) + sum1 + sum2 + sum3 + sum4
-      uy9 = f9(3) - f9(4) + sum1 - sum2 + sum5 + sum6
-      uz9 = f9(5) - f9(6) + sum3 - sum4 + sum5 - sum6
+          ux9 = f9(1) - f9(2) + sum1 + sum2 + sum3 + sum4
+          uy9 = f9(3) - f9(4) + sum1 - sum2 + sum5 + sum6
+          uz9 = f9(5) - f9(6) + sum3 - sum4 + sum5 - sum6
 
-      rho9 = f9(0)+f9(1)+f9(2)+f9(3)+f9(4)+f9(5)+f9(6)&
-           +f9(7)+f9(8)+f9(9)+f9(10)+f9(11)+f9(12)&
-          + f9(13)+f9(14)+f9(15)+f9(16)+f9(17)+f9(18)
+          rho9 = f9(0)+f9(1)+f9(2)+f9(3)+f9(4)+f9(5)+f9(6)&
+               +f9(7)+f9(8)+f9(9)+f9(10)+f9(11)+f9(12)&
+              + f9(13)+f9(14)+f9(15)+f9(16)+f9(17)+f9(18)
 
-      ux(ix,iy,iz) = ux9 + force_realx(ix,iy,iz)/2.
-      uy(ix,iy,iz) = uy9 + force_realy(ix,iy,iz)/2.
-      uz(ix,iy,iz) = uz9 + force_realz(ix,iy,iz)/2.
-      rho(ix,iy,iz) = rho9
+          ux(ix,iy,iz) = ux9 + force_realx(ix,iy,iz)/2.
+          uy(ix,iy,iz) = uy9 + force_realy(ix,iy,iz)/2.
+          uz(ix,iy,iz) = uz9 + force_realz(ix,iy,iz)/2.
+          rho(ix,iy,iz) = rho9
 
-      enddo
-      enddo
-      enddo
+        elseif(ipart)then
+          !If we are in a solid particle, adjust velocity to the particles velocity
+          id = isnodes(i,j,k) 
 
-! for solid particle nodes
-      if(ipart)then
+          xpnt = real(i) - 0.5
+          ypnt = real(j) - 0.5 + real(indy*ly)
+          zpnt = real(k) - 0.5 + real(indz*lz)
 
-      do k = 1,lz
-      do j = 1,ly
-      do i = 1,lx
-      if(ibnodes(i,j,k) > 0)then
-        id = isnodes(i,j,k) 
+          xc = ypglb(1,id)
+          yc = ypglb(2,id)
+          zc = ypglb(3,id)
 
-        xpnt = real(i) - 0.5
-        ypnt = real(j) - 0.5 + real(indy*ly)
-        zpnt = real(k) - 0.5 + real(indz*lz)
+          !Use the nearest particle center instead of the real center
+          !if((xc - xpnt) > real(nxh)) xc = xc - real(nx)
+          !if((xc - xpnt) < -real(nxh)) xc = xc + real(nx)
 
-        xc = ypglb(1,id)
-        yc = ypglb(2,id)
-        zc = ypglb(3,id)
+          if((yc - ypnt) > real(nyh)) yc = yc - real(ny)
+          if((yc - ypnt) < -real(nyh)) yc = yc + real(ny)
 
-! use the nearest particle center instead of the real center
-!       if((xc - xpnt) > real(nxh)) xc = xc - real(nx)
-!       if((xc - xpnt) < -real(nxh)) xc = xc + real(nx)
-!        if(abs(xc -xpnt) <= real(nxh)) xc = xc
+          if((zc - zpnt) > real(nzh)) zc = zc - real(nz)
+          if((zc - zpnt) < -real(nzh)) zc = zc + real(nz)
 
-        if((yc - ypnt) > real(nyh)) yc = yc - real(ny)
-        if((yc - ypnt) < -real(nyh)) yc = yc + real(ny)
-!        if(abs(yc -ypnt) <= real(nyh)) yc = yc
+          xx0 = xpnt - xc
+          yy0 = ypnt - yc
+          zz0 = zpnt - zc
 
-        if((zc - zpnt) > real(nzh)) zc = zc - real(nz)
-        if((zc - zpnt) < -real(nzh)) zc = zc + real(nz)
-!        if(abs(zc -zpnt) <= real(nzh)) zc = zc
+          w1 = wp(1,id)
+          w2 = wp(2,id)
+          w3 = wp(3,id)
 
-        xx0 = xpnt - xc
-        yy0 = ypnt - yc
-        zz0 = zpnt - zc
+          omg1 = omgp(1,id)
+          omg2 = omgp(2,id)
+          omg3 = omgp(3,id)
 
-        w1 = wp(1,id)
-        w2 = wp(2,id)
-        w3 = wp(3,id)
+          ux(i,j,k) = w1 + (omg2*zz0 - omg3*yy0)
+          uy(i,j,k) = w2 + (omg3*xx0 - omg1*zz0)
+          uz(i,j,k) = w3 + (omg1*yy0 - omg2*xx0)
 
-        omg1 = omgp(1,id)
-        omg2 = omgp(2,id)
-        omg3 = omgp(3,id)
-
-        ux(i,j,k) = w1 + (omg2*zz0 - omg3*yy0)
-        uy(i,j,k) = w2 + (omg3*xx0 - omg1*zz0)
-        uz(i,j,k) = w3 + (omg1*yy0 - omg2*xx0)
-
-        rho(i,j,k) = rhopart
-      end if
-      end do
-      end do
-      end do
-
-      end if
-
-     
+          rho(i,j,k) = rhopart
+        endif
+      enddo !x
+      enddo !y
+      enddo !z
       end subroutine macrovar
+!=============================================================================
+!@subroutine rhoupdat
+!@desc Updates only density of the local fluid nodes, currently only used in
+!      the pre-relaxation process.
+!=============================================================================
+      subroutine rhoupdat 
+      use var_inc
+      implicit none 
+
+      integer ip
+
+      rho = f(0,:,:,:,s)
+      do ip = 1,npop-1
+        rho = rho + f(ip,:,:,:,s)
+      end do
+
+      end subroutine rhoupdat 
 !===================================================================
 
 !==================================================================
