@@ -85,11 +85,10 @@
           ! Pre-relaxation of density field after initial forcing
           do
             rhop = rho
-            !Update density values
-            !@file collision.f90
-            call rhoupdat
-
             call collision_MRT !@file collision.f90
+
+            !Update density values
+            call rhoupdat !@file collision.f90
 
             !Determine the maximum density change
             rhoerr = maxval(abs(rho - rhop))        
@@ -179,6 +178,14 @@
           released = .TRUE.
         end if
 
+        !Update or shut off perturb forcing, not used in particle laden
+        if(istep .gt. npforcing .or. ipart)then
+        else if(istep .lt. npforcing)then
+         call FORCINGP
+        else if(istep .eq. npforcing)then
+         call FORCING
+        end if
+
         !Executes Collision and Propagation of the Fluid
         !@file collision.f90
         bnchstart = MPI_WTIME()
@@ -236,19 +243,19 @@
         if(mod(istep,ndiag) == 0)  call diag !@file saveload.f90
         if(mod(istep,nstat) == 0)  call statistc !@file saveload.f90
         if(mod(istep,nstat) == 0)  call statistc2 !@file saveload.f90
-        if(mod(istep,nflowout) == 0) call outputflow !@file saveload.f90
-
-        if(ipart .and. istep >= irelease .and. mod(istep,npartout) == 0)call outputpart !@file saveload.f90
+!       if(mod(istep,nstat) == 0) call rmsstat !@file saveload.f90
+!       if(mod(istep,nsij) == 0) call sijstat03 !@file saveload.f90
+!       if(mod(istep,nsij) == 0) call sijstat !@file saveload.f90
 
 !       if(ipart .and. istep >= irelease .and. mod(istep,nmovieout) == 0) then
 !          call moviedata
 !          call sijstat03
 !          go to 101
 !       end if
-
-!       if(mod(istep,nstat) == 0) call rmsstat
-!       if(mod(istep,nsij) == 0) call sijstat03   
-!       if(mod(istep,nsij) == 0) call sijstat 
+        
+        !Save flow and particle positions
+        if(mod(istep,nflowout) == 0) call outputflow !@file saveload.f90
+        if(ipart .and. istep >= irelease .and. mod(istep,npartout) == 0)call outputpart !@file saveload.f90
 
         !Check current wall-clock time
         if(mod(istep,ntime) == 0)then
@@ -274,28 +281,28 @@
       call MPI_BARRIER(MPI_COMM_WORLD,ierr)
       call MPI_ALLREDUCE(time_diff,time_max,1,MPI_REAL8, MPI_MAX,MPI_COMM_WORLD,ierr)
 
-!Probe each processor for final flow comparing
-       call probe
-       !call outputvort
-! save data for continue run
+      !Probe each processor for final flow comparing
+      call probe
+      !call outputvort
+
+      !Save flow data for continue run
       !call savecntdflow
-!save param variables
-!      call input_outputf(2)
-!save bead positions
-      !if(ipart .and. istep > irelease) call savecntdpart    
+      !Save bead data
+      !if(ipart .and. istep > irelease) call savecntdpart  
+      !save param variables
+      !call input_outputf(2)
+  
 
 !Record Benchmarks
       call benchflow
       call benchbead
       call benchmatlab
-
       call benchtotal
 
 101   continue
 
       if(myid.eq.0)then
-      write(*,*)'time_max = ',time_max
-!     write(50,*)' ',time_stream_max_array
+        write(*,*)'time_max = ',time_max
       endif
 
       call MPI_FINALIZE(ierr)

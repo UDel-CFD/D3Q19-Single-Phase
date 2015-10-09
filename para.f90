@@ -44,7 +44,7 @@
       pi = 4.0*atan(1.0) 
       pi2 = 2.0*pi
       
-      ! specify the force magnitude
+      !Specify the force magnitude
 !     visc = 0.0032
 !     Rstar = 200.0
 !     visc = 0.0036
@@ -54,6 +54,10 @@
       force_in_y = 2.*rho0*ustar*ustar/real(nx)
       ystar = visc/ustar
       force_mag = 1.0
+
+      !End time step of perturbatuon forcing
+      !Not used in particle laden
+      npforcing = 50000
 
       ! not used
       kpeak = 4         ! It does not matter. Starting from stagnant flow
@@ -243,7 +247,6 @@
       dirbenchflow = trim(dirbench)//'flow/'
 
       !Make sure that directories exist with makedir
-      !@file para.f90
       if(myid==0)then
         call makedir(dirdiag)
         call makedir(dirstat)

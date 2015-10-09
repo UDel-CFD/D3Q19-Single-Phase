@@ -51,7 +51,7 @@
       !MPI, input/output, and runtime related variables
       integer ierr, myid, nproc
       integer nprocY, nprocZ
-      integer istep, istep0, istep00, nsteps, istpload, imovie   
+      integer istep, istep0, istep00, nsteps, npforcing, istpload, imovie   
       integer lz, ly, lyext, lly, nek, MRTtype, mzp, mzm, istat, iseedf, iyf
       integer indy, indz, myp, mym, mypzp, mypzm, mymzp, mymzm
 
