@@ -355,12 +355,10 @@
       use var_inc
       implicit none 
 
-      integer ip, i, j, k, id             
+      integer ip, ix, iy, iz, id             
       real xc, yc, zc, xpnt, ypnt, zpnt, xx0, yy0, zz0     
       real w1, w2, w3, omg1, omg2, omg3 
 
-
-      integer  iz,iy,ix
       real  sum1,sum2,sum3,sum4,sum5,sum6,ux9,uy9,uz9
       real  rho9
       real, dimension(0:npop-1) :: f9
@@ -369,7 +367,7 @@
       do iz = 1,lz
       do iy = 1,ly
       do ix = 1,lx
-        if(ibnodes(i,j,k) < 0)then
+        if(ibnodes(ix,iy,iz) < 0)then
           !If we are not inside a solid particle
           f9 = f(:,ix,iy,iz,s)
 
@@ -397,11 +395,11 @@
 
         elseif(ipart)then
           !If we are in a solid particle, adjust velocity to the particles velocity
-          id = isnodes(i,j,k) 
+          id = isnodes(ix,iy,iz) 
 
-          xpnt = real(i) - 0.5
-          ypnt = real(j) - 0.5 + real(indy*ly)
-          zpnt = real(k) - 0.5 + real(indz*lz)
+          xpnt = real(ix) - 0.5
+          ypnt = real(iy) - 0.5 + real(indy*ly)
+          zpnt = real(iz) - 0.5 + real(indz*lz)
 
           xc = ypglb(1,id)
           yc = ypglb(2,id)
@@ -429,11 +427,11 @@
           omg2 = omgp(2,id)
           omg3 = omgp(3,id)
 
-          ux(i,j,k) = w1 + (omg2*zz0 - omg3*yy0)
-          uy(i,j,k) = w2 + (omg3*xx0 - omg1*zz0)
-          uz(i,j,k) = w3 + (omg1*yy0 - omg2*xx0)
+          ux(ix,iy,iz) = w1 + (omg2*zz0 - omg3*yy0)
+          uy(ix,iy,iz) = w2 + (omg3*xx0 - omg1*zz0)
+          uz(ix,iy,iz) = w3 + (omg1*yy0 - omg2*xx0)
 
-          rho(i,j,k) = rhopart
+          rho(ix,iy,iz) = rhopart
         endif
       enddo !x
       enddo !y
