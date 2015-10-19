@@ -454,8 +454,39 @@
       end do
 
       end subroutine rhoupdat 
-!===================================================================
+!=============================================================================
+!@subroutine avedensity
+!@desc Calculates the average density for the entire fluid domain and removes
+!      it from all densities of local nodes. This is to account for loss
+!      of mass in the interpolation bounceback.
+!=============================================================================
+      subroutine avedensity
+      use var_inc
+      use mpi    
+      implicit none
 
+      integer iz, iy, ix
+      integer nfluid0, nfluidtotal
+      real rhomean0, rhomean
+
+      rhomean = 0.d0
+      nfluid0 = count(ibnodes < 0)
+      rhomean0 = sum(rho,MASK = (ibnodes < 0))
+      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+      CALL MPI_ALLREDUCE(nfluid0,nfluidtotal,1,MPI_INTEGER,MPI_SUM,mpi_comm_world,ierr)
+      CALL MPI_ALLREDUCE(rhomean0,rhomean,1,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+
+      rhomean = rhomean/dfloat(nfluidtotal)
+
+      do iz = 1,lz
+        do iy = 1,ly
+          do ix = 1,lx
+            rho(ix,iy,iz) = rho(ix,iy,iz) - rhomean
+          enddo
+        enddo
+      enddo
+
+      end subroutine avedensity
 !==================================================================
       SUBROUTINE FORCING
       use mpi

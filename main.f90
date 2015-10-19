@@ -231,6 +231,12 @@
           bnchstart = MPI_WTIME()
           call beads_filling
           beads_filling_bnch(istep-istpload) = MPI_WTIME() - bnchstart
+
+          !Remove average density to correct mass loss from interpolation
+          !@file collision.f90
+          if(mod(istep,100) == 0) then
+            call avedensity
+          endif
         end if
 
         !Calculate macroscopic variables

@@ -57,7 +57,7 @@
 
       !End time step of perturbatuon forcing
       !Not used in particle laden
-      npforcing = 50000
+      npforcing = 0
 
       ! not used
       kpeak = 4         ! It does not matter. Starting from stagnant flow
