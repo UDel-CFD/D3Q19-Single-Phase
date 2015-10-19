@@ -2116,9 +2116,13 @@
         !Periodicity (Removed because of wall)
         !if(ip1 < 1) ip1 = ip1 + lx
         !if(ip1 > lx) ip1 = ip1 - lx
-
-        ibp1 = ibnodes(ip1,jp1,kp1)
-        ib0p1 = ibnodes0(ip1,jp1,kp1)
+        if(ip1 < 0 .or. ip1 > lx)then
+          ibp1 = 1
+          ib0p1 = 1
+        else
+          ibp1 = ibnodes(ip1,jp1,kp1)
+          ib0p1 = ibnodes0(ip1,jp1,kp1)
+        endif
 
         IF(ibp1 < 0 .and. ib0p1 < 0)THEN
           rho9 = 0.0 
@@ -2166,13 +2170,18 @@
           jp1 = j + iy
           kp1 = k + iz
 
-! periodicity
-        !  if(ip1 < 1) ip1 = ip1 + lx
-        !  if(ip1 > lx) ip1 = ip1 - lx
+          !periodicity
+          !if(ip1 < 1) ip1 = ip1 + lx
+          !if(ip1 > lx) ip1 = ip1 - lx
 
-          ibp1 = ibnodes(ip1,jp1,kp1)
-          ib0p1 = ibnodes0(ip1,jp1,kp1)
-
+          if(ip1 < 0 .or. ip1 > lx)then
+            ibp1 = 1
+            ib0p1 = 1
+          else
+            ibp1 = ibnodes(ip1,jp1,kp1)
+            ib0p1 = ibnodes0(ip1,jp1,kp1)
+          endif
+          
           IF(ibp1 < 0 .and. ib0p1 < 0)THEN
             nghb = nghb + 1
 
