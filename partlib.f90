@@ -974,7 +974,7 @@
       real alpha, xc, yc, zc, xx0, yy0, zz0
       real uwx, uwy, uwz, uwpro, ff1, ff2, ff3
       real w1, w2, w3, omg1, omg2, omg3 
-      real c1, c2, c3, dff, dxmom, dymom, dzmom
+      real c1, c2, c3, dff, dff2, dxmom, dymom, dzmom
       real xpnt, ypnt, zpnt
 
       real,dimension(lx,ly,lz):: f9print,alphaprint,ff1print
@@ -1183,9 +1183,11 @@
 
         !Compute force and torque acting on particles
         dff = ff1 + f(ipp,i,j,k,s)
-        dxmom = dff*real(ix)
-        dymom = dff*real(iy)
-        dzmom = dff*real(iz)
+        !Galiliean Invarient moment exchange
+        dff2 = f(ipp,i,j,k,s) - ff1
+        dxmom = dff*real(ix) + uwx*dff2
+        dymom = dff*real(iy) + uwy*dff2
+        dzmom = dff*real(iz) + uwz*dff2
 
         fHIp0(1,id) = fHIp0(1,id) + dxmom
         fHIp0(2,id) = fHIp0(2,id) + dymom
