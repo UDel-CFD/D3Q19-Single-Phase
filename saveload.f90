@@ -958,26 +958,27 @@
       end subroutine outputuz      
 !===========================================================================
 
-      subroutine outputpress(ibnodes9)      
+      subroutine outputpress   
       use mpi 
       use var_inc
       implicit none
 
-      integer, dimension(lx,ly,nz):: ibnodes9
+!      integer, dimension(lx,ly,nz):: ibnodes9
 
       integer ip, ilen, indy9, indz9
       integer status(MPI_STATUS_SIZE)
       integer istp1, istp2, istp3, istp4, istp5, istp6, istp7
       
-      real, dimension(lx,ny,nz):: rho9    
-      real, dimension(lx,ly,lz):: rho1    
+      real,allocatable, dimension(:,:,:):: rho9    
+      real,allocatable, dimension(:,:,:):: rho1    
 
       character (len = 120):: fnm
 
       ilen = lx*ly*lz
 
       if(myid == 0)then
-
+        allocate (rho9(1:nx,1:ny,1:nz))
+        allocate (rho1(1:lx,1:ly,1:lz))
         rho9(:,:,1:lz) = rho       
 
         do ip = 1,nproc-1
@@ -1016,6 +1017,8 @@
         write(19,190) rho9/3.0 
 
         close(19)
+        deallocate(rho9)
+        deallocate(rho1)
 
       end if
 
@@ -4235,7 +4238,7 @@
 
       do i = 1,lx
 
-      itmp2D = ibnodes(i,:,:)
+      itmp2D = ibnodes(i,1:ly,1:lz)
       nfluid0(i) = count(itmp2D < 0)
 ! 1st order statistics
       tmp2D = ox(i,:,:)
@@ -4410,7 +4413,7 @@
 
        do i = 1,lx
 
-        itmp2D = ibnodes(i,:,:)
+        itmp2D = ibnodes(i,1:ly,1:lz)
         nfluid0(i) = count(itmp2D > 0)
 ! 1st order statistics
 

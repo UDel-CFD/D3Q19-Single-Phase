@@ -546,8 +546,8 @@
       real rhomean
 
       rhomean = 0.d0
-      nfluid0 = count(ibnodes < 0)
-      rhomean = sum(rho,MASK = (ibnodes < 0))
+      nfluid0 = count(ibnodes(1:lx,1:ly,1:lz) < 0)
+      rhomean = sum(rho,MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
       CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
       CALL MPI_ALLREDUCE(nfluid0,nfluidtotal,1,MPI_INTEGER,MPI_SUM,mpi_comm_world,ierr)
       CALL MPI_ALLREDUCE(rhomean,rhomeang,1,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
