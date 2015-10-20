@@ -542,7 +542,7 @@
 
       !Reset fill request data
       localReqData = .FALSE.
-      radp2 = rad + 2.d0
+      radp2 = rad + 4.d0
       nfbeads = 0
       nlink = 0
       nbfill = 0
@@ -626,7 +626,7 @@
                     if(rr11 <= 0.d0)then
                       nlink = nlink + 1
                       if(nlink.ge.maxlink)then
-                        write(*,'(A44,I5)') 'Number of links exceeded array size, maxlink: ',maxlink
+                        write(*,'(A44,I5)') 'Number of links exceeded array size, maxlink: ',maxlink,nlink
                         stop
                       endif
 
@@ -666,7 +666,7 @@
               if(.NOT. bfilled .AND. ibnodes(i,j,k) > 0)then
                 nbfill = nbfill + 1
                 if(nbfill.ge.maxbfill)then
-                  write(*,'(A44,I5,I4)') 'Number of fill node exceeded array size, maxbfill: ',maxbfill, myid
+                  write(*,'(A44,I5,I4)') 'Number of fill node exceeded array size, maxbfill: ',maxbfill, myid, nbfill
                   stop
                 endif
 
@@ -679,95 +679,113 @@
                 ibnodes(i,j,k) = -1
                 isnodes(i,j,k) = -1
 
+                !Here I change the filling scheme to the velocity constrained scheme
+		!In such scheme, we need to apply 3 point extrapolation instead of just one
+		!point propagation, hence there are more cases we will need data communication.
+
                 !Determine if we need to request any data for filling
-                if(k == 1)then
-                  localReqData(2) = .TRUE.
-                  if(j == 1) localReqData(7) = .TRUE.
-                  if(j == ly) localReqData(8) = .TRUE.
-                else if(k == lz)then
-                  localReqData(1) = .TRUE.
-                  if(j == 1) localReqData(5) = .TRUE.
-                  if(j == ly) localReqData(6) = .TRUE.
-                else
-                endif
-                if(j == 1) localReqData(3) = .TRUE.
-                if(j == ly) localReqData(4) = .TRUE.
-              endif !If needs filling
+                     
+	            
+                    if(k == 1.or. k == 2.or.k==3) then 
+		    localReqData(2) = .TRUE.
+		    if(j==1.or.j==2.or.j==3) localReqData(7) = .TRUE.
+		    if(j==ly.or.j==ly-1.or.j==ly-2) localReqData(8) = .TRUE.
+		    else if(k==lz.or.k==lz-1.or.k==lz-2) then
+		    localReqData(1) = .TRUE.
+		    if(j==1.or.j==2.or.j==3) localReqData(5) = .TRUE.
+		    if(j==ly.or.j==ly-1.or.j==ly-2) localReqData(6) = .TRUE.
+		    end if
+	            if(j==1.or.j==2.or.j==3) localReqData(3) = .TRUE.
+		    if(j==ly.or.j==ly-1.or.j==ly-2) localReqData(4) = .TRUE.
+	       
+	       endif !If needs filling
+	       
+
+		    
+		    
           enddo !z
         enddo !y
       enddo !x
 
       !Update ghost in ibnodes nodes
       !This is needed in beads filling and post streaming interpolation
-      ibnodes(:,0:ly+1,0)=-1    
-      ibnodes(:,0:ly+1,lz+1)=-1
-      do k=0,lz+1,lz+1
-        do i = 1, lx
-          do j = 0, ly+1
-            xpnt = dfloat(i) - 0.5d0
-            ypnt = dfloat(j) - 1.d0 + alphay
-            zpnt = dfloat(k) - 1.d0 + alphaz
+      !For beads_filling, the size has to be expand if we want to use
+      !velocity constrained filling
+      ! I feel ibnodes only need a size of (1:lx,0:ly+1,0:lz+1) instead of (0:lx+1,:,:)
 
-            do 114 id=1, nfbeads
-              xc = xfbeads(id)
-              xx0 = xpnt - xc
-              if(xx0**2 > radp2**2)GO TO 114
+      ! for velocity constrained filling'
+      ibnodes(:,0:ly+1,0) = -1
+      ibnodes(:,0:ly+1,lz+1) = -1
+      do k = 0,lz+1,lz+1
+        do i = 1,lx
+          do j = 0,ly+1
+             xpnt = dfloat(i) - 0.5d0
+             ypnt = dfloat(j) - 1.d0 + alphay
+             zpnt = dfloat(k) - 1.d0 + alphaz
+             do 116 id=1, nfbeads
+               xc = xfbeads(id)
+               xx0 = xpnt - xc
+               if(xx0**2 > radp2**2)GO TO 116
 
-              yc = yfbeads(id)
-              if((yc - ypnt) > dfloat(nyh)) yc = yc - dfloat(ny)
-              if((yc - ypnt) < -dfloat(nyh)) yc = yc + dfloat(ny)
-              yy0 = ypnt - yc
-              if(xx0**2+yy0**2 > radp2**2)GO TO 114
+               yc = yfbeads(id)
+               if((yc - ypnt) > dfloat(nyh)) yc = yc - dfloat(ny)
+               if((yc - ypnt) < -dfloat(nyh)) yc = yc + dfloat(ny)
+               yy0 = ypnt - yc
+               if(xx0**2+yy0**2 > radp2**2)GO TO 116
+               zc = zfbeads(id)
+               if((zc - zpnt) > dfloat(nzh)) zc = zc - dfloat(nz)
+               if((zc - zpnt) < -dfloat(nzh)) zc = zc + dfloat(nz)
+             zz0 = zpnt - zc
+             rr0 = xx0**2 + yy0**2 + zz0**2
 
-              zc = zfbeads(id)
-              if((zc - zpnt) > dfloat(nzh)) zc = zc - dfloat(nz)
-              if((zc - zpnt) < -dfloat(nzh)) zc = zc + dfloat(nz)
-              zz0 = zpnt - zc
-              rr0 = xx0**2 + yy0**2 + zz0**2
-              
+             if(sqrt(rr0) <= radp2)then
+               rr01 = rr0 - (rad*1.d0)**2
+               if(rr01 <= 0.d0)ibnodes(i,j,k) = 1
+             end if
+116            continue !npart
+             end do !y
+             end do !x
+             end do !z
+
+
+! The other slides for y
+        ibnodes(:,0,1:lz)=-1
+        ibnodes(:,ly+1,1:lz)=-1
+
+        do j = 0,ly+1,ly+1
+        do i = 1,lx
+	do k = 1,lz
+        xpnt = dfloat(i) - 0.5d0
+        ypnt = dfloat(j) - 1.d0 + alphay
+        zpnt = dfloat(k) - 1.d0 + alphaz
+
+        do 118 id=1, nfbeads
+            xc = xfbeads(id)
+            xx0 = xpnt - xc
+            if(xx0**2 > radp2**2)GO TO 118
+
+            yc = yfbeads(id)
+            if((yc - ypnt) > dfloat(nyh)) yc = yc - dfloat(ny)
+            if((yc - ypnt) < -dfloat(nyh)) yc = yc + dfloat(ny)
+            yy0 = ypnt - yc
+            if(xx0**2+yy0**2 > radp2**2)GO TO 118
+
+            zc = zfbeads(id)
+            if((zc - zpnt) > dfloat(nzh)) zc = zc - dfloat(nz)
+            if((zc - zpnt) < -dfloat(nzh)) zc = zc + dfloat(nz)
+            zz0 = zpnt - zc
+            rr0 = xx0**2 + yy0**2 + zz0**2
+
               if(sqrt(rr0) <= radp2)then
-                rr01 = rr0 - (rad*1.d0)**2
-                if(rr01 <= 0.d0)ibnodes(i,j,k) = 1 
-              end if                     
-114          continue !npart
-          enddo !y
-        enddo !x
-      enddo !z
+              rr01 = rr0 - (rad*1.d0)**2
+              if(rr01 <= 0.d0)ibnodes(i,j,k) = 1
+              end if
+118         continue !npart
+            enddo !y
+            enddo !x
+            enddo !z
+! The other half for y
 
-      ibnodes(:,0,1:lz)=-1    
-      ibnodes(:,ly+1,1:lz)=-1   
-      do j=0,ly+1,ly+1
-        do i = 1, lx
-          do k = 1, lz
-            xpnt = dfloat(i) - 0.5d0
-            ypnt = dfloat(j) - 1.d0 + alphay
-            zpnt = dfloat(k) - 1.d0 + alphaz
-
-            do 115 id=1, nfbeads
-              xc = xfbeads(id)
-              xx0 = xpnt - xc
-              if(xx0**2 > radp2**2)GO TO 115
-
-              yc = yfbeads(id)
-              if((yc - ypnt) > dfloat(nyh)) yc = yc - dfloat(ny)
-              if((yc - ypnt) < -dfloat(nyh)) yc = yc + dfloat(ny)
-              yy0 = ypnt - yc
-              if(xx0**2+yy0**2 > radp2**2)GO TO 115
-
-              zc = zfbeads(id)
-              if((zc - zpnt) > dfloat(nzh)) zc = zc - dfloat(nz)
-              if((zc - zpnt) < -dfloat(nzh)) zc = zc + dfloat(nz)
-              zz0 = zpnt - zc
-              rr0 = xx0**2 + yy0**2 + zz0**2
-              
-              if(sqrt(rr0) <= radp2)then
-                rr01 = rr0 - (rad*1.d0)**2
-                if(rr01 <= 0.d0)ibnodes(i,j,k) = 1 
-              end if                     
-115         continue !npart
-          enddo !y
-        enddo !x
-      enddo !z
 
       end subroutine beads_links
 !=============================================================================
@@ -974,7 +992,7 @@
       real alpha, xc, yc, zc, xx0, yy0, zz0
       real uwx, uwy, uwz, uwpro, ff1, ff2, ff3
       real w1, w2, w3, omg1, omg2, omg3 
-      real c1, c2, c3, dff, dxmom, dymom, dzmom
+      real c1, c2, c3, dff, dxmom, dymom, dzmom, dff2
       real xpnt, ypnt, zpnt
 
       real,dimension(lx,ly,lz):: f9print,alphaprint,ff1print
@@ -1173,19 +1191,21 @@
        ENDIF
 
        !Just a back up check to ensure something didn't go wrong, can get removed...
-        if(abs(f(ipp,i,j,k,s)) > 1e-2)then
-          write(*,*)'=',myid,f(ipp,i,j,k,s),alpha,'='
-          write(*,*)ip,i,j,k,iblinks(0,1,n),iblinks(1,1,n),iblinks(2,1,n)
-          write(*,*),iblinks(0,2,n),iblinks(1,2,n),iblinks(2,2,n)
-          write(*,*)im1,jm1,km1,im2,jm2,km2
-          write(*,*)ff1,ff2,ff3,n
-        endif
+!        if(abs(f(ipp,i,j,k,s)) > 1e-2)then
+!          write(*,*)'=',myid,f(ipp,i,j,k,s),alpha,'='
+!          write(*,*)ip,i,j,k,iblinks(0,1,n),iblinks(1,1,n),iblinks(2,1,n)
+!          write(*,*),iblinks(0,2,n),iblinks(1,2,n),iblinks(2,2,n)
+!          write(*,*)im1,jm1,km1,im2,jm2,km2
+!          write(*,*)ff1,ff2,ff3,n
+!        endif
 
         !Compute force and torque acting on particles
         dff = ff1 + f(ipp,i,j,k,s)
-        dxmom = dff*real(ix)
-        dymom = dff*real(iy)
-        dzmom = dff*real(iz)
+	! Galilean invarient moment exchange scheme
+	dff2 = f(ipp,i,j,k,s) - ff1
+        dxmom = dff*real(ix) + uwx*dff2
+        dymom = dff*real(iy) + uwy*dff2
+        dzmom = dff*real(iz) + uwz*dff2
 
         fHIp0(1,id) = fHIp0(1,id) + dxmom
         fHIp0(2,id) = fHIp0(2,id) + dymom
@@ -1995,14 +2015,16 @@
 !@subroutine beads_filling
 !@desc Repopulates nodes that previously existed inside a solid particle.
 !=============================================================================
+
       subroutine beads_filling
       use mpi
       use var_inc
       implicit none
 
       integer id, ix, iy, iz, ipop, ipmx, ii, nghb
-      integer i, j, k, ip1, jp1, kp1, n
-      integer ibp1,ib0p1
+      integer i, j, k, ip1, jp1, kp1, ip2, jp2, kp2, ip3, jp3, kp3, n
+      integer ibp1,ib0p1,ibp2,ib0p2,ibp3,ib0p3
+      integer ix1,iy1,iz1
 
       real xc, yc, zc, xpnt, ypnt, zpnt
       real w1, w2, w3, omg1, omg2, omg3
@@ -2013,7 +2035,7 @@
       !Temporary array for sending filling request data      
       logical, dimension(nproc*8):: tempFlags
 
-      real, dimension(0:npop-1):: f9, feq9 
+      real, dimension(0:npop-1):: f9, f8, f7
 
       !Gather all fill flags for all MPI tasks
       call MPI_ALLGATHER(localReqData, 8, MPI_LOGICAL, tempFlags, 8, MPI_LOGICAL, MPI_COMM_WORLD, ierr)
@@ -2028,9 +2050,9 @@
       !Parse through fill nodes
       do n=1, nbfill
         id = idbfill(n)
-        xc = ypglbp(1,id)*1.d0      
-        yc = ypglbp(2,id)*1.d0    
-        zc = ypglbp(3,id)*1.d0   
+        xc = ypglbp(1,id)      
+        yc = ypglbp(2,id)    
+        zc = ypglbp(3,id)   
 
         i = xbfill(n)
         j = ybfill(n)
@@ -2050,16 +2072,25 @@
         if((zc - zpnt) > dfloat(nzh)) zc = zc - dfloat(nz)
         if((zc - zpnt) < -dfloat(nzh)) zc = zc + dfloat(nz)
 
-        w1 = -0.5d0*(wp(1,id)*1.d0 + wpp(1,id)*1.d0)
-        w2 = -0.5d0*(wp(2,id)*1.d0 + wpp(2,id)*1.d0)
-        w3 = -0.5d0*(wp(3,id)*1.d0 + wpp(3,id)*1.d0)
-        omg1 = -0.5d0*(omgp(1,id)*1.d0 + omgpp(1,id)*1.d0)
-        omg2 = -0.5d0*(omgp(2,id)*1.d0 + omgpp(2,id)*1.d0)
-        omg3 = -0.5d0*(omgp(3,id)*1.d0 + omgpp(3,id)*1.d0)
+
+        ! The following lines if to find the normal direction of the particle
+        ! surface at which the new fluid node is exactly recovered. After finding
+	! such direction, we can decide along which directly the extrapolation 
+	! should be carried out. Since the lattice velocity directions are quite
+	! sparse. It is very unlikely that the direction of extrapolation will
+	! change within half time step. As long as the particles do not move 
+	! too fast, the following part is not necessary.
+
+        w1 = -0.5d0*(wp(1,id) + wpp(1,id))
+        w2 = -0.5d0*(wp(2,id) + wpp(2,id))
+        w3 = -0.5d0*(wp(3,id) + wpp(3,id))
+        omg1 = -0.5d0*(omgp(1,id) + omgpp(1,id))
+        omg2 = -0.5d0*(omgp(2,id) + omgpp(2,id))
+        omg3 = -0.5d0*(omgp(3,id) + omgpp(3,id))
 
         aa = w1*w1 + w2*w2 + w3*w3
         bb = (xpnt - xc)*w1 + (ypnt - yc)*w2 + (zpnt -zc)*w3 
-        cc = (xpnt - xc)**2 + (ypnt - yc)**2 + (zpnt -zc)**2 - (rad*1.d0)**2 
+        cc = (xpnt - xc)**2 + (ypnt - yc)**2 + (zpnt -zc)**2 - (rad)**2 
 
         ddt0 = bb/aa 
         ddt1 = sqrt(ddt0**2 - cc/aa) 
@@ -2078,14 +2109,23 @@
         yp2 = yp1 + (omg3*(xp1-xc) - omg1*(zp1-zc))*ddt
         zp2 = zp1 + (omg1*(yp1-yc) - omg2*(xp1-xc))*ddt
 
+        ! Change xp2, yp2, zp2 to xpnt, ypnt and zpnt
+
         xx0 = xp2 - xc
         yy0 = yp2 - yc
         zz0 = zp2 - zc
+
+!         xx0 = xpnt - xc
+!	 yy0 = ypnt - yc
+!	 zz0 = zpnt - zc
 
         ! Lallemand and Luo, JCP 184, 2003, pp.414
         ! identify ipmx, the discrete velocity direction which maximizes the
         ! quantity n^(hat) dot e_alpha, where n^(hat) is the out-normal vector
         ! of the wall at the point (xp2, yp2, zp2).
+
+	! As mentioned before, the point (xp2, yp2, zp2) can be approximated by
+	! the point (xpnt, ypnt, zpnt)
         prod0 = -100.0
         do ipop = 1,npop-1
           ix = cix(ipop)
@@ -2098,7 +2138,9 @@
             prod0 = prod
           end if
         end do
-
+!        if(myid.eq.100) then
+!        write(*,*)'i,j,k,ipmx = ',i,j,k,ipmx
+!        end if
         ! Caiazzo A. progress in CFD, vol. 8, 2008
         ! equilibrium + non-equilibrium refill
         ! first obtain the non-equilibrium part by copying from the neighbouring
@@ -2110,47 +2152,146 @@
         ip1 = i + ix
         jp1 = j + iy
         kp1 = k + iz
+        ! For 3 points extrapolation instead of 1 point propagation
+        ip2 = i + 2*ix
+        jp2 = j + 2*iy
+        kp2 = k + 2*iz
 
-        !Periodicity (Removed because of wall)
-        !if(ip1 < 1) ip1 = ip1 + lx
-        !if(ip1 > lx) ip1 = ip1 - lx
+        ip3 = i + 3*ix
+        jp3 = j + 3*iy
+        kp3 = k + 3*iz
 
+        if(ip1 < 1.or.ip1 > lx) then
+        ibp1 = 2
+        ib0p1 = 2
+        else 
         ibp1 = ibnodes(ip1,jp1,kp1)
         ib0p1 = ibnodes0(ip1,jp1,kp1)
+        end if
+
+        if(ip2 < 1.or.ip2>lx) then
+        ibp2 = 2
+        ib0p2 = 2
+        else
+        ibp2 = ibnodes(ip2,jp2,kp2)
+        ib0p2 = ibnodes0(ip2,jp2,kp2)
+        end if
+
+        if(ip3 < 1.or.ip3>lx) then
+        ibp3 = 2
+        ib0p3 = 2
+        else
+        ibp3 = ibnodes(ip3,jp3,kp3)
+        ib0p3 = ibnodes0(ip3,jp3,kp3)
+        end if
+
 
         IF(ibp1 < 0 .and. ib0p1 < 0)THEN
-          rho9 = 0.0 
-          u9 = 0.0
-          v9 = 0.0
-          w9 = 0.0
       
           if(jp1 > ly) then
-          f9 = fillRecvYp(:,ip1,kp1)
+          f9 = fillRecvYp(:,ip1,jp1,kp1)
           else if (jp1 < 1) then
-          f9 = fillRecvYm(:,ip1,kp1)
+          f9 = fillRecvYm(:,ip1,jp1,kp1)
           else
             if(kp1 > lz) then
-            f9 = fillRecvZp(:,ip1,jp1)
+            f9 = fillRecvZp(:,ip1,jp1,kp1)
             else if(kp1 < 1 ) then
-            f9 = fillRecvZm(:,ip1,jp1)
+            f9 = fillRecvZm(:,ip1,jp1,kp1)
             else
             f9 = f(:,ip1,jp1,kp1,s)
             end if
           end if
- 
-        do ipop = 0,npop-1
-          rho9 = rho9 + f9(ipop)  
-          u9 = u9 + real(cix(ipop))*f9(ipop)    
-          v9 = v9 + real(ciy(ipop))*f9(ipop)   
-          w9 = w9 + real(ciz(ipop))*f9(ipop)   
+         
+        IF(ibp2 < 0 .and. ib0p2 < 0) THEN
+
+          if(jp2 > ly) then
+          f8 = fillRecvYp(:,ip2,jp2,kp2)
+          else if (jp2 < 1) then
+          f8 = fillRecvYm(:,ip2,jp2,kp2)
+          else
+          if(kp2 > lz) then
+          f8 = fillRecvZp(:,ip2,jp2,kp2)
+          else if(kp2 < 1 ) then
+          f8 = fillRecvZm(:,ip2,jp2,kp2)
+          else
+          f8 = f(:,ip2,jp2,kp2,s)
+           end if
+          end if
+
+        IF(ibp3 < 0 .and. ib0p3 < 0) THEN
+
+          if(jp3 > ly) then
+          f7 = fillRecvYp(:,ip3,jp3,kp3)
+          else if (jp3 < 1) then
+          f7 = fillRecvYm(:,ip3,jp3,kp3)
+          else
+          if(kp3 > lz) then
+          f7 = fillRecvZp(:,ip3,jp3,kp3)
+          else if(kp3 < 1 ) then
+          f7 = fillRecvZm(:,ip3,jp3,kp3)
+          else
+          f7 = f(:,ip3,jp3,kp3,s)
+           end if
+          end if
+
+        f(0,i,j,k,s) = 3.d0*f9(0)-3.d0*f8(0)+f7(0)
+
+        ! Note in the velocity constrained filling, only unknown
+        ! directions are filled
+
+        do ipop = 1,npop-1
+        ix1 = cix(ipop)
+        iy1 = ciy(ipop)
+        iz1 = ciz(ipop)
+        if(ibnodes0(i-ix1,j-iy1,k-iz1).gt.0) then
+        f(ipop,i,j,k,s) = 3.d0*f9(ipop)-3.d0*f8(ipop)+f7(ipop)
+        end if
         end do
-        call feqpnt(u9,v9,w9,rho9,feq9)
-        f(:,i,j,k,s) = f9 - feq9
+
+! ELSE 2-points extrapolation
         ELSE
-          f(:,i,j,k,s) = 0.0
+
+          f(0,i,j,k,s) = 2.d0*f9(0)-f8(0)
+
+        do ipop = 1,npop-1
+        ix1 = cix(ipop)
+        iy1 = ciy(ipop)
+        iz1 = ciz(ipop)
+        if(ibnodes0(i-ix1,j-iy1,k-iz1).gt.0) then
+        f(ipop,i,j,k,s) = 2.d0*f9(ipop)-f8(ipop)
+        end if
+        end do
+        END IF       
+! ELSE 1 point extrapolation
+        ELSE
+
+          f(0,i,j,k,s) = f9(0)
+
+        do ipop = 1,npop-1
+        ix1 = cix(ipop)
+        iy1 = ciy(ipop)
+        iz1 = ciz(ipop)
+        if(ibnodes0(i-ix1,j-iy1,k-iz1).gt.0) then
+        f(ipop,i,j,k,s) = f9(ipop)
+        end if
+        end do
+        END IF
+! ELSE simply set to 0
+        ELSE
+
+          f(0,i,j,k,s) = 0.d0
+
+        do ipop = 1,npop-1
+        ix1 = cix(ipop)
+        iy1 = ciy(ipop)
+        iz1 = ciz(ipop)
+        if(ibnodes0(i-ix1,j-iy1,k-iz1).gt.0) then
+        f(ipop,i,j,k,s) = 0.d0
+        end if
+        end do
         END IF
 
-! now calculate the equilibrium part
+! now constrain the velocity
 ! first obtain the local mean density
         nghb = 0
         rho9 = 0.0
@@ -2167,23 +2308,27 @@
 ! periodicity
         !  if(ip1 < 1) ip1 = ip1 + lx
         !  if(ip1 > lx) ip1 = ip1 - lx
-
+          if(ip1 < 1.or.ip1 > lx) then
+          ibp1 = 2
+          ib0p1 = 2
+          else
           ibp1 = ibnodes(ip1,jp1,kp1)
           ib0p1 = ibnodes0(ip1,jp1,kp1)
+          end if
 
           IF(ibp1 < 0 .and. ib0p1 < 0)THEN
             nghb = nghb + 1
 
 
             if(jp1 > ly) then
-            f9 = fillRecvYp(:,ip1,kp1)
+            f9 = fillRecvYp(:,ip1,jp1,kp1)
             else if (jp1 < 1) then
-            f9 = fillRecvYm(:,ip1,kp1)
+            f9 = fillRecvYm(:,ip1,jp1,kp1)
             else
               if(kp1 > lz) then
-              f9 = fillRecvZp(:,ip1,jp1)
+              f9 = fillRecvZp(:,ip1,jp1,kp1)
               else if(kp1 < 1 ) then
-              f9 = fillRecvZm(:,ip1,jp1)
+              f9 = fillRecvZm(:,ip1,jp1,kp1)
               else
               f9 = f(:,ip1,jp1,kp1,s)
               end if
@@ -2222,21 +2367,18 @@
         v9 = w2 + omg3*xx0 - omg1*zz0
         w9 = w3 + omg1*yy0 - omg2*xx0
 
-        call feqpnt(u9,v9,w9,rho9,feq9)
+        f9 = f(:,i,j,k,s)
 
+        call collis_MRT9(u9,v9,w9,rho9,f9)
 ! equilibrium + non-equilibrium refill
-        f(:,i,j,k,s) = f(:,i,j,k,s) + feq9
+        f(:,i,j,k,s) = f9
       end do
 
       end subroutine beads_filling
 !=============================================================================
+!=============================================================================
 !@subroutine exchngFill
-!@desc Exchanges information needed for repopulating fluid nodes in beads_filling
-!      This follows a flag based algorithm. If a MPI needs some data from
-!      a given neighbor it sets the respective flag to true in beads_links. 
-!      These flags are distributed across all MPI task which allows any MPI 
-!      task to determine which neighbors it will be sending or recieving data 
-!      from. For further details contact Nicholas Geneva.
+!@desc Exchanges 3 layers of information for velocity constrained beads_filling
 !=============================================================================
       subroutine exchngFill
       use mpi
@@ -2245,74 +2387,150 @@
 
       integer ileny, ilenz, nreq
       logical utempinit, dtempinit
-      real, dimension(0:npop-1,lx,0:lz+1):: tmpYp, tmpYm
+!      real, dimension(0:npop-1,lx,3,-2:lz+3):: tmpYp, tmpYm 
+      real,dimension(0:npop-1,lx,3,-2:lz+3):: tmp5,tmp6,tmp7,tmp8
+      real,dimension(0:npop-1,lx,ly,3):: tmp1,tmp2,tmp3,tmp4
       integer status_array(MPI_STATUS_SIZE,4), req(4)
 
       utempinit = .FALSE.
       dtempinit = .FALSE.
-      ilenz = npop*lx*ly
-      ileny = npop*lx*(lz+2)
+      ilenz = npop*lx*ly*3
+      ileny = npop*lx*(lz+6)*3
       nreq = 0
       !Recieving Z+
       if(fillMPIrequest(myid,1) .or. fillMPIrequest(mym,6) .or. fillMPIrequest(myp,5))then
         nreq = nreq + 1
         utempinit = .TRUE.
-        call MPI_IRECV(fillRecvZp,ilenz,MPI_REAL8,mzp,0,MPI_COMM_WORLD,req(nreq),ierr)
+        call MPI_IRECV(tmp2,ilenz,MPI_REAL8,mzp,0,MPI_COMM_WORLD,req(nreq),ierr)
       endif
       !Recieving Z-
       if(fillMPIrequest(myid,2) .or. fillMPIrequest(mym,8) .or. fillMPIrequest(myp,7))then
         nreq = nreq + 1
         dtempinit = .TRUE.
-        call MPI_IRECV(fillRecvZm,ilenz,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(nreq),ierr)
+        call MPI_IRECV(tmp4,ilenz,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(nreq),ierr)
       endif
       !Sending Z+
       if(fillMPIrequest(mzp,2) .or. fillMPIrequest(mymzp,8) .or. fillMPIrequest(mypzp,7))then
         nreq = nreq + 1
-        call MPI_ISEND(f(:,:,:,lz,s),ilenz,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(nreq),ierr)
+        tmp3(:,:,:,1) = f(:,:,:,lz-2,s)
+        tmp3(:,:,:,2) = f(:,:,:,lz-1,s)
+        tmp3(:,:,:,3) = f(:,:,:,lz,s)
+        call MPI_ISEND(tmp3,ilenz,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(nreq),ierr)
       endif
       !Sending Z-
       if(fillMPIrequest(mzm,1) .or. fillMPIrequest(mymzm,6) .or. fillMPIrequest(mypzm,5))then
         nreq = nreq + 1
-        call MPI_ISEND(f(:,:,:,1,s),ilenz,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(nreq),ierr)
+        tmp1(:,:,:,1) = f(:,:,:,1,s)
+        tmp1(:,:,:,2) = f(:,:,:,2,s)
+        tmp1(:,:,:,3) = f(:,:,:,3,s)
+        call MPI_ISEND(tmp1,ilenz,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(nreq),ierr)
       endif
       
       if(nreq > 0)then
         call MPI_WAITALL(nreq,req,status_array,ierr)
       endif
+
+      
+        fillRecvZp(:,:,:,lz+1) = tmp2(:,:,:,1)
+        fillRecvZp(:,:,:,lz+2) = tmp2(:,:,:,2)
+        fillRecvZp(:,:,:,lz+3) = tmp2(:,:,:,3)
+
+        fillRecvZm(:,:,:,-2) = tmp4(:,:,:,1)
+        fillRecvZm(:,:,:,-1) = tmp4(:,:,:,2)
+        fillRecvZm(:,:,:,0) = tmp4(:,:,:,3)
       nreq = 0
 
       !Receiving Y-
       if(fillMPIrequest(myid,3))then
         nreq = nreq + 1
-        call MPI_IRECV(fillRecvYm,ileny,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(nreq),ierr)
+        call MPI_IRECV(tmp8,ileny,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(nreq),ierr)
       endif
       !Recieving Y+
       if(fillMPIrequest(myid,4))then
         nreq = nreq + 1
-        call MPI_IRECV(fillRecvYp,ileny,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(nreq),ierr)
+        call MPI_IRECV(tmp6,ileny,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(nreq),ierr)
       endif
       !Sending Y-
       if(fillMPIrequest(mym,4))then
         nreq = nreq + 1
         !If we have corner data from the z neighbors that needs to be sent add it
-        if(dtempinit) tmpYm(:,:,0) = fillRecvZm(:,:,1)
-        tmpYm(:,:,1:lz) = f(:,:,1,:,s)
-        if(utempinit) tmpYm(:,:,lz+1) = fillRecvZp(:,:,1)
-        call MPI_ISEND(tmpYm,ileny,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(nreq),ierr)
+
+        if(dtempinit) then 
+        tmp5(:,:,1,-2) = tmp4(:,:,1,1)
+        tmp5(:,:,1,-1) = tmp4(:,:,1,2)
+        tmp5(:,:,1,0)  = tmp4(:,:,1,3)
+        tmp5(:,:,2,-2) = tmp4(:,:,2,1)
+        tmp5(:,:,2,-1) = tmp4(:,:,2,2)
+        tmp5(:,:,2,0)  = tmp4(:,:,2,3)
+        tmp5(:,:,3,-2) = tmp4(:,:,3,1)
+        tmp5(:,:,3,-1) = tmp4(:,:,3,2)
+        tmp5(:,:,3,0)  = tmp4(:,:,3,3)
+        end if
+
+        tmp5(:,:,1,1:lz) = f(:,:,1,:,s)
+        tmp5(:,:,2,1:lz) = f(:,:,2,:,s)
+        tmp5(:,:,3,1:lz) = f(:,:,3,:,s)
+
+        if(utempinit) then
+        tmp5(:,:,1,lz+1) = tmp2(:,:,1,1)
+        tmp5(:,:,1,lz+2) = tmp2(:,:,1,2)
+        tmp5(:,:,1,lz+3) = tmp2(:,:,1,3)
+        tmp5(:,:,2,lz+1) = tmp2(:,:,2,1)
+        tmp5(:,:,2,lz+2) = tmp2(:,:,2,2)
+        tmp5(:,:,2,lz+3) = tmp2(:,:,2,3)
+        tmp5(:,:,3,lz+1) = tmp2(:,:,3,1)
+        tmp5(:,:,3,lz+2) = tmp2(:,:,3,2)
+        tmp5(:,:,3,lz+3) = tmp2(:,:,3,3)
+        end if
+
+        call MPI_ISEND(tmp5,ileny,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(nreq),ierr)
       endif
       !Sending Y+
       if(fillMPIrequest(myp,3))then
         nreq = nreq + 1
         !If we have corner data from the z neighbors that needs to be sent add it
-        if(dtempinit) tmpYp(:,:,0) = fillRecvZm(:,:,ly)
-        tmpYp(:,:,1:lz) = f(:,:,ly,:,s)
-        if(utempinit) tmpYp(:,:,lz+1) = fillRecvZp(:,:,ly)
-        call MPI_ISEND(tmpYp,ileny,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(nreq),ierr)
+        if(dtempinit) then
+        tmp7(:,:,1,-2) = tmp4(:,:,ly-2,1)
+        tmp7(:,:,1,-1) = tmp4(:,:,ly-2,2)
+        tmp7(:,:,1,0)  = tmp4(:,:,ly-2,3)
+        tmp7(:,:,2,-2) = tmp4(:,:,ly-1,1)
+        tmp7(:,:,2,-1) = tmp4(:,:,ly-1,2)
+        tmp7(:,:,2,0)  = tmp4(:,:,ly-1,3)
+        tmp7(:,:,3,-2) = tmp4(:,:,ly,1)
+        tmp7(:,:,3,-1) = tmp4(:,:,ly,2)
+        tmp7(:,:,3,0)  = tmp4(:,:,ly,3)
+        end if
+
+        tmp7(:,:,1,1:lz) = f(:,:,ly-2,:,s) 
+        tmp7(:,:,2,1:lz) = f(:,:,ly-1,:,s)
+        tmp7(:,:,3,1:lz) = f(:,:,ly,:,s)
+
+        if(utempinit) then
+        tmp7(:,:,1,lz+1) = tmp2(:,:,ly-2,1)
+        tmp7(:,:,1,lz+2) = tmp2(:,:,ly-2,2)
+        tmp7(:,:,1,lz+3) = tmp2(:,:,ly-2,3)
+        tmp7(:,:,2,lz+1) = tmp2(:,:,ly-1,1)
+        tmp7(:,:,2,lz+2) = tmp2(:,:,ly-1,2)
+        tmp7(:,:,2,lz+3) = tmp2(:,:,ly-1,3)
+        tmp7(:,:,3,lz+1) = tmp2(:,:,ly,1)
+        tmp7(:,:,3,lz+2) = tmp2(:,:,ly,2)
+        tmp7(:,:,3,lz+3) = tmp2(:,:,ly,3)
+        end if
+
+        call MPI_ISEND(tmp7,ileny,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(nreq),ierr)
       endif
 
       if(nreq > 0)then
         call MPI_WAITALL(nreq,req,status_array,ierr)
       endif
+
+        fillRecvYm(:,:,-2,:) = tmp8(:,:,1,:)
+        fillRecvYm(:,:,-1,:) = tmp8(:,:,2,:)
+        fillRecvYm(:,:,0,:) = tmp8(:,:,3,:)
+
+        fillRecvYp(:,:,ly+1,:) = tmp6(:,:,1,:)
+        fillRecvYp(:,:,ly+2,:) = tmp6(:,:,2,:)
+        fillRecvYp(:,:,ly+3,:) = tmp6(:,:,3,:)
 
       end subroutine exchngFill
 !=============================================================================
@@ -2347,4 +2565,144 @@
         feq9(ip) = ww2*(rho9 + 3.0*G + 4.5*G*G - usqr)
       end do
 
-      end subroutine feqpnt 
+      end subroutine feqpnt
+
+!============================================================================
+!@subroutine collis_MRT9
+!@desc Constrain velocity for filling
+!============================================================================
+
+      subroutine collis_MRT9(u9,v9,w9,rho9,f9)
+      use var_inc
+      implicit none
+      real,dimension(0:npop-1):: f9
+      real u9,v9,w9,rho9
+      real sum1,sum2,sum3,sum4,sum5,sum6,sum7,sum8,sum9,sum10, &
+            sum11
+      real evlm1, evlm2, evlm3, evlm4, evlm5, evlm6, evlm7, evlm8,     &
+              evlm9, evlm10, evlm11, evlm12, evlm13, evlm14, evlm15
+      real eqmc1, eqmc2, eqmc3, eqmc4, eqmc5, eqmc6, eqmc7, eqmc8,     &
+              eqmc9, eqmc10, eqmc11, eqmc12, eqmc13, eqmc14, eqmc15
+      real suma, sumb, sumc, sumd, sume, sumf, sumg, sumh, sumi, sumk, &
+              sump, sum67, sum89, sum1011
+      real t1, tl1, tl2, tl3, tl4, tl5, tl6, tl7, tl8, tl9, tl10, tl11,&
+            tl12, tl13, tl14, tl15, tl16, tl17, tl18, tl19, tl20, tl21
+
+          sum1 = f9(1) + f9(2) + f9(3) + f9(4) + f9(5) + f9(6)
+          sum2 = f9(7) + f9(8) + f9(9) + f9(10) + f9(11) + f9(12)        &
+             + f9(13) + f9(14) + f9(15) + f9(16) + f9(17) + f9(18)
+          sum3 = f9(7) - f9(8) + f9(9) - f9(10) + f9(11) - f9(12)        &
+             + f9(13) - f9(14)
+          sum4 = f9(7) + f9(8) - f9(9) - f9(10) + f9(15) - f9(16)        &
+             + f9(17) - f9(18)
+          sum5 = f9(11) + f9(12) - f9(13) - f9(14) + f9(15) + f9(16)     &
+             - f9(17) - f9(18)
+          sum6 = f9(1) + f9(2)
+          sum7 = f9(3) + f9(4) + f9(5) + f9(6)
+          sum8 = f9(7) + f9(8) + f9(9) + f9(10) + f9(11) + f9(12)        &
+             + f9(13) + f9(14)
+          sum9 = f9(15) + f9(16) + f9(17) + f9(18)
+          sum10 = f9(3) + f9(4) - f9(5) - f9(6)
+          sum11 = f9(7) + f9(8) + f9(9) + f9(10) - f9(11) - f9(12)       &
+             - f9(13) - f9(14)
+
+          evlm1 = -30.0*f9(0) + coef2*sum1 + coef3*sum2
+          evlm2 = 12.0*f9(0) + coef4*sum1 + sum2
+          evlm3 = coef4*(f9(1) - f9(2)) + sum3
+          evlm4 = coef4*(f9(3) - f9(4)) + sum4
+          evlm5 = coef4*(f9(5) - f9(6)) + sum5
+          evlm6 = coef5*sum6 - sum7 + sum8 - coef5*sum9
+          evlm7 = coef4*sum6 + coef5*sum7 + sum8 - coef5*sum9
+          evlm8 = sum10 + sum11
+          evlm9 =-coef5*sum10 + sum11
+          evlm10 = f9(7) - f9(8) - f9(9) + f9(10)
+          evlm11 = f9(15) - f9(16) - f9(17) + f9(18)
+          evlm12 = f9(11) - f9(12) - f9(13) + f9(14)
+          evlm13 = f9(7) - f9(8) + f9(9) - f9(10) - f9(11) + f9(12)      &
+               - f9(13) + f9(14)
+          evlm14 =-f9(7) - f9(8) + f9(9) + f9(10) + f9(15) - f9(16)     & 
+               + f9(17) - f9(18)
+          evlm15 = f9(11) + f9(12) - f9(13) - f9(14) - f9(15) - f9(16)   &
+               + f9(17) + f9(18)
+
+          eqmc1 = evlm1
+          eqmc2 = evlm2
+          eqmc3 = evlm3
+          eqmc4 = evlm4
+          eqmc5 = evlm5
+          eqmc6 = evlm6
+          eqmc7 = evlm7
+          eqmc8 = evlm8
+          eqmc9 = evlm9
+          eqmc10 = evlm10
+          eqmc11 = evlm11
+          eqmc12 = evlm12
+          eqmc13 = evlm13
+          eqmc14 = evlm14
+	  eqmc15 = evlm15
+
+
+          tl1 = val1i*rho9
+          tl2 = coef2*val2i*eqmc1
+          tl3 = coef3*val2i*eqmc1
+          tl4 = coef4*val3i*eqmc2
+          tl5 = val3i*eqmc2
+          tl6 = val4i*u9
+          tl7 = val5i*eqmc3
+          tl8 = val4i*v9
+          tl9 = val5i*eqmc4
+          tl10 = val4i*w9
+          tl11 = val5i*eqmc5
+          tl12 = val6i*eqmc6
+          tl13 = val7i*eqmc7
+          tl14 = val8i*eqmc8
+          tl15 = val9i*eqmc9
+          tl16 = -coef4i*eqmc10
+          tl17 = -coef4i*eqmc11
+          tl18 = -coef4i*eqmc12
+          tl19 = coef3i*eqmc13
+          tl20 = coef3i*eqmc14
+          tl21 = coef3i*eqmc15
+
+
+          f9(0) = tl1 - 30.0*val2i*eqmc1 + val8*val3i*eqmc2
+          suma = tl1 + tl2 + tl4
+          sumb = tl1 + tl3 + tl5
+          sumc = tl6 + coef4*tl7
+          sumd = coef5*tl12 + coef4*tl13
+          sume = tl8 + coef4*tl9
+          sumf = -tl12 + coef5*tl13 + tl14 - coef5*tl15
+          sumg = tl10 + coef4*tl11
+          sumh = -tl12 + coef5*tl13 - tl14 + coef5*tl15
+
+          sumi = tl12 + tl13 + tl14 + tl15
+          sumk = tl12 + tl13 - tl14 - tl15
+
+          sump = -coef5*tl12 - coef5*tl13
+
+          sum67 = tl6 + tl7
+          sum89 = tl8 + tl9
+          sum1011 = tl10 + tl11
+
+          f9(1) = suma + sumc + sumd
+          f9(2) = suma - sumc + sumd
+          f9(3) = suma + sume + sumf
+          f9(4) = suma - sume + sumf
+          f9(5) = suma + sumg + sumh
+          f9(6) = suma - sumg + sumh
+          f9(7) = sumb + sum67 + sum89 + sumi + tl16 + tl19 - tl20
+          f9(8) = sumb - sum67 + sum89 + sumi - tl16 - tl19 - tl20
+          f9(9) = sumb + sum67 - sum89 + sumi - tl16 + tl19 + tl20
+          f9(10) = sumb - sum67 - sum89 + sumi + tl16 - tl19 + tl20
+
+          f9(11) = sumb + sum67 + sum1011 + sumk + tl18 - tl19 + tl21
+          f9(12) = sumb - sum67 + sum1011 + sumk - tl18 + tl19 + tl21
+          f9(13) = sumb + sum67 - sum1011 + sumk - tl18 - tl19 - tl21
+          f9(14) = sumb - sum67 - sum1011 + sumk + tl18 + tl19 - tl21
+
+          f9(15) = sumb + sum89 + sum1011 + sump + tl17 + tl20 - tl21
+          f9(16) = sumb - sum89 + sum1011 + sump - tl17 - tl20 - tl21
+          f9(17) = sumb + sum89 - sum1011 + sump - tl17 + tl20 + tl21
+          f9(18) = sumb - sum89 - sum1011 + sump + tl17 - tl20 + tl21
+
+          end subroutine collis_MRT9

@@ -684,17 +684,17 @@
       use var_inc
       implicit none
 
-      integer, dimension(lx,ny,nz):: ibnodes9
+!      integer, dimension(lx,ny,nz):: ibnodes9
 
-      call ibnodeassmbl(ibnodes9)
+!      call ibnodeassmbl(ibnodes9)
 
-      call outputux(ibnodes9)
+      call outputux
 
-      call outputuy(ibnodes9)
+      call outputuy
 
-      call outputuz(ibnodes9)
+      call outputuz
 
-      call outputpress(ibnodes9)
+      call outputpress
 
 !     call outputvort(ibnodes9)
 
@@ -707,12 +707,15 @@
       use var_inc
       implicit none
 
-      integer, dimension(lx,ny,nz):: ibnodes9
-      integer, dimension(lx,ly,lz):: ibnodes1
+      integer,allocatable,dimension(:,:,:):: ibnodes9
+      integer,allocatable,dimension(:,:,:):: ibnodes1
 
       integer ip, ilen, indy9, indz9
       integer status(MPI_STATUS_SIZE)
-
+      if (myid .eq. 0) then
+      allocate(ibnodes9(1:lx,1:ny,1:nz))
+      allocate(ibnodes1(1:lx,1:ly,1:lz))
+      end if
       if(ipart)then
         ilen = lx*ly*lz
 
@@ -732,6 +735,9 @@
        else
           call MPI_SEND(ibnodes,ilen,MPI_INTEGER,0,1,                  &
                         MPI_COMM_WORLD,ierr)
+
+       deallocate(ibnodes9)
+       deallocate(ibnodes1)
        end if
 
       else
@@ -744,25 +750,27 @@
 !===========================================================================
 
 ! This has been modified for 2D DD
-      subroutine outputux(ibnodes9)   
+      subroutine outputux   
       use mpi 
       use var_inc
       implicit none
 
-      integer, dimension(lx,ny,nz):: ibnodes9
 
       integer ip, ilen, indy9, indz9
       integer status(MPI_STATUS_SIZE)
       integer istp1, istp2, istp3, istp4, istp5, istp6, istp7
       
-      real, dimension(lx,ny,nz):: ux9
-      real, dimension(lx,ly,lz):: ux0
+      real,allocatable,dimension(:,:,:):: ux9
+      real,allocatable,dimension(:,:,:):: ux0
 
       character (len = 120):: fnm
 
       ilen = lx*ly*lz
 
       if(myid == 0)then
+
+       allocate(ux9(1:lx,1:ny,1:nz))
+       allocate(ux0(1:lx,1:ly,1:lz))
 
        ux9(:,:,1:lz) = ux
 
@@ -802,6 +810,8 @@
         write(16,160) ux9 
 
         close(16)
+       deallocate(ux9)
+       deallocate(ux0)
 
       end if
 
@@ -810,19 +820,18 @@
       end subroutine outputux   
 !===========================================================================
 
-      subroutine outputuy(ibnodes9) 
+      subroutine outputuy 
       use mpi 
       use var_inc
       implicit none
 
-      integer, dimension(lx,ly,nz):: ibnodes9
 
       integer ip, ilen, indy9, indz9
       integer status(MPI_STATUS_SIZE)
       integer istp1, istp2, istp3, istp4, istp5, istp6, istp7
       
-      real, dimension(lx,ny,nz):: uy9
-      real, dimension(lx,ly,lz):: uy0
+      real,allocatable,dimension(:,:,:):: uy9
+      real,allocatable,dimension(:,:,:):: uy0
 
       character (len = 120):: fnm
 
@@ -830,6 +839,8 @@
 
       if(myid == 0)then
 
+        allocate(uy9(1:lx,1:ny,1:nz))
+        allocate(uy0(1:lx,1:ly,1:lz))
         uy9(:,:,1:lz) = uy   
 
         do ip = 1,nproc-1
@@ -869,6 +880,8 @@
 
         close(17)
 
+        deallocate(uy9)
+        deallocate(uy0)
       end if
 
 170   format(2x,8(1pe16.6))
@@ -876,25 +889,26 @@
       end subroutine outputuy      
 !===========================================================================
 
-      subroutine outputuz(ibnodes9)   
+      subroutine outputuz 
       use mpi 
       use var_inc
       implicit none
 
-      integer, dimension(lx,ly,nz):: ibnodes9
 
       integer ip, ilen, indy9, indz9
       integer status(MPI_STATUS_SIZE)
       integer istp1, istp2, istp3, istp4, istp5, istp6, istp7
       
-      real, dimension(lx,ny,nz):: uz9    
-      real, dimension(lx,ly,lz):: uz0    
+      real,allocatable,dimension(:,:,:):: uz9    
+      real,allocatable,dimension(:,:,:):: uz0    
 
       character (len = 120):: fnm
 
       ilen = lx*ly*lz
 
       if(myid == 0)then
+        allocate(uz9(1:lx,1:ny,1:nz))
+        allocate(uz0(1:lx,1:ly,1:lz))
 
         uz9(:,:,1:lz) = uz       
 
@@ -934,6 +948,8 @@
         write(18,180) uz9 
 
         close(18)
+        deallocate(uz9)
+        deallocate(uz0)
 
       end if
 

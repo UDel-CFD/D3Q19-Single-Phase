@@ -27,14 +27,14 @@
       integer(kind = 8):: plan_RC, plan_CR, plan_F, plan_B  
       
       !Domain size paramters
-      integer,parameter:: nx7=200,nx = nx7-1, ny = 2*nx7, nz = nx7
+      integer,parameter:: nx7=300,nx = nx7-1, ny = 2*nx7, nz = nx7
       integer,parameter:: lx = nx
       integer,parameter:: lxh = lx/2, lyh = ny/2
       integer,parameter:: nxh = nx7/2, nyh = ny/2, nzh = nz/2
       integer,parameter:: npop = 19
 
       !Diagnostic and data output paramters
-      integer,parameter:: ndiag = 100, nstat = 100  , nspec=1000
+      integer,parameter:: ndiag = 1, nstat = 100  , nspec=1000
       integer,parameter:: nflowout = 10000, npartout = 1000, ntime = 100
       integer,parameter:: nmovieout = 20000000, nsij = 100    
 
@@ -43,7 +43,7 @@
       integer,parameter:: NTAB = 32
       real,parameter:: rho0 = 1.0, rhopart = 1.0
       integer,parameter:: npart = 270 
-      real,parameter:: rad = 10.0, mingap = 2.0, mingap_w =2.0
+      real,parameter:: rad = 15.0, mingap = 3.0, mingap_w =3.0
       integer,parameter:: irelease = 10
       integer,parameter:: iprocrate = 2  
       real,parameter:: et0 = 2.354998E+01 
@@ -51,12 +51,12 @@
       !MPI, input/output, and runtime related variables
       integer ierr, myid, nproc
       integer nprocY, nprocZ
-      integer istep, istep0, istep00, nsteps, npforcing, istpload, imovie   
+      integer istep, istep0, istep00, nsteps, istpload, imovie   
       integer lz, ly, lyext, lly, nek, MRTtype, mzp, mzm, istat, iseedf, iyf
       integer indy, indz, myp, mym, mypzp, mypzm, mymzp, mymzm
-
+      integer fill_type
       integer iseedp, msize, nps, iyp, kpeak
-      
+      integer nfluidtotal 
       logical newrun, ipart, newinitflow, released
 
       !General LBM variables and constants
@@ -69,7 +69,7 @@
       real val1, val2, val3, val4, val5, val6, val7, val8, val9,       &
            val1i, val2i, val3i, val4i, val5i, val6i, val7i, val8i, val9i
       real ww0, ww1, ww2  
-      real rhoerr, rhoerrmax, rhoepsl , rhomax, rhomin
+      real rhoerr, rhoerrmax, rhoepsl , rhomax, rhomin, rhomeang
       real volp, amp, aip, g_lbm, rhog, ws_normalized
       real stf0, stf1, stf0_w, stf1_w
       real time_start, time_end, time_diff, time_max,      &
@@ -109,8 +109,8 @@
       integer,allocatable,dimension(:):: idbfill
       logical,allocatable,dimension(:,:):: fillMPIrequest
       logical,allocatable,dimension(:):: localReqData
-      real,allocatable,dimension(:,:,:):: fillRecvYm, fillRecvYp    
-      real,allocatable,dimension(:,:,:):: fillRecvZm, fillRecvZp
+      real,allocatable,dimension(:,:,:,:):: fillRecvYm, fillRecvYp    
+      real,allocatable,dimension(:,:,:,:):: fillRecvZm, fillRecvZp
 
       !Macroscopic variable arrays
       real,allocatable,dimension(:,:,:):: rho, rhop
@@ -126,7 +126,6 @@
       real,allocatable,dimension(:,:):: thetap 
       real,allocatable,dimension(:,:):: fHIp
       real,allocatable,dimension(:,:):: flubp
-
       ! note that to make use of FFTW library on bluefire, the complex numbers 
       ! must have a size of at least complex*16, or even higher. For current 
       ! real*4, double complex is equivalent to complex*16. 

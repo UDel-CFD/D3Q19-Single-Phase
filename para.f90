@@ -21,9 +21,9 @@
 
       ! Initial timestep one want to load flow/ particle data from
       ! It can be any step # at which the "endrunflow" & "endrunpart" data are saved
-      istpload = 2000
+      istpload = 1700000
       ! Number of time steps in main loop
-      nsteps = 2000
+      nsteps = 5000
 
       s = 1 !Global switch used for 2-array algorithm
 
@@ -44,20 +44,16 @@
       pi = 4.0*atan(1.0) 
       pi2 = 2.0*pi
       
-      !Specify the force magnitude
+      ! specify the force magnitude
 !     visc = 0.0032
 !     Rstar = 200.0
 !     visc = 0.0036
-      visc = 0.0036
+      visc = 0.004
       Rstar = 180.0
       ustar = 2.0*Rstar*visc/real(nx)
       force_in_y = 2.*rho0*ustar*ustar/real(nx)
       ystar = visc/ustar
       force_mag = 1.0
-
-      !End time step of perturbatuon forcing
-      !Not used in particle laden
-      npforcing = 50000
 
       ! not used
       kpeak = 4         ! It does not matter. Starting from stagnant flow
@@ -85,7 +81,7 @@
 
       select case(MRTtype) 
       case(1) ! Linear analysis data for stability 
-        s1 = 1.19
+        s1 = 1.5
         s2 = 1.4
         s4 = 1.2
         s10 = 1.4
@@ -149,6 +145,8 @@
       ww1 = 1.0/18.0
       ww2 = 1.0/36.0
 
+
+
 ! The order must be exactly as in D'Humieres et al (2002), (A1)
 !      Phil. Trans. R. Soc. Lond. A (2002) 360, 437-451
 ! index 0:  ( 0  0  0)
@@ -184,7 +182,7 @@
 !=======================================================
 ! Create MPI topology
 !=======================================================
-      nprocY = 20 !MPI topology width
+      nprocY = 30 !MPI topology width
       nprocZ = nproc/nprocY !MPI topology height
 
       ly = ny/nprocY         !local division of dist for procs in y dir
@@ -224,10 +222,10 @@
 !=======================================================
 ! Declare reading and writing directories
 !=======================================================
-      dircntdflow0 = trim('/glade/scratch/ngeneva/Particle_Laden_Channel_Flow_Code/')
-      dircntdpart0 = trim('/glade/scratch/ngeneva/Particle_Laden_Channel_Flow_Code/')
+      dircntdflow0 = trim('/glade/scratch/cpeng/Channel_MRT_New5/')
+      dircntdpart0 = trim('/glade/scratch/cpeng/Channel_MRT_New5/')
 
-      dirgenr = '/glade/scratch/ngeneva/Particle_Laden_Channel_Flow_Code/'
+      dirgenr = '/glade/scratch/cpeng/Channel_MRT_New5/'
       dirdiag = trim(dirgenr)//'diag/'
       dirstat = trim(dirgenr)//'stat/'
       dirprobe = trim(dirgenr)//'probe/'
@@ -247,6 +245,7 @@
       dirbenchflow = trim(dirbench)//'flow/'
 
       !Make sure that directories exist with makedir
+      !@file para.f90
       if(myid==0)then
         call makedir(dirdiag)
         call makedir(dirstat)
@@ -379,7 +378,6 @@
       allocate (wy(lx+2,ly+lyext,lz))
       allocate (wz(lx+2,ly+lyext,lz))
       allocate (ibnodes(0:lx+1,0:ly+1,0:lz+1))
-
       allocate(force_realx(lx,ly,lz))
       allocate(force_realy(lx,ly,lz))
       allocate(force_realz(lx,ly,lz))
@@ -419,8 +417,9 @@
       allocate (ipf_myp(2*19*lx*(lz + 4)))
       allocate (ipf_mzm(2*19*lx*ly))
       allocate (ipf_mzp(2*19*lx*ly))
-
+      ! although it is not necessary to expand ibnodes0, we do this for convenience.
       allocate (ibnodes0(0:lx+1,0:ly+1,0:lz+1))
+
       allocate (isnodes(lx,ly,lz))
       allocate (isnodes0(lx,ly,lz))
 
@@ -430,11 +429,10 @@
       allocate (idbfill(maxbfill))
       allocate (fillMPIrequest(0:nproc,8))
       allocate (localReqData(8))
-
-      allocate(fillRecvYm(0:npop-1,lx,0:lz+1))
-      allocate(fillRecvYp(0:npop-1,lx,0:lz+1))
-      allocate(fillRecvZm(0:npop-1,lx,ly))
-      allocate(fillRecvZp(0:npop-1,lx,ly))
+      allocate(fillRecvYm(0:npop-1,lx,-2:0,-2:lz+3))
+      allocate(fillRecvYp(0:npop-1,lx,ly+1:ly+3,-2:lz+3))
+      allocate(fillRecvZm(0:npop-1,lx,ly,-2:0))
+      allocate(fillRecvZp(0:npop-1,lx,ly,lz+1:lz+3))
 
       isnodes = -1
 

@@ -369,7 +369,7 @@
       do iz = 1,lz
       do iy = 1,ly
       do ix = 1,lx
-        if(ibnodes(i,j,k) < 0)then
+        if(ibnodes(ix,iy,iz) < 0)then
           !If we are not inside a solid particle
           f9 = f(:,ix,iy,iz,s)
 
@@ -397,11 +397,11 @@
 
         elseif(ipart)then
           !If we are in a solid particle, adjust velocity to the particles velocity
-          id = isnodes(i,j,k) 
+          id = isnodes(ix,iy,iz) 
 
-          xpnt = real(i) - 0.5
-          ypnt = real(j) - 0.5 + real(indy*ly)
-          zpnt = real(k) - 0.5 + real(indz*lz)
+          xpnt = real(ix) - 0.5
+          ypnt = real(iy) - 0.5 + real(indy*ly)
+          zpnt = real(iz) - 0.5 + real(indz*lz)
 
           xc = ypglb(1,id)
           yc = ypglb(2,id)
@@ -429,11 +429,11 @@
           omg2 = omgp(2,id)
           omg3 = omgp(3,id)
 
-          ux(i,j,k) = w1 + (omg2*zz0 - omg3*yy0)
-          uy(i,j,k) = w2 + (omg3*xx0 - omg1*zz0)
-          uz(i,j,k) = w3 + (omg1*yy0 - omg2*xx0)
+          ux(ix,iy,iz) = w1 + (omg2*zz0 - omg3*yy0)
+          uy(ix,iy,iz) = w2 + (omg3*xx0 - omg1*zz0)
+          uz(ix,iy,iz) = w3 + (omg1*yy0 - omg2*xx0)
 
-          rho(i,j,k) = rhopart
+          rho(ix,iy,iz) = rhopart
         endif
       enddo !x
       enddo !y
@@ -536,3 +536,37 @@
       RETURN
       END SUBROUTINE FORCINGP
 
+!=========================================================================
+      subroutine avedensity
+      use var_inc
+      use mpi
+      implicit none
+
+      integer nfluid0
+      real rhomean
+
+      rhomean = 0.d0
+      nfluid0 = count(ibnodes < 0)
+      rhomean = sum(rho,MASK = (ibnodes < 0))
+      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+      CALL MPI_ALLREDUCE(nfluid0,nfluidtotal,1,MPI_INTEGER,MPI_SUM,mpi_comm_world,ierr)
+      CALL MPI_ALLREDUCE(rhomean,rhomeang,1,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+
+      end subroutine avedensity
+
+
+!==================================================================
+
+      subroutine cordensity
+      use var_inc
+      implicit none
+      integer iz, iy, ix
+      do iz = 1,lz
+        do iy = 1,ly
+          do ix = 1,lx
+            rho(ix,iy,iz) = rho(ix,iy,iz) - rhomeang
+          enddo
+        enddo
+      enddo
+      end subroutine cordensity
+!===================================================================
