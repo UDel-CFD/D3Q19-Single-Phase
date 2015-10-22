@@ -21,9 +21,9 @@
 
       ! Initial timestep one want to load flow/ particle data from
       ! It can be any step # at which the "endrunflow" & "endrunpart" data are saved
-      istpload = 2000
+      istpload = 1700000
       ! Number of time steps in main loop
-      nsteps = 2000
+      nsteps = 5000
 
       s = 1 !Global switch used for 2-array algorithm
 
@@ -226,8 +226,8 @@
 !=======================================================
 ! Declare reading and writing directories
 !=======================================================
-      dircntdflow0 = trim('/glade/scratch/ngeneva/Channel_MRT_New5/')
-      dircntdpart0 = trim('/glade/scratch/ngeneva/Channel_MRT_New5/')
+      dircntdflow0 = trim('/glade/scratch/cpeng/Channel_MRT_New5/')
+      dircntdpart0 = trim('/glade/scratch/cpeng/Channel_MRT_New5/')
 
       dirgenr = '/glade/scratch/ngeneva/Channel_MRT_New5/'
       dirdiag = trim(dirgenr)//'diag/'

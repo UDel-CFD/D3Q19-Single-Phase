@@ -51,12 +51,11 @@
       !MPI, input/output, and runtime related variables
       integer ierr, myid, nproc
       integer nprocY, nprocZ
-      integer istep, istep0, istep00, nsteps, istpload, imovie   
+      integer istep, istep0, istep00, nsteps, npforcing, istpload, imovie   
       integer lz, ly, lyext, lly, nek, MRTtype, mzp, mzm, istat, iseedf, iyf
       integer indy, indz, myp, mym, mypzp, mypzm, mymzp, mymzm
       integer fill_type
       integer iseedp, msize, nps, iyp, kpeak
-      integer nfluidtotal 
       logical newrun, ipart, newinitflow, released
 
       !General LBM variables and constants
@@ -69,7 +68,7 @@
       real val1, val2, val3, val4, val5, val6, val7, val8, val9,       &
            val1i, val2i, val3i, val4i, val5i, val6i, val7i, val8i, val9i
       real ww0, ww1, ww2  
-      real rhoerr, rhoerrmax, rhoepsl , rhomax, rhomin, rhomeang
+      real rhoerr, rhoerrmax, rhoepsl , rhomax, rhomin
       real volp, amp, aip, g_lbm, rhog, ws_normalized
       real stf0, stf1, stf0_w, stf1_w
       real time_start, time_end, time_diff, time_max,      &

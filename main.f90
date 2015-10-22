@@ -184,7 +184,14 @@
           released = .TRUE.
         end if
 
-        time_start = MPI_WTIME()
+        !Update or shut off perturb forcing, not used in particle laden
+        if(istep .gt. npforcing .or. ipart)then
+        else if(istep .lt. npforcing)then
+         call FORCINGP
+        else if(istep .eq. npforcing)then
+         call FORCING
+        end if
+
         !Executes Collision and Propagation of the Fluid
         !@file collision.f90
         !bnchstart = MPI_WTIME()
@@ -230,12 +237,6 @@
           !bnchstart = MPI_WTIME()
           call beads_filling
           !beads_filling_bnch(istep-istpload) = MPI_WTIME() - bnchstart
-
-          !Remove average density to correct mass loss from interpolation
-          !@file collision.f90
-          if(mod(istep,100) == 0) then
-            call avedensity
-          endif
         end if
 
         !Calculate macroscopic variables
@@ -243,6 +244,12 @@
         !bnchstart = MPI_WTIME()
         call macrovar
         !macrovar_bnch(istep-istpload) = MPI_WTIME() - bnchstart
+
+        if(ipart .and. mod(istep,100) == 0)then
+          !Remove average density to correct mass loss from interpolation
+          !@file collision.f90
+          call avedensity
+        endif
 
 
         !diag calculates and outputs respective data/diagnostics
@@ -301,11 +308,11 @@
        !call probe
        !call outputvort
 ! save data for continue run
-      call savecntdflow
+      !call savecntdflow
 !save param variables
 !      call input_outputf(2)
 !save bead positions
-      if(ipart .and. istep > irelease) call savecntdpart    
+      !if(ipart .and. istep > irelease) call savecntdpart    
 
 !Record Benchmarks
 !      call benchflow

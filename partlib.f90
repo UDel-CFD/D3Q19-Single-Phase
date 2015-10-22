@@ -679,112 +679,96 @@
                 ibnodes(i,j,k) = -1
                 isnodes(i,j,k) = -1
 
-                !Here I change the filling scheme to the velocity constrained scheme
-		!In such scheme, we need to apply 3 point extrapolation instead of just one
-		!point propagation, hence there are more cases we will need data communication.
-
+		            !We need to apply 3 point extrapolation for the filling scheme
                 !Determine if we need to request any data for filling
-                     
-	            
-                    if(k == 1.or. k == 2.or.k==3) then 
-		    localReqData(2) = .TRUE.
-		    if(j==1.or.j==2.or.j==3) localReqData(7) = .TRUE.
-		    if(j==ly.or.j==ly-1.or.j==ly-2) localReqData(8) = .TRUE.
-		    else if(k==lz.or.k==lz-1.or.k==lz-2) then
-		    localReqData(1) = .TRUE.
-		    if(j==1.or.j==2.or.j==3) localReqData(5) = .TRUE.
-		    if(j==ly.or.j==ly-1.or.j==ly-2) localReqData(6) = .TRUE.
-		    end if
-	            if(j==1.or.j==2.or.j==3) localReqData(3) = .TRUE.
-		    if(j==ly.or.j==ly-1.or.j==ly-2) localReqData(4) = .TRUE.
+                if(k < 4) then 
+          		    localReqData(2) = .TRUE.
+          		    if(j < 4) localReqData(7) = .TRUE.
+          		    if(j > ly-3) localReqData(8) = .TRUE.
+        		    else if(k > lz-3) then
+          		    localReqData(1) = .TRUE.
+          		    if(j < 4) localReqData(5) = .TRUE.
+          		    if(j > ly-3) localReqData(6) = .TRUE.
+        		    end if
+        	      if(j < 4) localReqData(3) = .TRUE.
+        		    if(j > ly-3) localReqData(4) = .TRUE.
 	       
-	       endif !If needs filling
-	       
-
-		    
-		    
+	             endif !If needs filling
           enddo !z
         enddo !y
       enddo !x
 
       !Update ghost in ibnodes nodes
       !This is needed in beads filling and post streaming interpolation
-      !For beads_filling, the size has to be expand if we want to use
-      !velocity constrained filling
-      ! I feel ibnodes only need a size of (1:lx,0:ly+1,0:lz+1) instead of (0:lx+1,:,:)
+      ibnodes(:,0:ly+1,0)=-1    
+      ibnodes(:,0:ly+1,lz+1)=-1
+      do k=0,lz+1,lz+1
+        do i = 1, lx
+          do j = 0, ly+1
+            xpnt = dfloat(i) - 0.5d0
+            ypnt = dfloat(j) - 1.d0 + alphay
+            zpnt = dfloat(k) - 1.d0 + alphaz
 
-      ! for velocity constrained filling'
-      ibnodes(:,0:ly+1,0) = -1
-      ibnodes(:,0:ly+1,lz+1) = -1
-      do k = 0,lz+1,lz+1
-        do i = 1,lx
-          do j = 0,ly+1
-             xpnt = dfloat(i) - 0.5d0
-             ypnt = dfloat(j) - 1.d0 + alphay
-             zpnt = dfloat(k) - 1.d0 + alphaz
-             do 116 id=1, nfbeads
-               xc = xfbeads(id)
-               xx0 = xpnt - xc
-               if(xx0**2 > radp2**2)GO TO 116
+            do 114 id=1, nfbeads
+              xc = xfbeads(id)
+              xx0 = xpnt - xc
+              if(xx0**2 > radp2**2)GO TO 114
 
-               yc = yfbeads(id)
-               if((yc - ypnt) > dfloat(nyh)) yc = yc - dfloat(ny)
-               if((yc - ypnt) < -dfloat(nyh)) yc = yc + dfloat(ny)
-               yy0 = ypnt - yc
-               if(xx0**2+yy0**2 > radp2**2)GO TO 116
-               zc = zfbeads(id)
-               if((zc - zpnt) > dfloat(nzh)) zc = zc - dfloat(nz)
-               if((zc - zpnt) < -dfloat(nzh)) zc = zc + dfloat(nz)
-             zz0 = zpnt - zc
-             rr0 = xx0**2 + yy0**2 + zz0**2
+              yc = yfbeads(id)
+              if((yc - ypnt) > dfloat(nyh)) yc = yc - dfloat(ny)
+              if((yc - ypnt) < -dfloat(nyh)) yc = yc + dfloat(ny)
+              yy0 = ypnt - yc
+              if(xx0**2+yy0**2 > radp2**2)GO TO 114
 
-             if(sqrt(rr0) <= radp2)then
-               rr01 = rr0 - (rad*1.d0)**2
-               if(rr01 <= 0.d0)ibnodes(i,j,k) = 1
-             end if
-116            continue !npart
-             end do !y
-             end do !x
-             end do !z
-
-
-! The other slides for y
-        ibnodes(:,0,1:lz)=-1
-        ibnodes(:,ly+1,1:lz)=-1
-
-        do j = 0,ly+1,ly+1
-        do i = 1,lx
-	do k = 1,lz
-        xpnt = dfloat(i) - 0.5d0
-        ypnt = dfloat(j) - 1.d0 + alphay
-        zpnt = dfloat(k) - 1.d0 + alphaz
-
-        do 118 id=1, nfbeads
-            xc = xfbeads(id)
-            xx0 = xpnt - xc
-            if(xx0**2 > radp2**2)GO TO 118
-
-            yc = yfbeads(id)
-            if((yc - ypnt) > dfloat(nyh)) yc = yc - dfloat(ny)
-            if((yc - ypnt) < -dfloat(nyh)) yc = yc + dfloat(ny)
-            yy0 = ypnt - yc
-            if(xx0**2+yy0**2 > radp2**2)GO TO 118
-
-            zc = zfbeads(id)
-            if((zc - zpnt) > dfloat(nzh)) zc = zc - dfloat(nz)
-            if((zc - zpnt) < -dfloat(nzh)) zc = zc + dfloat(nz)
-            zz0 = zpnt - zc
-            rr0 = xx0**2 + yy0**2 + zz0**2
-
+              zc = zfbeads(id)
+              if((zc - zpnt) > dfloat(nzh)) zc = zc - dfloat(nz)
+              if((zc - zpnt) < -dfloat(nzh)) zc = zc + dfloat(nz)
+              zz0 = zpnt - zc
+              rr0 = xx0**2 + yy0**2 + zz0**2
+              
               if(sqrt(rr0) <= radp2)then
-              rr01 = rr0 - (rad*1.d0)**2
-              if(rr01 <= 0.d0)ibnodes(i,j,k) = 1
-              end if
-118         continue !npart
-            enddo !y
-            enddo !x
-            enddo !z
-! The other half for y
+                rr01 = rr0 - (rad*1.d0)**2
+                if(rr01 <= 0.d0)ibnodes(i,j,k) = 1 
+              end if                     
+114          continue !npart
+          enddo !y
+        enddo !x
+      enddo !z
+
+      ibnodes(:,0,1:lz)=-1    
+      ibnodes(:,ly+1,1:lz)=-1   
+      do j=0,ly+1,ly+1
+        do i = 1, lx
+          do k = 1, lz
+            xpnt = dfloat(i) - 0.5d0
+            ypnt = dfloat(j) - 1.d0 + alphay
+            zpnt = dfloat(k) - 1.d0 + alphaz
+
+            do 115 id=1, nfbeads
+              xc = xfbeads(id)
+              xx0 = xpnt - xc
+              if(xx0**2 > radp2**2)GO TO 115
+
+              yc = yfbeads(id)
+              if((yc - ypnt) > dfloat(nyh)) yc = yc - dfloat(ny)
+              if((yc - ypnt) < -dfloat(nyh)) yc = yc + dfloat(ny)
+              yy0 = ypnt - yc
+              if(xx0**2+yy0**2 > radp2**2)GO TO 115
+
+              zc = zfbeads(id)
+              if((zc - zpnt) > dfloat(nzh)) zc = zc - dfloat(nz)
+              if((zc - zpnt) < -dfloat(nzh)) zc = zc + dfloat(nz)
+              zz0 = zpnt - zc
+              rr0 = xx0**2 + yy0**2 + zz0**2
+              
+              if(sqrt(rr0) <= radp2)then
+                rr01 = rr0 - (rad*1.d0)**2
+                if(rr01 <= 0.d0)ibnodes(i,j,k) = 1 
+              end if                     
+115         continue !npart
+          enddo !y
+        enddo !x
+      enddo !z
 
 
       end subroutine beads_links
