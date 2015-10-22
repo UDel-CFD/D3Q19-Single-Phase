@@ -85,10 +85,11 @@
           ! Pre-relaxation of density field after initial forcing
           do
             rhop = rho
-            call collision_MRT !@file collision.f90
-
             !Update density values
-            call rhoupdat !@file collision.f90
+            !@file collision.f90
+            call rhoupdat
+
+            call collision_MRT !@file collision.f90
 
             !Determine the maximum density change
             rhoerr = maxval(abs(rho - rhop))        
@@ -138,11 +139,15 @@
         if(ipart .and. istpload > irelease)then
           call loadcntdpart  !@file saveload.f90
           call beads_links !@file partlib.f90
+!          if(myid.eq.0)write(*,*)'Initial beads_link passed'
           released = .TRUE.
         end if
 
         call macrovar !@file collision.f90
       END IF
+
+      if(myid.eq.0)write(*,*)'Loading successful'
+
 !=======================================================
 ! END OF FLOW INITIALIZATION/ LOADING
 !=======================================================
@@ -158,6 +163,7 @@
 ! MAIN LOOP
 !=======================================================
       do istep = istep0+1,istep0+nsteps 
+
 
         if(myid.eq.0 .and. mod(istep,50).eq.0)then
         	write(*,*) 'istep=',istep
@@ -178,59 +184,52 @@
           released = .TRUE.
         end if
 
-        !Update or shut off perturb forcing, not used in particle laden
-        if(istep .gt. npforcing .or. ipart)then
-        else if(istep .lt. npforcing)then
-         call FORCINGP
-        else if(istep .eq. npforcing)then
-         call FORCING
-        end if
-
+        time_start = MPI_WTIME()
         !Executes Collision and Propagation of the Fluid
         !@file collision.f90
-        bnchstart = MPI_WTIME()
+        !bnchstart = MPI_WTIME()
         call collision_MRT
-        collision_MRT_bnch(istep-istpload) = MPI_WTIME() - bnchstart
-
-
+        !collision_MRT_bnch(istep-istpload) = MPI_WTIME() - bnchstart
+        
+!        if (myid.eq.0)write(*,*)'Passed collision and streaming'
         if(ipart .and. istep >= irelease)then !If we have solid particles in our flow
           !Calculates interpolation bounce back for the fluid off the solid particles
           !@file partlib.f90
-          bnchstart = MPI_WTIME()
+          !bnchstart = MPI_WTIME()
           call beads_collision
-          beads_collision_bnch(istep-istpload) = MPI_WTIME() - bnchstart
+          !beads_collision_bnch(istep-istpload) = MPI_WTIME() - bnchstart
 
           !Determine the lubrication forces acting on the solid particles
           !@file partlib.f90
-          bnchstart = MPI_WTIME()
+          !bnchstart = MPI_WTIME()
           call beads_lubforce
-          beads_lubforce_bnch(istep-istpload) = MPI_WTIME() - bnchstart
+          !beads_lubforce_bnch(istep-istpload) = MPI_WTIME() - bnchstart
 
           !Update the position of the solid particles
           !@file partlib.f90
-          bnchstart = MPI_WTIME()
+          !bnchstart = MPI_WTIME()
           call beads_move
-          beads_move_bnch(istep-istpload) = MPI_WTIME() - bnchstart
+          !beads_move_bnch(istep-istpload) = MPI_WTIME() - bnchstart
 
           !Redistribute solid particles to their respective MPI task based on their global position
           !@file partlib.f90
-          bnchstart = MPI_WTIME()
+          !bnchstart = MPI_WTIME()
           call beads_redistribute
-          beads_redistribute_bnch(istep-istpload) = MPI_WTIME() - bnchstart
+          !beads_redistribute_bnch(istep-istpload) = MPI_WTIME() - bnchstart
 
           !Determine which lattice links cross the fluid/ solid particle boundary,
           !the position the boundary is located on the link, which nodes are inside a solid particle,
           !and what data we will need from neighboring MPI tasks for interpolation bounce back
           !@file partlib.f90
-          bnchstart = MPI_WTIME()
+          !bnchstart = MPI_WTIME()
           call beads_links
-          beads_links_bnch(istep-istpload) = MPI_WTIME() - bnchstart
+          !beads_links_bnch(istep-istpload) = MPI_WTIME() - bnchstart
 
           !Repopulate nodes that previously existed inside a solid particle
           !@file partlib.f90
-          bnchstart = MPI_WTIME()
+          !bnchstart = MPI_WTIME()
           call beads_filling
-          beads_filling_bnch(istep-istpload) = MPI_WTIME() - bnchstart
+          !beads_filling_bnch(istep-istpload) = MPI_WTIME() - bnchstart
 
           !Remove average density to correct mass loss from interpolation
           !@file collision.f90
@@ -241,27 +240,38 @@
 
         !Calculate macroscopic variables
         !@file collision.f90
-        bnchstart = MPI_WTIME()
+        !bnchstart = MPI_WTIME()
         call macrovar
-        macrovar_bnch(istep-istpload) = MPI_WTIME() - bnchstart
+        !macrovar_bnch(istep-istpload) = MPI_WTIME() - bnchstart
 
-        !Calculate and output respective data/diagnostics
+
+        !diag calculates and outputs respective data/diagnostics
         if(mod(istep,ndiag) == 0)  call diag !@file saveload.f90
-        if(mod(istep,nstat) == 0)  call statistc !@file saveload.f90
+        !partstatis is to output the position, velocity and force of each particle
+        if(mod(istep,200) == 0) call partstatis
+        ! statistc4 outputs the mean, rms velocity&vorticity of particle phase, the vorticity calculation is called here
+        if(mod(istep,200) == 0)  call statistc4
+        !  moviedata2 generates 2D vorticity contours for 2D visualization (only use when necessary)
+        ! if(mod(istep,200) == 0) call moviedata2
+
+        ! statistc2 calculates the mean and rms velocity profiles of fluid phase
         if(mod(istep,nstat) == 0)  call statistc2 !@file saveload.f90
-!       if(mod(istep,nstat) == 0) call rmsstat !@file saveload.f90
-!       if(mod(istep,nsij) == 0) call sijstat03 !@file saveload.f90
-!       if(mod(istep,nsij) == 0) call sijstat !@file saveload.f90
+        ! statistc3 calculates the mean and rms vorticity profiles of fluid phase
+        if(mod(istep,nstat) == 0) call statistc3
+
+        if(mod(istep,nflowout) == 0) call outputflow !@file saveload.f90
+
+        if(ipart .and. istep >= irelease .and. mod(istep,npartout) == 0)call outputpart !@file saveload.f90
 
 !       if(ipart .and. istep >= irelease .and. mod(istep,nmovieout) == 0) then
 !          call moviedata
 !          call sijstat03
 !          go to 101
 !       end if
-        
-        !Save flow and particle positions
-        if(mod(istep,nflowout) == 0) call outputflow !@file saveload.f90
-        if(ipart .and. istep >= irelease .and. mod(istep,npartout) == 0)call outputpart !@file saveload.f90
+
+!       if(mod(istep,nstat) == 0) call rmsstat
+!       if(mod(istep,nsij) == 0) call sijstat03   
+!       if(mod(istep,nsij) == 0) call sijstat 
 
         !Check current wall-clock time
         if(mod(istep,ntime) == 0)then
@@ -273,7 +283,7 @@
            call MPI_ALLREDUCE(time_diff, time_max, 1, MPI_REAL8, MPI_MAX, MPI_COMM_WORLD, ierr)
           ! If our current runtime exceeds our specified limit, stop and save the run
           if(time_max > time_bond) exit
-        endif
+         endif !Line 356
 
       end do
 !=======================================================
@@ -287,29 +297,24 @@
       call MPI_BARRIER(MPI_COMM_WORLD,ierr)
       call MPI_ALLREDUCE(time_diff,time_max,1,MPI_REAL8, MPI_MAX,MPI_COMM_WORLD,ierr)
 
-      !Probe each processor for final flow comparing
-      call probe
-      !call outputvort
-
-      !Save flow data for continue run
-      !call savecntdflow
-      !Save bead data
-      !if(ipart .and. istep > irelease) call savecntdpart  
-      !save param variables
-      !call input_outputf(2)
-  
+!Probe each processor for final flow comparing
+       !call probe
+       !call outputvort
+! save data for continue run
+      call savecntdflow
+!save param variables
+!      call input_outputf(2)
+!save bead positions
+      if(ipart .and. istep > irelease) call savecntdpart    
 
 !Record Benchmarks
-      call benchflow
-      call benchbead
-      call benchmatlab
-      call benchtotal
+!      call benchflow
+!      call benchbead
+!      call benchmatlab
+
+!      call benchtotal
 
 101   continue
-
-      if(myid.eq.0)then
-        write(*,*)'time_max = ',time_max
-      endif
 
       call MPI_FINALIZE(ierr)
 

@@ -684,19 +684,19 @@
       use var_inc
       implicit none
 
-      integer, dimension(lx,ny,nz):: ibnodes9
+!      integer, dimension(lx,ny,nz):: ibnodes9
 
-      call ibnodeassmbl(ibnodes9)
+!      call ibnodeassmbl(ibnodes9)
 
-      call outputux(ibnodes9)
+      call outputux
 
-      call outputuy(ibnodes9)
+      call outputuy
 
-      call outputuz(ibnodes9)
+      call outputuz
 
-      call outputpress(ibnodes9)
+      call outputpress
 
-!     call outputvort(ibnodes9)
+      call outputvort
 
       end subroutine outputflow   
 !===========================================================================
@@ -707,12 +707,15 @@
       use var_inc
       implicit none
 
-      integer, dimension(lx,ny,nz):: ibnodes9
-      integer, dimension(lx,ly,lz):: ibnodes1
+      integer,allocatable,dimension(:,:,:):: ibnodes9
+      integer,allocatable,dimension(:,:,:):: ibnodes1
 
       integer ip, ilen, indy9, indz9
       integer status(MPI_STATUS_SIZE)
-
+      if (myid .eq. 0) then
+      allocate(ibnodes9(1:lx,1:ny,1:nz))
+      allocate(ibnodes1(1:lx,1:ly,1:lz))
+      end if
       if(ipart)then
         ilen = lx*ly*lz
 
@@ -732,6 +735,9 @@
        else
           call MPI_SEND(ibnodes,ilen,MPI_INTEGER,0,1,                  &
                         MPI_COMM_WORLD,ierr)
+
+       deallocate(ibnodes9)
+       deallocate(ibnodes1)
        end if
 
       else
@@ -744,25 +750,27 @@
 !===========================================================================
 
 ! This has been modified for 2D DD
-      subroutine outputux(ibnodes9)   
+      subroutine outputux   
       use mpi 
       use var_inc
       implicit none
 
-      integer, dimension(lx,ny,nz):: ibnodes9
 
       integer ip, ilen, indy9, indz9
       integer status(MPI_STATUS_SIZE)
       integer istp1, istp2, istp3, istp4, istp5, istp6, istp7
       
-      real, dimension(lx,ny,nz):: ux9
-      real, dimension(lx,ly,lz):: ux0
+      real,allocatable,dimension(:,:,:):: ux9
+      real,allocatable,dimension(:,:,:):: ux0
 
       character (len = 120):: fnm
 
       ilen = lx*ly*lz
 
       if(myid == 0)then
+
+       allocate(ux9(1:lx,1:ny,1:nz))
+       allocate(ux0(1:lx,1:ly,1:lz))
 
        ux9(:,:,1:lz) = ux
 
@@ -802,6 +810,8 @@
         write(16,160) ux9 
 
         close(16)
+       deallocate(ux9)
+       deallocate(ux0)
 
       end if
 
@@ -810,19 +820,18 @@
       end subroutine outputux   
 !===========================================================================
 
-      subroutine outputuy(ibnodes9) 
+      subroutine outputuy 
       use mpi 
       use var_inc
       implicit none
 
-      integer, dimension(lx,ly,nz):: ibnodes9
 
       integer ip, ilen, indy9, indz9
       integer status(MPI_STATUS_SIZE)
       integer istp1, istp2, istp3, istp4, istp5, istp6, istp7
       
-      real, dimension(lx,ny,nz):: uy9
-      real, dimension(lx,ly,lz):: uy0
+      real,allocatable,dimension(:,:,:):: uy9
+      real,allocatable,dimension(:,:,:):: uy0
 
       character (len = 120):: fnm
 
@@ -830,6 +839,8 @@
 
       if(myid == 0)then
 
+        allocate(uy9(1:lx,1:ny,1:nz))
+        allocate(uy0(1:lx,1:ly,1:lz))
         uy9(:,:,1:lz) = uy   
 
         do ip = 1,nproc-1
@@ -869,6 +880,8 @@
 
         close(17)
 
+        deallocate(uy9)
+        deallocate(uy0)
       end if
 
 170   format(2x,8(1pe16.6))
@@ -876,25 +889,26 @@
       end subroutine outputuy      
 !===========================================================================
 
-      subroutine outputuz(ibnodes9)   
+      subroutine outputuz 
       use mpi 
       use var_inc
       implicit none
 
-      integer, dimension(lx,ly,nz):: ibnodes9
 
       integer ip, ilen, indy9, indz9
       integer status(MPI_STATUS_SIZE)
       integer istp1, istp2, istp3, istp4, istp5, istp6, istp7
       
-      real, dimension(lx,ny,nz):: uz9    
-      real, dimension(lx,ly,lz):: uz0    
+      real,allocatable,dimension(:,:,:):: uz9    
+      real,allocatable,dimension(:,:,:):: uz0    
 
       character (len = 120):: fnm
 
       ilen = lx*ly*lz
 
       if(myid == 0)then
+        allocate(uz9(1:lx,1:ny,1:nz))
+        allocate(uz0(1:lx,1:ly,1:lz))
 
         uz9(:,:,1:lz) = uz       
 
@@ -934,6 +948,8 @@
         write(18,180) uz9 
 
         close(18)
+        deallocate(uz9)
+        deallocate(uz0)
 
       end if
 
@@ -942,26 +958,27 @@
       end subroutine outputuz      
 !===========================================================================
 
-      subroutine outputpress(ibnodes9)      
+      subroutine outputpress   
       use mpi 
       use var_inc
       implicit none
 
-      integer, dimension(lx,ly,nz):: ibnodes9
+!      integer, dimension(lx,ly,nz):: ibnodes9
 
       integer ip, ilen, indy9, indz9
       integer status(MPI_STATUS_SIZE)
       integer istp1, istp2, istp3, istp4, istp5, istp6, istp7
       
-      real, dimension(lx,ny,nz):: rho9    
-      real, dimension(lx,ly,lz):: rho1    
+      real,allocatable, dimension(:,:,:):: rho9    
+      real,allocatable, dimension(:,:,:):: rho1    
 
       character (len = 120):: fnm
 
       ilen = lx*ly*lz
 
       if(myid == 0)then
-
+        allocate (rho9(1:nx,1:ny,1:nz))
+        allocate (rho1(1:lx,1:ly,1:lz))
         rho9(:,:,1:lz) = rho       
 
         do ip = 1,nproc-1
@@ -1000,6 +1017,8 @@
         write(19,190) rho9/3.0 
 
         close(19)
+        deallocate(rho9)
+        deallocate(rho1)
 
       end if
 
@@ -1008,12 +1027,12 @@
       end subroutine outputpress      
 !===========================================================================
 
-      subroutine outputvort     
+      subroutine outputvort1     
       use mpi 
       use var_inc
       implicit none
 
-      integer, dimension(lx,ly,nz):: ibnodes9
+!      integer, dimension(lx,ly,nz):: ibnodes9
 
       integer ip, ilen, iy, iz
       integer status(MPI_STATUS_SIZE)
@@ -1073,7 +1092,7 @@
 
 200   format(2x,8(1pe16.6))
 
-      end subroutine outputvort      
+      end subroutine outputvort1      
 !===========================================================================
 
       subroutine outputpart       
@@ -3583,19 +3602,6 @@
       END IF
 
       end subroutine sijstat
-
-!===========================================================================
-! This subroutine is for debugging overlap problem and can be deleted after
-      subroutine writepartpair 
-      use mpi
-      use var_inc
-      implicit none
-
-
-      end subroutine writepartpair
-!===========================================================================
-
-
 !==========================================================================
 ! This subroutine is for writing out a slice of the instantaneous flow field
       subroutine writeflowfieldstart
@@ -4029,4 +4035,545 @@
 
 600   format(2x,1i5,3(1pe16.6))
       end subroutine probe
+!====================================================================='
+!=======================================================================
+      subroutine partstatis
+      use var_inc
+      implicit none
+
+      integer ip, id, ilen
+      character (len = 120):: fnm
+
+      if(myid == 0) then
+
+      fnm = trim(dirpartout)//'partstatis.dat'
+      open(97, file = trim(fnm),status = 'unknown',                    &
+               form = 'formatted', position = 'append')
+
+      do id = 1,npart
+      write(97,390) id, ypglb(1,id),wp(1,id),wp(2,id),wp(3,id),        &
+                    omgp(1,id), omgp(2,id), omgp(3,id),                &
+                    fHIp(1,id),fHIp(2,id),fHIp(3,id),                  &
+                    flubp(1,id),flubp(2,id),flubp(3,id),               &
+                    (fHIp(1,id)+flubp(1,id)),(fHIp(2,id)+flubp(2,id)), &
+                    (fHIp(3,id)+flubp(3,id)),                          &
+                    torqp(1,id),torqp(2,id),torqp(3,id)
+      end do
+      close(97)
+      end if
+
+390   format(2x,i5,19(1pe16.6))
+
+      end subroutine partstatis
+
+!=========================================================================
+
+      subroutine outputvort
+      use mpi
+      use var_inc
+      implicit none
+
+! The vorticity calculation is done by each processor, to output, we
+! need to sum all the information in processor0
+
+! Here I just take the derivative to calculate the vorticity, when
+! better method is found, I will improve this part
+
+! As Dr. Wang suggested, here use allocatable arrays
+
+      real, allocatable, dimension(:,:,:):: ox9, oy9, oz9, vort9
+      real, allocatable, dimension(:,:,:):: ox0, oy0, oz0, vort0, vort
+!      integer, dimension(lx,ny,nz):: ibnodes9
+      integer ip, ilen, indy9, indz9
+      integer istp1, istp2, istp3, istp4, istp5, istp6, istp7
+      integer status(MPI_STATUS_SIZE)
+      character (len = 120):: fnm
+
+      ilen = lx*ly*lz
+
+!      call vortcalc
+
+      allocate (ox9(lx,ny,nz))
+      allocate (oy9(lx,ny,nz))
+      allocate (oz9(lx,ny,nz))
+      allocate (vort9(lx,ny,nz))
+      allocate (ox0(lx,ly,lz))
+      allocate (oy0(lx,ly,lz))
+      allocate (oz0(lx,ly,lz))
+      allocate (vort0(lx,ly,lz))
+      allocate (vort(lx,ly,lz))
+
+
+      vort = sqrt(ox*ox + oy*oy + oz*oz)
+
+      if(myid == 0 ) then
+
+      ox9(:,1:ly,1:lz) = ox
+      oy9(:,1:ly,1:lz) = oy
+      oz9(:,1:ly,1:lz) = oz
+      vort(:,1:ly,1:lz) = vort
+
+      do ip = 1,nproc - 1
+
+       call MPI_RECV(ox0,ilen,MPI_REAL8,ip,1,MPI_COMM_WORLD,status,ierr)
+       call MPI_RECV(oy0,ilen,MPI_REAL8,ip,1,MPI_COMM_WORLD,status,ierr)
+       call MPI_RECV(oz0,ilen,MPI_REAL8,ip,1,MPI_COMM_WORLD,status,ierr)
+       call MPI_RECV(vort0,ilen,MPI_REAL8,ip,1,MPI_COMM_WORLD,status,ierr)
+
+       indy9 = mod(ip,nprocY)
+       indz9 = int(ip/nprocY)
+
+       ox9(:,indy9*ly+1:indy9*ly+ly,indz9*lz+1:indz9*lz+lz) = ox0
+       oy9(:,indy9*ly+1:indy9*ly+ly,indz9*lz+1:indz9*lz+lz) = oy0
+       oz9(:,indy9*ly+1:indy9*ly+ly,indz9*lz+1:indz9*lz+lz) = oz0
+       vort9(:,indy9*ly+1:indy9*ly+ly,indz9*lz+1:indz9*lz+lz) = vort0
+      end do
+
+      else
+      call MPI_SEND(ox,ilen,MPI_REAL8,0,1,MPI_COMM_WORLD,ierr)
+      call MPI_SEND(oy,ilen,MPI_REAL8,0,1,MPI_COMM_WORLD,ierr)
+      call MPI_SEND(oz,ilen,MPI_REAL8,0,1,MPI_COMM_WORLD,ierr)
+      call MPI_SEND(vort,ilen,MPI_REAL8,0,1,MPI_COMM_WORLD,ierr)
+      end if
+
+      deallocate (ox0)
+      deallocate (oy0)
+      deallocate (oz0)
+      deallocate (vort0)
+      deallocate (vort)
+! we can output the vorticity in each direction or the magnitude, here I
+! just output the magnitude
+
+! Again the writing is processed by processor0
+
+       if (myid == 0 ) then
+
+       istp1 = istep / 1000000
+       istp2 = mod(istep,1000000) / 100000
+       istp3 = mod(istep,100000) / 10000
+       istp4 = mod(istep,10000) / 1000
+       istp5 = mod(istep,1000) / 100
+       istp6 = mod(istep,100) / 10
+       istp7 = mod(istep,10)
+
+       fnm = trim(dirflowout)//'oz'                               &
+           //char(istp1 + 48)//char(istp2 + 48)//char(istp3 + 48)   &
+           //char(istp4 + 48)//char(istp5 + 48)//char(istp6 + 48)   &
+           //char(istp7 + 48)//'.dat'
+
+       open(20, file = trim(fnm), status = 'unknown', form = 'formatted')
+       write(20,270) oz9
+
+       close(20)
+       end if
+
+       deallocate (ox9)
+       deallocate (oy9)
+       deallocate (oz9)
+       deallocate (vort9)
+
+270    format(2x,8(1pe16.6))
+
+      end subroutine outputvort
+
+! ==========================================================================
+! To compute the mean vorticity
+      subroutine statistc3
+      use mpi
+      use var_inc
+      implicit none
+      integer i
+      real, allocatable, dimension (:,:) :: tmp2D
+      integer, allocatable, dimension (:,:) :: itmp2D
+      real, allocatable, dimension (:) ::oxave,oyave,ozave,vortave
+      real, allocatable, dimension (:) ::oxsq,oysq,ozsq,vortsq
+      real, allocatable, dimension (:) ::oxavet,oyavet,ozavet,vortavet
+      real, allocatable, dimension (:) ::oxsqt,oysqt,ozsqt,vortsqt
+      integer, allocatable, dimension (:) ::nfluid,nfluid0
+      real oxavet9,oyavet9,ozavet9,vortavet9,yplus
+      real oxsqt9,oysqt9,ozsqt9,vortsqt9
+      character (len = 120):: fnm
+
+!      call vortcalc
+      if(myid == 0 ) then
+       fnm = trim(dirstat)//'profiles3.dat'
+       open(98, file = trim(fnm),status = 'unknown' ,                &
+                form = 'formatted', position = 'append')
+      endif
+
+      allocate (oxave(nx))
+      allocate (oyave(nx))
+      allocate (ozave(nx))
+      allocate (vortave(nx))
+      allocate (oxsq(nx))
+      allocate (oysq(nx))
+      allocate (ozsq(nx))
+      allocate (vortsq(nx))
+      allocate (tmp2D(ly,lz))
+      allocate (itmp2D(ly,lz))
+      allocate (nfluid0(nx))
+
+      oxave = 0.d0
+      oyave = 0.d0
+      ozave = 0.d0
+      vortave = 0.d0
+
+      oxsq = 0.d0
+      oysq = 0.d0
+      ozsq = 0.d0
+      vortsq = 0.d0
+
+      do i = 1,lx
+
+      itmp2D = ibnodes(i,1:ly,1:lz)
+      nfluid0(i) = count(itmp2D < 0)
+! 1st order statistics
+      tmp2D = ox(i,:,:)
+      oxave(i) = sum (tmp2D, MASK = (itmp2D < 0) )
+      tmp2D = oy(i,:,:)
+      oyave(i) = sum (tmp2D, MASK = (itmp2D < 0) )
+      tmp2D = oz(i,:,:)
+      ozave(i) = sum (tmp2D, MASK = (itmp2D < 0) )
+      tmp2D = sqrt(ox(i,:,:)*ox(i,:,:) + oy(i,:,:)*oy(i,:,:) + oz(i,:,:)*oz(i,:,:))
+      vortave(i) = sum (tmp2D, MASK = (itmp2D < 0) )
+! 2nd order statistics
+      tmp2D = ox(i,:,:)*ox(i,:,:)
+      oxsq(i) = sum (tmp2D, MASK = (itmp2D < 0) )
+      tmp2D = oy(i,:,:)*oy(i,:,:)
+      oysq(i) = sum (tmp2D, MASK = (itmp2D < 0) )
+      tmp2D = oz(i,:,:)*oz(i,:,:)
+      ozsq(i) = sum (tmp2D, MASK = (itmp2D < 0) )
+      tmp2D = ox(i,:,:)*ox(i,:,:) + oy(i,:,:)*oy(i,:,:) + oz(i,:,:)*oz(i,:,:)
+      vortsq(i) = sum (tmp2D, MASK = (itmp2D < 0) )
+      end do
+
+      deallocate(tmp2D)
+      deallocate(itmp2D)
+
+      allocate(nfluid(nx))
+      allocate(oxavet(nx))
+      allocate(oyavet(nx))
+      allocate(ozavet(nx))
+      allocate(vortavet(nx))
+
+      allocate(oxsqt(nx))
+      allocate(oysqt(nx))
+      allocate(ozsqt(nx))
+      allocate(vortsqt(nx))
+
+      call MPI_BARRIER (MPI_COMM_WORLD,ierr)
+      call MPI_ALLREDUCE (nfluid0,nfluid,lx,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+      CALL MPI_ALLREDUCE (oxave,oxavet,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+      CALL MPI_ALLREDUCE (oyave,oyavet,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+      CALL MPI_ALLREDUCE (ozave,ozavet,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+      CALL MPI_ALLREDUCE (vortave,vortavet,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+      CALL MPI_ALLREDUCE (oxsq,oxsqt,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+      CALL MPI_ALLREDUCE (oysq,oysqt,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+      CALL MPI_ALLREDUCE (ozsq,ozsqt,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+      CALL MPI_ALLREDUCE (vortsq,vortsqt,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+
+
+      deallocate(nfluid0)
+      deallocate(oxave)
+      deallocate(oyave)
+      deallocate(ozave)
+      deallocate(vortave)
+      deallocate(oxsq)
+      deallocate(oysq)
+      deallocate(ozsq)
+      deallocate(vortsq)
+
+      if(myid == 0) then
+      oxavet = oxavet/real(nfluid)*visc/ustar**2
+      oyavet = oyavet/real(nfluid)*visc/ustar**2
+      ozavet = ozavet/real(nfluid)*visc/ustar**2
+      vortavet = vortavet/real(nfluid)*visc/ustar**2
+
+      oxsqt = oxsqt/real(nfluid)*visc*visc/ustar**4
+      oysqt = oysqt/real(nfluid)*visc*visc/ustar**4
+      ozsqt = ozsqt/real(nfluid)*visc*visc/ustar**4
+      vortsqt = vortsqt/real(nfluid)*visc*visc/ustar**4
+
+      oxsqt = oxsqt - oxavet*oxavet
+      oysqt = oysqt - oyavet*oyavet
+      ozsqt = ozsqt - ozavet*ozavet
+      vortsqt = vortsqt - vortavet*vortavet
+
+       write(98,*) istep
+
+       do i = 1,lx
+       oxavet9 = oxavet(i)
+       oyavet9 = oyavet(i)
+       ozavet9 = ozavet(i)
+       vortavet9 = vortavet(i)
+       oxsqt9 = oxsqt(i)
+       oysqt9 = oysqt(i)
+       ozsqt9 = ozsqt(i)
+       vortsqt9 = vortsqt(i)
+       yplus = (real(i) - 0.5)/ystar
+       if(i.gt.lxh) yplus = (real(lx-i) + 0.5)/ystar
+       write(98,490)real(i) - 0.5, yplus, oxavet9, oyavet9, ozavet9,  &
+            vortavet9, oxsqt9, oysqt9, ozsqt9, vortsqt9
+       end do
+490    format(2x,10(1pe16.6))
+       close(98)
+       end if
+
+
+       deallocate(nfluid)
+       deallocate(oxavet)
+       deallocate(oyavet)
+       deallocate(ozavet)
+       deallocate(vortavet)
+       deallocate(oxsqt)
+       deallocate(oysqt)
+       deallocate(ozsqt)
+       deallocate(vortsqt)
+      end subroutine statistc3
+
+!=======================================================================
+! In this subroutine we try to calculate the averaged angular velocity
+! of particles as a function of y position, because the limited number
+! of particles, I need to sample more frequently to get good statistics
+
+       subroutine statistc4
+       use mpi
+       use var_inc
+       implicit none
+       integer i
+       real, allocatable, dimension (:,:) :: tmp2D
+       integer, allocatable, dimension (:,:) :: itmp2D
+       real, allocatable, dimension (:) ::oxave,oyave,ozave,vortave
+       real, allocatable, dimension (:) ::oxsq,oysq,ozsq,vortsq
+       real, allocatable, dimension (:) ::vxave,vyave,vzave
+       real, allocatable, dimension (:) ::vxsq,vysq,vzsq
+       real, allocatable, dimension (:) ::oxavet,oyavet,ozavet,vortavet
+       real, allocatable, dimension (:) ::oxsqt,oysqt,ozsqt,vortsqt
+       real, allocatable, dimension (:) ::vxavet,vyavet,vzavet
+       real, allocatable, dimension (:) ::vxsqt,vysqt,vzsqt
+
+       integer, allocatable, dimension (:) ::nfluid,nfluid0
+       real oxavet9,oyavet9,ozavet9,vortavet9,yplus
+       real oxsqt9,oysqt9,ozsqt9,vortsqt9
+       real vxavet9,vyavet9,vzavet9,vxsqt9,vysqt9,vzsqt9
+       character (len = 120):: fnm
+       call vortcalc
+       if(myid == 0 ) then
+       fnm = trim(dirstat)//'profiles4.dat'
+       open(99, file = trim(fnm),status = 'unknown' ,                &
+                form = 'formatted', position = 'append')
+       endif
+
+       allocate (vxave(nx))
+       allocate (vyave(nx))
+       allocate (vzave(nx))
+       allocate (oxave(nx))
+       allocate (oyave(nx))
+       allocate (ozave(nx))
+       allocate (vortave(nx))
+       allocate (vxsq(nx))
+       allocate (vysq(nx))
+       allocate (vzsq(nx))
+       allocate (oxsq(nx))
+       allocate (oysq(nx))
+       allocate (ozsq(nx))
+       allocate (vortsq(nx))
+       allocate (tmp2D(ly,lz))
+       allocate (itmp2D(ly,lz))
+       allocate (nfluid0(nx))
+
+       vxave = 0.d0
+       vyave = 0.d0
+       vzave = 0.d0
+       oxave = 0.d0
+       oyave = 0.d0
+       ozave = 0.d0
+       vortave = 0.d0
+
+       vxsq = 0.d0
+       vysq = 0.d0
+       vzsq = 0.d0
+       oxsq = 0.d0
+       oysq = 0.d0
+       ozsq = 0.d0
+       vortsq = 0.d0
+
+       do i = 1,lx
+
+        itmp2D = ibnodes(i,1:ly,1:lz)
+        nfluid0(i) = count(itmp2D > 0)
+! 1st order statistics
+
+        tmp2D = ux(i,:,:)
+        vxave(i) = sum (tmp2D, MASK = (itmp2D > 0) )
+        tmp2D = uy(i,:,:)
+        vyave(i) = sum (tmp2D, MASK = (itmp2D > 0) )
+        tmp2D = uz(i,:,:)
+        vzave(i) = sum (tmp2D, MASK = (itmp2D > 0) )
+        tmp2D = ox(i,:,:)
+        oxave(i) = sum (tmp2D, MASK = (itmp2D > 0) )
+        tmp2D = oy(i,:,:)
+        oyave(i) = sum (tmp2D, MASK = (itmp2D > 0) )
+        tmp2D = oz(i,:,:)
+        ozave(i) = sum (tmp2D, MASK = (itmp2D > 0) )
+        tmp2D = sqrt(ox(i,:,:)*ox(i,:,:) + oy(i,:,:)*oy(i,:,:) + oz(i,:,:)*oz(i,:,:))
+        vortave(i) = sum (tmp2D, MASK = (itmp2D > 0) )
+! 2nd order statistics
+        tmp2D = ux(i,:,:)*ux(i,:,:)
+        vxsq(i) = sum (tmp2D, MASK = (itmp2D > 0) )
+        tmp2D = uy(i,:,:)*uy(i,:,:)
+        vysq(i) = sum (tmp2D, MASK = (itmp2D > 0) )
+        tmp2D = uz(i,:,:)*uz(i,:,:)
+        vzsq(i) = sum (tmp2D, MASK = (itmp2D > 0) )
+        tmp2D = ox(i,:,:)*ox(i,:,:)
+        oxsq(i) = sum (tmp2D, MASK = (itmp2D > 0) )
+        tmp2D = oy(i,:,:)*oy(i,:,:)
+        oysq(i) = sum (tmp2D, MASK = (itmp2D > 0) )
+        tmp2D = oz(i,:,:)*oz(i,:,:)
+        ozsq(i) = sum (tmp2D, MASK = (itmp2D > 0) )
+        tmp2D = ox(i,:,:)*ox(i,:,:) + oy(i,:,:)*oy(i,:,:) + oz(i,:,:)*oz(i,:,:)
+        vortsq(i) = sum (tmp2D, MASK = (itmp2D > 0) )
+        end do
+
+        deallocate(tmp2D)
+        deallocate(itmp2D)
+
+        allocate(nfluid(nx))
+        allocate(oxavet(nx))
+        allocate(oyavet(nx))
+        allocate(ozavet(nx))
+        allocate(vortavet(nx))
+        allocate(vxavet(nx))
+        allocate(vyavet(nx))
+        allocate(vzavet(nx))
+
+        allocate(vxsqt(nx))
+        allocate(vysqt(nx))
+        allocate(vzsqt(nx))
+        allocate(oxsqt(nx))
+        allocate(oysqt(nx))
+        allocate(ozsqt(nx))
+        allocate(vortsqt(nx))
+
+        call MPI_BARRIER (MPI_COMM_WORLD,ierr)
+        call MPI_ALLREDUCE (nfluid0,nfluid,lx,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+        CALL MPI_ALLREDUCE (oxave,oxavet,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+        CALL MPI_ALLREDUCE (oyave,oyavet,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+        CALL MPI_ALLREDUCE (ozave,ozavet,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+        CALL MPI_ALLREDUCE (vortave,vortavet,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+        CALL MPI_ALLREDUCE (oxsq,oxsqt,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+        CALL MPI_ALLREDUCE (oysq,oysqt,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+        CALL MPI_ALLREDUCE (ozsq,ozsqt,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+        CALL MPI_ALLREDUCE (vortsq,vortsqt,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+        CALL MPI_ALLREDUCE (vxave,vxavet,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+        CALL MPI_ALLREDUCE (vyave,vyavet,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+        CALL MPI_ALLREDUCE (vzave,vzavet,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+        CALL MPI_ALLREDUCE (vxsq,vxsqt,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+        CALL MPI_ALLREDUCE (vysq,vysqt,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+        CALL MPI_ALLREDUCE (vzsq,vzsqt,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+
+        deallocate(nfluid0)
+        deallocate(vxave)
+        deallocate(vyave)
+        deallocate(vzave)
+        deallocate(oxave)
+        deallocate(oyave)
+        deallocate(ozave)
+        deallocate(vortave)
+        deallocate(oxsq)
+        deallocate(oysq)
+        deallocate(ozsq)
+        deallocate(vortsq)
+        deallocate(vxsq)
+        deallocate(vysq)
+        deallocate(vzsq)
+
+        if(myid == 0) then
+        do i = 1,nx
+        if(nfluid(i).ne. 0) then
+        vxavet(i) = vxavet(i)/real(nfluid(i))/ustar
+        vyavet(i) = vyavet(i)/real(nfluid(i))/ustar
+        vzavet(i) = vzavet(i)/real(nfluid(i))/ustar
+        oxavet(i) = oxavet(i)/real(nfluid(i))*visc/ustar**2
+        oyavet(i) = oyavet(i)/real(nfluid(i))*visc/ustar**2
+        ozavet(i) = ozavet(i)/real(nfluid(i))*visc/ustar**2
+        vortavet(i) = vortavet(i)/real(nfluid(i))*visc/ustar**2
+
+        vxsqt(i) = vxsqt(i)/real(nfluid(i))/ustar**2
+        vysqt(i) = vysqt(i)/real(nfluid(i))/ustar**2
+        vzsqt(i) = vzsqt(i)/real(nfluid(i))/ustar**2
+
+        oxsqt(i) = oxsqt(i)/real(nfluid(i))*visc*visc/ustar**4
+        oysqt(i) = oysqt(i)/real(nfluid(i))*visc*visc/ustar**4
+        ozsqt(i) = ozsqt(i)/real(nfluid(i))*visc*visc/ustar**4
+        vortsqt(i) = vortsqt(i)/real(nfluid(i))*visc*visc/ustar**4
+
+        vxsqt(i) = vxsqt(i) - vxavet(i)*vxavet(i)
+        vysqt(i) = vysqt(i) - vyavet(i)*vyavet(i)
+        vzsqt(i) = vzsqt(i) - vzavet(i)*vzavet(i)
+
+        oxsqt(i) = oxsqt(i) - oxavet(i)*oxavet(i)
+        oysqt(i) = oysqt(i) - oyavet(i)*oyavet(i)
+        ozsqt(i) = ozsqt(i) - ozavet(i)*ozavet(i)
+        vortsqt(i) = vortsqt(i) - vortavet(i)*vortavet(i)
+        else
+        vxavet(i) = 0.0
+        vyavet(i) = 0.0
+        vzavet(i) = 0.0
+        oxavet(i) = 0.0
+        oyavet(i) = 0.0
+        ozavet(i) = 0.0
+        vortavet(i) = 0.0
+        vxsqt(i) = 0.0
+        vysqt(i) = 0.0
+        vzsqt(i) = 0.0
+        oxsqt(i) = 0.0
+        oysqt(i) = 0.0
+        ozsqt(i) = 0.0
+        vortsqt(i) = 0.0
+        end if
+        end do
+        write(99,*) istep
+
+        do i = 1,lx
+        vxavet9 = vxavet(i)
+        vyavet9 = vyavet(i)
+        vzavet9 = vzavet(i)
+        oxavet9 = oxavet(i)
+        oyavet9 = oyavet(i)
+        ozavet9 = ozavet(i)
+        vortavet9 = vortavet(i)
+        vxsqt9 = vxsqt(i)
+        vysqt9 = vysqt(i)
+        vzsqt9 = vzsqt(i)
+        oxsqt9 = oxsqt(i)
+        oysqt9 = oysqt(i)
+        ozsqt9 = ozsqt(i)
+        vortsqt9 = vortsqt(i)
+        yplus = (real(i) - 0.5)/ystar
+        if(i.gt.lxh) yplus = (real(lx-i) + 0.5)/ystar
+        write(99,590)real(i) - 0.5, yplus, vxavet9, vyavet9, vzavet9,  &
+            oxavet9, oyavet9, ozavet9, vortavet9, vxsqt9, vysqt9, vzsqt9,  &
+            oxsqt9, oysqt9, ozsqt9, vortsqt9
+        end do
+        close(99)
+        end if
+590     format(2x,16(1pe16.6))
+
+        deallocate(nfluid)
+        deallocate(oxavet)
+        deallocate(oyavet)
+        deallocate(ozavet)
+        deallocate(vortavet)
+        deallocate(oxsqt)
+        deallocate(oysqt)
+        deallocate(ozsqt)
+        deallocate(vortsqt)
+        deallocate(vxavet)
+        deallocate(vyavet)
+        deallocate(vzavet)
+        deallocate(vxsqt)
+        deallocate(vysqt)
+        deallocate(vzsqt)
+        end subroutine statistc4
 
