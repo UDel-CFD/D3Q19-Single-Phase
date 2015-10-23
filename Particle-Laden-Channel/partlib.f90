@@ -679,21 +679,21 @@
                 ibnodes(i,j,k) = -1
                 isnodes(i,j,k) = -1
 
-		            !We need to apply 3 point extrapolation for the filling scheme
+                !We need to apply 3 point extrapolation for the filling scheme
                 !Determine if we need to request any data for filling
                 if(k < 4) then 
-          		    localReqData(2) = .TRUE.
-          		    if(j < 4) localReqData(7) = .TRUE.
-          		    if(j > ly-3) localReqData(8) = .TRUE.
-        		    else if(k > lz-3) then
-          		    localReqData(1) = .TRUE.
-          		    if(j < 4) localReqData(5) = .TRUE.
-          		    if(j > ly-3) localReqData(6) = .TRUE.
-        		    end if
-        	      if(j < 4) localReqData(3) = .TRUE.
-        		    if(j > ly-3) localReqData(4) = .TRUE.
-	       
-	             endif !If needs filling
+                  localReqData(2) = .TRUE.
+                  if(j < 4) localReqData(7) = .TRUE.
+                  if(j > ly-3) localReqData(8) = .TRUE.
+                else if(k > lz-3) then
+                  localReqData(1) = .TRUE.
+                  if(j < 4) localReqData(5) = .TRUE.
+                  if(j > ly-3) localReqData(6) = .TRUE.
+                end if
+                if(j < 4) localReqData(3) = .TRUE.
+                if(j > ly-3) localReqData(4) = .TRUE.
+         
+               endif !If needs filling
           enddo !z
         enddo !y
       enddo !x
@@ -2059,11 +2059,11 @@
 
         ! The following lines if to find the normal direction of the particle
         ! surface at which the new fluid node is exactly recovered. After finding
-	! such direction, we can decide along which directly the extrapolation 
-	! should be carried out. Since the lattice velocity directions are quite
-	! sparse. It is very unlikely that the direction of extrapolation will
-	! change within half time step. As long as the particles do not move 
-	! too fast, the following part is not necessary.
+  ! such direction, we can decide along which directly the extrapolation 
+  ! should be carried out. Since the lattice velocity directions are quite
+  ! sparse. It is very unlikely that the direction of extrapolation will
+  ! change within half time step. As long as the particles do not move 
+  ! too fast, the following part is not necessary.
 
         w1 = -0.5d0*(wp(1,id) + wpp(1,id))
         w2 = -0.5d0*(wp(2,id) + wpp(2,id))
@@ -2100,16 +2100,16 @@
         zz0 = zp2 - zc
 
 !         xx0 = xpnt - xc
-!	 yy0 = ypnt - yc
-!	 zz0 = zpnt - zc
+!  yy0 = ypnt - yc
+!  zz0 = zpnt - zc
 
         ! Lallemand and Luo, JCP 184, 2003, pp.414
         ! identify ipmx, the discrete velocity direction which maximizes the
         ! quantity n^(hat) dot e_alpha, where n^(hat) is the out-normal vector
         ! of the wall at the point (xp2, yp2, zp2).
 
-	! As mentioned before, the point (xp2, yp2, zp2) can be approximated by
-	! the point (xpnt, ypnt, zpnt)
+  ! As mentioned before, the point (xp2, yp2, zp2) can be approximated by
+  ! the point (xpnt, ypnt, zpnt)
         prod0 = -100.0
         do ipop = 1,npop-1
           ix = cix(ipop)
@@ -2379,7 +2379,7 @@
       integer ileny, ilenz, nreq
       logical utempinit, dtempinit
 !      real, dimension(0:npop-1,lx,3,-2:lz+3):: tmpYp, tmpYm 
-      real,dimension(0:npop-1,lx,3,-2:lz+3):: tmpYmS,tmpYmR,tmpYpS,tmpYpS
+      real,dimension(0:npop-1,lx,3,-2:lz+3):: tmpYmS,tmpYmR,tmpYpS,tmpYpR
       real,dimension(0:npop-1,lx,ly,3):: tmpZmS,tmpZmR,tmpZpR,tmpZpS
       integer status_array(MPI_STATUS_SIZE,4), req(4)
 
@@ -2398,7 +2398,7 @@
       if(fillMPIrequest(myid,2) .or. fillMPIrequest(mym,8) .or. fillMPIrequest(myp,7))then
         nreq = nreq + 1
         dtempinit = .TRUE.
-        call MPI_IRECV(tmp4,ilenz,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(nreq),ierr)
+        call MPI_IRECV(tmpZmR,ilenz,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(nreq),ierr)
       endif
       !Sending Z+
       if(fillMPIrequest(mzp,2) .or. fillMPIrequest(mymzp,8) .or. fillMPIrequest(mypzp,7))then
@@ -2630,7 +2630,7 @@
           eqmc12 = evlm12
           eqmc13 = evlm13
           eqmc14 = evlm14
-	  eqmc15 = evlm15
+    eqmc15 = evlm15
 
 
           tl1 = val1i*rho9
