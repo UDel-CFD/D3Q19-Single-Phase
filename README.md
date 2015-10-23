@@ -1,4 +1,5 @@
-# LBM-Particle-Laden-Flow
-###Lattice Boltzmann method code simulating particles suspended in a flow
+# D3Q19
 ___
-This Repo. holds commits of optimization changes to the code.
+Holds Lattice Boltzmann D3Q19 Simulation Code.
+
+Simulations are designed and tested on NCAR's Yellowstone and use the fortran MPI library.
