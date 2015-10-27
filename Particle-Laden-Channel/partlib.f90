@@ -542,7 +542,7 @@
 
       !Reset fill request data
       localReqData = .FALSE.
-      radp2 = rad + 2.d0
+      radp2 = rad + 4.d0
       nfbeads = 0
       nlink = 0
       nbfill = 0
@@ -1114,7 +1114,7 @@
           ff3 = mzpIpfRecv(iblinks(2,2,n))
         endif
 
-112     continue
+        112     continue
         !If solid node conflict with ff3, use 2-point interpolation
         if(ff3 > IBNODES_TRUE - 1)then
             c1 = 0.5 / alpha
@@ -2224,55 +2224,49 @@
         ! directions are filled
 
         do ipop = 1,npop-1
-        ix1 = cix(ipop)
-        iy1 = ciy(ipop)
-        iz1 = ciz(ipop)
-        if(ibnodes0(i-ix1,j-iy1,k-iz1).gt.0) then
-        f(ipop,i,j,k,s) = 3.d0*f9(ipop)-3.d0*f8(ipop)+f7(ipop)
-        end if
+          ix1 = cix(ipop)
+          iy1 = ciy(ipop)
+          iz1 = ciz(ipop)
+          if(ibnodes0(i-ix1,j-iy1,k-iz1).gt.0) then
+            f(ipop,i,j,k,s) = 3.d0*f9(ipop)-3.d0*f8(ipop)+f7(ipop)
+          end if
         end do
 
 ! ELSE 2-points extrapolation
         ELSE
-
           f(0,i,j,k,s) = 2.d0*f9(0)-f8(0)
-
-        do ipop = 1,npop-1
-        ix1 = cix(ipop)
-        iy1 = ciy(ipop)
-        iz1 = ciz(ipop)
-        if(ibnodes0(i-ix1,j-iy1,k-iz1).gt.0) then
-        f(ipop,i,j,k,s) = 2.d0*f9(ipop)-f8(ipop)
-        end if
-        end do
+          do ipop = 1,npop-1
+            ix1 = cix(ipop)
+            iy1 = ciy(ipop)
+            iz1 = ciz(ipop)
+            if(ibnodes0(i-ix1,j-iy1,k-iz1).gt.0) then
+              f(ipop,i,j,k,s) = 2.d0*f9(ipop)-f8(ipop)
+            end if
+          end do
         END IF       
 ! ELSE 1 point extrapolation
         ELSE
-
           f(0,i,j,k,s) = f9(0)
-
-        do ipop = 1,npop-1
-        ix1 = cix(ipop)
-        iy1 = ciy(ipop)
-        iz1 = ciz(ipop)
-        if(ibnodes0(i-ix1,j-iy1,k-iz1).gt.0) then
-        f(ipop,i,j,k,s) = f9(ipop)
-        end if
-        end do
+          do ipop = 1,npop-1
+            ix1 = cix(ipop)
+            iy1 = ciy(ipop)
+            iz1 = ciz(ipop)
+            if(ibnodes0(i-ix1,j-iy1,k-iz1).gt.0) then
+              f(ipop,i,j,k,s) = f9(ipop)
+            end if
+          end do
         END IF
 ! ELSE simply set to 0
         ELSE
-
           f(0,i,j,k,s) = 0.d0
-
-        do ipop = 1,npop-1
-        ix1 = cix(ipop)
-        iy1 = ciy(ipop)
-        iz1 = ciz(ipop)
-        if(ibnodes0(i-ix1,j-iy1,k-iz1).gt.0) then
-        f(ipop,i,j,k,s) = 0.d0
-        end if
-        end do
+          do ipop = 1,npop-1
+            ix1 = cix(ipop)
+            iy1 = ciy(ipop)
+            iz1 = ciz(ipop)
+            if(ibnodes0(i-ix1,j-iy1,k-iz1).gt.0) then
+              f(ipop,i,j,k,s) = 0.d0
+            end if
+          end do
         END IF
 
 ! now constrain the velocity
@@ -2292,21 +2286,13 @@
         ! periodicity
         !  if(ip1 < 1) ip1 = ip1 + lx
         !  if(ip1 > lx) ip1 = ip1 - lx
-          if(ip1 < 1.or.ip1 > lx) then
-          ibp1 = 2
-          ib0p1 = 2
-          else
-          ibp1 = ibnodes(ip1,jp1,kp1)
-          ib0p1 = ibnodes0(ip1,jp1,kp1)
-          end if
-
-          if(ip1 < 0 .or. ip1 > lx)then
-            ibp1 = 1
-            ib0p1 = 1
+          if(ip1 < 1 .or. ip1 > lx) then
+            ibp1 = 2
+            ib0p1 = 2
           else
             ibp1 = ibnodes(ip1,jp1,kp1)
             ib0p1 = ibnodes0(ip1,jp1,kp1)
-          endif
+          end if
           
           IF(ibp1 < 0 .and. ib0p1 < 0)THEN
             nghb = nghb + 1
@@ -2371,7 +2357,7 @@
 !@subroutine exchngFill
 !@desc Exchanges 3 layers of information for velocity constrained beads_filling
 !=============================================================================
-      subroutine exchngFill
+     subroutine exchngFill
       use mpi
       use var_inc
       implicit none
@@ -2379,8 +2365,8 @@
       integer ileny, ilenz, nreq
       logical utempinit, dtempinit
 !      real, dimension(0:npop-1,lx,3,-2:lz+3):: tmpYp, tmpYm 
-      real,dimension(0:npop-1,lx,3,-2:lz+3):: tmp5,tmp6,tmp7,tmp8
-      real,dimension(0:npop-1,lx,ly,3):: tmp1,tmp2,tmp3,tmp4
+      real,dimension(0:npop-1,lx,3,-2:lz+3):: tmpYmS,tmpYmR,tmpYpS,tmpYpR
+      real,dimension(0:npop-1,lx,ly,3):: tmpZmS,tmpZmR,tmpZpR,tmpZpS
       integer status_array(MPI_STATUS_SIZE,4), req(4)
 
       utempinit = .FALSE.
@@ -2392,53 +2378,44 @@
       if(fillMPIrequest(myid,1) .or. fillMPIrequest(mym,6) .or. fillMPIrequest(myp,5))then
         nreq = nreq + 1
         utempinit = .TRUE.
-        call MPI_IRECV(tmp2,ilenz,MPI_REAL8,mzp,0,MPI_COMM_WORLD,req(nreq),ierr)
+        call MPI_IRECV(tmpZpR,ilenz,MPI_REAL8,mzp,0,MPI_COMM_WORLD,req(nreq),ierr)
       endif
       !Recieving Z-
       if(fillMPIrequest(myid,2) .or. fillMPIrequest(mym,8) .or. fillMPIrequest(myp,7))then
         nreq = nreq + 1
         dtempinit = .TRUE.
-        call MPI_IRECV(tmp4,ilenz,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(nreq),ierr)
+        call MPI_IRECV(tmpZmR,ilenz,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(nreq),ierr)
       endif
       !Sending Z+
       if(fillMPIrequest(mzp,2) .or. fillMPIrequest(mymzp,8) .or. fillMPIrequest(mypzp,7))then
         nreq = nreq + 1
-        tmp3(:,:,:,1) = f(:,:,:,lz-2,s)
-        tmp3(:,:,:,2) = f(:,:,:,lz-1,s)
-        tmp3(:,:,:,3) = f(:,:,:,lz,s)
-        call MPI_ISEND(tmp3,ilenz,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(nreq),ierr)
+        tmpZpS(:,:,:,1:3) = f(:,:,:,lz-2:lz,s)
+        call MPI_ISEND(tmpZpS,ilenz,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(nreq),ierr)
       endif
       !Sending Z-
       if(fillMPIrequest(mzm,1) .or. fillMPIrequest(mymzm,6) .or. fillMPIrequest(mypzm,5))then
         nreq = nreq + 1
-        tmp1(:,:,:,1) = f(:,:,:,1,s)
-        tmp1(:,:,:,2) = f(:,:,:,2,s)
-        tmp1(:,:,:,3) = f(:,:,:,3,s)
-        call MPI_ISEND(tmp1,ilenz,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(nreq),ierr)
+        tmpZmS(:,:,:,1:3) = f(:,:,:,1:3,s)
+        call MPI_ISEND(tmpZmS,ilenz,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(nreq),ierr)
       endif
       
       if(nreq > 0)then
         call MPI_WAITALL(nreq,req,status_array,ierr)
       endif
 
-      fillRecvZp(:,:,:,lz+1) = tmp2(:,:,:,1)
-      fillRecvZp(:,:,:,lz+2) = tmp2(:,:,:,2)
-      fillRecvZp(:,:,:,lz+3) = tmp2(:,:,:,3)
-
-      fillRecvZm(:,:,:,-2) = tmp4(:,:,:,1)
-      fillRecvZm(:,:,:,-1) = tmp4(:,:,:,2)
-      fillRecvZm(:,:,:,0) = tmp4(:,:,:,3)
+      fillRecvZp(:,:,:,lz+1:lz+3) = tmpZpR(:,:,:,1:3)
+      fillRecvZm(:,:,:,-2:0) = tmpZmR(:,:,:,1:3)
       nreq = 0
 
       !Receiving Y-
       if(fillMPIrequest(myid,3))then
         nreq = nreq + 1
-        call MPI_IRECV(tmp8,ileny,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(nreq),ierr)
+        call MPI_IRECV(tmpYmR,ileny,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(nreq),ierr)
       endif
       !Recieving Y+
       if(fillMPIrequest(myid,4))then
         nreq = nreq + 1
-        call MPI_IRECV(tmp6,ileny,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(nreq),ierr)
+        call MPI_IRECV(tmpYpR,ileny,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(nreq),ierr)
       endif
       !Sending Y-
       if(fillMPIrequest(mym,4))then
@@ -2446,81 +2423,48 @@
         !If we have corner data from the z neighbors that needs to be sent add it
 
         if(dtempinit) then 
-        tmp5(:,:,1,-2) = tmp4(:,:,1,1)
-        tmp5(:,:,1,-1) = tmp4(:,:,1,2)
-        tmp5(:,:,1,0)  = tmp4(:,:,1,3)
-        tmp5(:,:,2,-2) = tmp4(:,:,2,1)
-        tmp5(:,:,2,-1) = tmp4(:,:,2,2)
-        tmp5(:,:,2,0)  = tmp4(:,:,2,3)
-        tmp5(:,:,3,-2) = tmp4(:,:,3,1)
-        tmp5(:,:,3,-1) = tmp4(:,:,3,2)
-        tmp5(:,:,3,0)  = tmp4(:,:,3,3)
+          tmpYmS(:,:,1,-2:0) = tmpZmR(:,:,1,1:3)
+          tmpYmS(:,:,2,-2:0) = tmpZmR(:,:,2,1:3)
+          tmpYmS(:,:,3,-2:0) = tmpZmR(:,:,3,1:3)
         end if
 
-        tmp5(:,:,1,1:lz) = f(:,:,1,:,s)
-        tmp5(:,:,2,1:lz) = f(:,:,2,:,s)
-        tmp5(:,:,3,1:lz) = f(:,:,3,:,s)
+        tmpYmS(:,:,1:3,1:lz) = f(:,:,1:3,:,s)
 
         if(utempinit) then
-        tmp5(:,:,1,lz+1) = tmp2(:,:,1,1)
-        tmp5(:,:,1,lz+2) = tmp2(:,:,1,2)
-        tmp5(:,:,1,lz+3) = tmp2(:,:,1,3)
-        tmp5(:,:,2,lz+1) = tmp2(:,:,2,1)
-        tmp5(:,:,2,lz+2) = tmp2(:,:,2,2)
-        tmp5(:,:,2,lz+3) = tmp2(:,:,2,3)
-        tmp5(:,:,3,lz+1) = tmp2(:,:,3,1)
-        tmp5(:,:,3,lz+2) = tmp2(:,:,3,2)
-        tmp5(:,:,3,lz+3) = tmp2(:,:,3,3)
+          tmpYmS(:,:,1,lz+1:lz+3) = tmpZpR(:,:,1,1:3)
+          tmpYmS(:,:,2,lz+1:lz+3) = tmpZpR(:,:,2,1:3)
+          tmpYmS(:,:,3,lz+1:lz+3) = tmpZpR(:,:,3,1:3)
         end if
 
-        call MPI_ISEND(tmp5,ileny,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(nreq),ierr)
+        call MPI_ISEND(tmpYmS,ileny,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(nreq),ierr)
       endif
       !Sending Y+
       if(fillMPIrequest(myp,3))then
         nreq = nreq + 1
         !If we have corner data from the z neighbors that needs to be sent add it
         if(dtempinit) then
-        tmp7(:,:,1,-2) = tmp4(:,:,ly-2,1)
-        tmp7(:,:,1,-1) = tmp4(:,:,ly-2,2)
-        tmp7(:,:,1,0)  = tmp4(:,:,ly-2,3)
-        tmp7(:,:,2,-2) = tmp4(:,:,ly-1,1)
-        tmp7(:,:,2,-1) = tmp4(:,:,ly-1,2)
-        tmp7(:,:,2,0)  = tmp4(:,:,ly-1,3)
-        tmp7(:,:,3,-2) = tmp4(:,:,ly,1)
-        tmp7(:,:,3,-1) = tmp4(:,:,ly,2)
-        tmp7(:,:,3,0)  = tmp4(:,:,ly,3)
+          tmpYpS(:,:,1,-2:0) = tmpZmR(:,:,ly-2,1:3)
+          tmpYpS(:,:,2,-2:0) = tmpZmR(:,:,ly-1,1:3)
+          tmpYpS(:,:,3,-2:0) = tmpZmR(:,:,ly,1:3)
         end if
 
-        tmp7(:,:,1,1:lz) = f(:,:,ly-2,:,s) 
-        tmp7(:,:,2,1:lz) = f(:,:,ly-1,:,s)
-        tmp7(:,:,3,1:lz) = f(:,:,ly,:,s)
+        tmpYpS(:,:,1:3,1:lz) = f(:,:,ly-2:ly,:,s) 
 
         if(utempinit) then
-        tmp7(:,:,1,lz+1) = tmp2(:,:,ly-2,1)
-        tmp7(:,:,1,lz+2) = tmp2(:,:,ly-2,2)
-        tmp7(:,:,1,lz+3) = tmp2(:,:,ly-2,3)
-        tmp7(:,:,2,lz+1) = tmp2(:,:,ly-1,1)
-        tmp7(:,:,2,lz+2) = tmp2(:,:,ly-1,2)
-        tmp7(:,:,2,lz+3) = tmp2(:,:,ly-1,3)
-        tmp7(:,:,3,lz+1) = tmp2(:,:,ly,1)
-        tmp7(:,:,3,lz+2) = tmp2(:,:,ly,2)
-        tmp7(:,:,3,lz+3) = tmp2(:,:,ly,3)
+          tmpYpS(:,:,1,lz+1:lz+3) = tmpZpR(:,:,ly-2,1:3)
+          tmpYpS(:,:,2,lz+1:lz+3) = tmpZpR(:,:,ly-1,1:3)
+          tmpYpS(:,:,3,lz+1:lz+3) = tmpZpR(:,:,ly,1:3)
         end if
 
-        call MPI_ISEND(tmp7,ileny,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(nreq),ierr)
+        call MPI_ISEND(tmpYpS,ileny,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(nreq),ierr)
       endif
 
       if(nreq > 0)then
         call MPI_WAITALL(nreq,req,status_array,ierr)
       endif
 
-        fillRecvYm(:,:,-2,:) = tmp8(:,:,1,:)
-        fillRecvYm(:,:,-1,:) = tmp8(:,:,2,:)
-        fillRecvYm(:,:,0,:) = tmp8(:,:,3,:)
-
-        fillRecvYp(:,:,ly+1,:) = tmp6(:,:,1,:)
-        fillRecvYp(:,:,ly+2,:) = tmp6(:,:,2,:)
-        fillRecvYp(:,:,ly+3,:) = tmp6(:,:,3,:)
+      fillRecvYm(:,:,-2:0,:) = tmpYmR(:,:,1:3,:)
+      fillRecvYp(:,:,ly+1:ly+3,:) = tmpYpR(:,:,1:3,:)
 
       end subroutine exchngFill
 !=============================================================================

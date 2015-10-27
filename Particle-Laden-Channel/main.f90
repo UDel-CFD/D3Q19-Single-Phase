@@ -257,7 +257,7 @@
         !partstatis is to output the position, velocity and force of each particle
         if(mod(istep,200) == 0) call partstatis
         ! statistc4 outputs the mean, rms velocity&vorticity of particle phase, the vorticity calculation is called here
-        if(mod(istep,200) == 0)  call statistc4
+        !if(mod(istep,200) == 0)  call statistc4
         !  moviedata2 generates 2D vorticity contours for 2D visualization (only use when necessary)
         ! if(mod(istep,200) == 0) call moviedata2
 
@@ -318,7 +318,6 @@
 !      call benchflow
 !      call benchbead
 !      call benchmatlab
-
 !      call benchtotal
 
 101   continue

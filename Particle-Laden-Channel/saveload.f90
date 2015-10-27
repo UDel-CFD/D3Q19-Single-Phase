@@ -3602,6 +3602,17 @@
       END IF
 
       end subroutine sijstat
+
+  !===========================================================================
+! This subroutine is for debugging overlap problem and can be deleted after
+      subroutine writepartpair 
+      use mpi
+      use var_inc
+      implicit none
+      end subroutine writepartpair
+!===========================================================================
+
+
 !==========================================================================
 ! This subroutine is for writing out a slice of the instantaneous flow field
       subroutine writeflowfieldstart
