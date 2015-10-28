@@ -1999,7 +1999,6 @@
 !@subroutine beads_filling
 !@desc Repopulates nodes that previously existed inside a solid particle.
 !=============================================================================
-
       subroutine beads_filling
       use mpi
       use var_inc
@@ -2007,8 +2006,8 @@
 
       integer id, ix, iy, iz, ipop, ipmx, ii, nghb
       integer i, j, k, ip1, jp1, kp1, ip2, jp2, kp2, ip3, jp3, kp3, n
-      integer ibp1,ib0p1,ibp2,ib0p2,ibp3,ib0p3
-      integer ix1,iy1,iz1
+      integer ibp1, ib0p1, ibp2, ib0p2, ibp3, ib0p3, ibpsum, ib0psum
+      integer ix1, iy1, iz1
 
       real xc, yc, zc, xpnt, ypnt, zpnt
       real w1, w2, w3, omg1, omg2, omg3
@@ -2018,7 +2017,6 @@
       real rho9, u9, v9, w9
       !Temporary array for sending filling request data      
       logical, dimension(nproc*8):: tempFlags
-
       real, dimension(0:npop-1):: f9, f8, f7
 
       !Gather all fill flags for all MPI tasks
@@ -2033,6 +2031,11 @@
 
       !Parse through fill nodes
       do n=1, nbfill
+
+        ibp1 = -1; ib0p1 = -1 
+        ibp2 = -1; ib0p2 = -1 
+        ibp3 = -1; ib0p3 = -1 
+        
         id = idbfill(n)
         xc = ypglbp(1,id)      
         yc = ypglbp(2,id)    
@@ -2146,94 +2149,102 @@
         jp3 = j + 3*iy
         kp3 = k + 3*iz
 
-        if(ip1 < 1.or.ip1 > lx) then
-        ibp1 = 2
-        ib0p1 = 2
-        else 
-        ibp1 = ibnodes(ip1,jp1,kp1)
-        ib0p1 = ibnodes0(ip1,jp1,kp1)
+        if(ip1 < 1 .or. ip1 > lx) then
+          ibp1 = 1
+          ib0p1 = 1
         end if
-
-        if(ip2 < 1.or.ip2>lx) then
-        ibp2 = 2
-        ib0p2 = 2
-        else
-        ibp2 = ibnodes(ip2,jp2,kp2)
-        ib0p2 = ibnodes0(ip2,jp2,kp2)
+        if(ip2 < 1 .or. ip2>lx) then
+          ibp2 = 1
+          ib0p2 = 1
         end if
-
-        if(ip3 < 1.or.ip3>lx) then
-        ibp3 = 2
-        ib0p3 = 2
-        else
-        ibp3 = ibnodes(ip3,jp3,kp3)
-        ib0p3 = ibnodes0(ip3,jp3,kp3)
+        if(ip3 < 1 .or. ip3>lx) then
+          ibp3 = 1
+          ib0p3 = 1
         end if
-
-        IF(ibp1 < 0 .and. ib0p1 < 0)THEN
-      
+        !Get extrapolation point 1
+        if(ibp1 < 0 .and. ib0p1 < 0)THEN
           if(jp1 > ly) then
-          f9 = fillRecvYp(:,ip1,jp1,kp1)
+            f9 = fillRecvYp(:,ip1,jp1,kp1)
           else if (jp1 < 1) then
-          f9 = fillRecvYm(:,ip1,jp1,kp1)
+            f9 = fillRecvYm(:,ip1,jp1,kp1)
           else
             if(kp1 > lz) then
             f9 = fillRecvZp(:,ip1,jp1,kp1)
             else if(kp1 < 1 ) then
             f9 = fillRecvZm(:,ip1,jp1,kp1)
             else
-            f9 = f(:,ip1,jp1,kp1,s)
+              ibp1 = ibnodes(ip1,jp1,kp1)
+              ib0p1 = ibnodes0(ip1,jp1,kp1)
+              f9 = f(:,ip1,jp1,kp1,s)
             end if
           end if
-         
-        IF(ibp2 < 0 .and. ib0p2 < 0) THEN
-
+        !Get extrapolation point 2
+        if(ibp2 < 0 .and. ib0p2 < 0) THEN
           if(jp2 > ly) then
-          f8 = fillRecvYp(:,ip2,jp2,kp2)
+            f8 = fillRecvYp(:,ip2,jp2,kp2)
           else if (jp2 < 1) then
-          f8 = fillRecvYm(:,ip2,jp2,kp2)
+            f8 = fillRecvYm(:,ip2,jp2,kp2)
           else
-          if(kp2 > lz) then
-          f8 = fillRecvZp(:,ip2,jp2,kp2)
-          else if(kp2 < 1 ) then
-          f8 = fillRecvZm(:,ip2,jp2,kp2)
-          else
-          f8 = f(:,ip2,jp2,kp2,s)
+            if(kp2 > lz) then
+              f8 = fillRecvZp(:,ip2,jp2,kp2)
+            else if(kp2 < 1 ) then
+              f8 = fillRecvZm(:,ip2,jp2,kp2)
+            else
+              ibp2 = ibnodes(ip2,jp2,kp2)
+              ib0p2 = ibnodes0(ip2,jp2,kp2)
+              f8 = f(:,ip2,jp2,kp2,s)
            end if
           end if
-
-        IF(ibp3 < 0 .and. ib0p3 < 0) THEN
-
+        !Get extrapolation point 3
+        if(ibp3 < 0 .and. ib0p3 < 0) THEN
           if(jp3 > ly) then
-          f7 = fillRecvYp(:,ip3,jp3,kp3)
+            f7 = fillRecvYp(:,ip3,jp3,kp3)
           else if (jp3 < 1) then
-          f7 = fillRecvYm(:,ip3,jp3,kp3)
+            f7 = fillRecvYm(:,ip3,jp3,kp3)
           else
-          if(kp3 > lz) then
-          f7 = fillRecvZp(:,ip3,jp3,kp3)
-          else if(kp3 < 1 ) then
-          f7 = fillRecvZm(:,ip3,jp3,kp3)
-          else
-          f7 = f(:,ip3,jp3,kp3,s)
+            if(kp3 > lz) then
+              f7 = fillRecvZp(:,ip3,jp3,kp3)
+            else if(kp3 < 1 ) then
+              f7 = fillRecvZm(:,ip3,jp3,kp3)
+            else
+              ibp3 = ibnodes(ip3,jp3,kp3)
+              ib0p3 = ibnodes0(ip3,jp3,kp3)
+              f7 = f(:,ip3,jp3,kp3,s)
            end if
           end if
+        endif !p3
+        endif !p2
+        endif !p1
 
-        f(0,i,j,k,s) = 3.d0*f9(0)-3.d0*f8(0)+f7(0)
+        if(f9(0) == IBNODES_TRUE)then
+          ibp1 = 1
+          ib0p1 = 1
+        elseif(f8(0) == IBNODES_TRUE)then
+          ibp2 = 1
+          ib0p2 = 1
+        elseif(f7(0) == IBNODES_TRUE)then
+          ibp3 = 1
+          ib0p3 = 1
+        endif
 
-        ! Note in the velocity constrained filling, only unknown
-        ! directions are filled
+        ibpsum = ibp1 + ibp2 + ibp3
+        ib0psum = ib0p1 + ib0p2 + ib0p3
 
-        do ipop = 1,npop-1
-          ix1 = cix(ipop)
-          iy1 = ciy(ipop)
-          iz1 = ciz(ipop)
-          if(ibnodes0(i-ix1,j-iy1,k-iz1).gt.0) then
-            f(ipop,i,j,k,s) = 3.d0*f9(ipop)-3.d0*f8(ipop)+f7(ipop)
-          end if
-        end do
-
-! ELSE 2-points extrapolation
-        ELSE
+        !3-point extrapolation
+        if(ibpsum == -3 .and. ib0psum == -3)then
+          f(0,i,j,k,s) = 3.d0*f9(0)-3.d0*f8(0)+f7(0)
+          ! Note in the velocity constrained filling, only unknown
+          ! directions are filled
+          do ipop = 1,npop-1
+            ix1 = cix(ipop)
+            iy1 = ciy(ipop)
+            iz1 = ciz(ipop)
+            if(ibnodes0(i-ix1,j-iy1,k-iz1).gt.0) then
+              f(ipop,i,j,k,s) = 3.d0*f9(ipop)-3.d0*f8(ipop)+f7(ipop)
+            end if
+          end do
+        !2-point extrapolation
+        elseif(ibp1 < 0 .and. ib0p1 < 0 .and. ibp2 < 0 .and. ib0p2 < 0)then
           f(0,i,j,k,s) = 2.d0*f9(0)-f8(0)
           do ipop = 1,npop-1
             ix1 = cix(ipop)
@@ -2242,10 +2253,9 @@
             if(ibnodes0(i-ix1,j-iy1,k-iz1).gt.0) then
               f(ipop,i,j,k,s) = 2.d0*f9(ipop)-f8(ipop)
             end if
-          end do
-        END IF       
-! ELSE 1 point extrapolation
-        ELSE
+          end do    
+        !1 point extrapolation
+        elseif(ibp1 < 0 .and. ib0p1 < 0)then
           f(0,i,j,k,s) = f9(0)
           do ipop = 1,npop-1
             ix1 = cix(ipop)
@@ -2255,9 +2265,8 @@
               f(ipop,i,j,k,s) = f9(ipop)
             end if
           end do
-        END IF
-! ELSE simply set to 0
-        ELSE
+        !Set to 0, if no points availiable
+        else
           f(0,i,j,k,s) = 0.d0
           do ipop = 1,npop-1
             ix1 = cix(ipop)
@@ -2269,8 +2278,8 @@
           end do
         END IF
 
-! now constrain the velocity
-! first obtain the local mean density
+        !Now constrain the velocity
+        !Obtain the local mean density
         nghb = 0
         rho9 = 0.0
 
@@ -2283,9 +2292,9 @@
           jp1 = j + iy
           kp1 = k + iz
 
-        ! periodicity
-        !  if(ip1 < 1) ip1 = ip1 + lx
-        !  if(ip1 > lx) ip1 = ip1 - lx
+          !Periodicity
+          !if(ip1 < 1) ip1 = ip1 + lx
+          !if(ip1 > lx) ip1 = ip1 - lx
           if(ip1 < 1 .or. ip1 > lx) then
             ibp1 = 2
             ib0p1 = 2
@@ -2296,7 +2305,6 @@
           
           IF(ibp1 < 0 .and. ib0p1 < 0)THEN
             nghb = nghb + 1
-
 
             if(jp1 > ly) then
             f9 = fillRecvYp(:,ip1,jp1,kp1)
@@ -2319,16 +2327,16 @@
         end do
 
         if(nghb > 0)then
-! use the locally averaged density if available
+          !Use the locally averaged density if available
           rho9 = rho9 / real(nghb)
         ELSE
-! otherwise use the global average density rho0=1.0
-  !       rho9 = rho0
+          !Otherwise use the global average density rho0=1.0
+          !rho9 = rho0
           rho9 = 0.0d0
         END IF
 
 
-! then calculate the previous solid node's velocity
+        !Then calculate the previous solid node's velocity
         xx0 = xpnt - xc
         yy0 = ypnt - yc
         zz0 = zpnt - zc
@@ -2346,9 +2354,9 @@
         w9 = w3 + omg1*yy0 - omg2*xx0
 
         f9 = f(:,i,j,k,s)
-
+        !Execute collision
         call collis_MRT9(u9,v9,w9,rho9,f9)
-! equilibrium + non-equilibrium refill
+        !Equilibrium + non-equilibrium refill
         f(:,i,j,k,s) = f9
       end do
 
@@ -2363,11 +2371,17 @@
       implicit none
 
       integer ileny, ilenz, nreq
+      integer ip, i, j, k
       logical utempinit, dtempinit
 !      real, dimension(0:npop-1,lx,3,-2:lz+3):: tmpYp, tmpYm 
       real,dimension(0:npop-1,lx,3,-2:lz+3):: tmpYmS,tmpYmR,tmpYpS,tmpYpR
       real,dimension(0:npop-1,lx,ly,3):: tmpZmS,tmpZmR,tmpZpR,tmpZpS
       integer status_array(MPI_STATUS_SIZE,4), req(4)
+
+      tmpZpS(:,:,:,:) = IBNODES_TRUE
+      tmpZmS(:,:,:,:) = IBNODES_TRUE
+      tmpYpS(:,:,:,:) = IBNODES_TRUE
+      tmpYmS(:,:,:,:) = IBNODES_TRUE
 
       utempinit = .FALSE.
       dtempinit = .FALSE.
@@ -2389,13 +2403,23 @@
       !Sending Z+
       if(fillMPIrequest(mzp,2) .or. fillMPIrequest(mymzp,8) .or. fillMPIrequest(mypzp,7))then
         nreq = nreq + 1
-        tmpZpS(:,:,:,1:3) = f(:,:,:,lz-2:lz,s)
+        !Merge distribution array and send buffer using ibnodes and ibnodes0 as a mask
+        !Intrinsic fortran90 function merge(truearray, falsearray, logicalarray)
+        do ip = 0, npop-1
+          tmpZpS(ip,:,:,1:3) = merge(f(ip,:,:,lz-2:lz,s), tmpZpS(ip,:,:,1:3), (ibnodes(1:lx,1:ly,lz-2:lz) < 0 .and. ibnodes0(1:lx,1:ly,lz-2:lz) < 0))
+        enddo
+
         call MPI_ISEND(tmpZpS,ilenz,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(nreq),ierr)
       endif
       !Sending Z-
       if(fillMPIrequest(mzm,1) .or. fillMPIrequest(mymzm,6) .or. fillMPIrequest(mypzm,5))then
         nreq = nreq + 1
-        tmpZmS(:,:,:,1:3) = f(:,:,:,1:3,s)
+        !Merge distribution array and send buffer using ibnodes and ibnodes0 as a mask
+        !Intrinsic fortran90 function merge(truearray, falsearray, logicalarray)
+        do ip = 0, npop-1
+          tmpZmS(ip,:,:,1:3) = merge(f(ip,:,:,1:3,s), tmpZmS(ip,:,:,1:3), (ibnodes(1:lx,1:ly,1:3) < 0 .and. ibnodes0(1:lx,1:ly,1:3) < 0))
+        enddo
+
         call MPI_ISEND(tmpZmS,ilenz,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(nreq),ierr)
       endif
       
@@ -2428,7 +2452,11 @@
           tmpYmS(:,:,3,-2:0) = tmpZmR(:,:,3,1:3)
         end if
 
-        tmpYmS(:,:,1:3,1:lz) = f(:,:,1:3,:,s)
+        !Merge distribution array and send buffer using ibnodes and ibnodes0 as a mask
+        !Intrinsic fortran90 function merge(truearray, falsearray, logicalarray)
+        do ip = 0, npop-1
+          tmpYmS(ip,:,1:3,1:lz) = merge(f(ip,:,1:3,:,s), tmpYmS(ip,:,1:3,1:lz), (ibnodes(1:lx,1:3,1:lz) < 0 .and. ibnodes0(1:lx,1:3,1:lz) < 0))
+        enddo
 
         if(utempinit) then
           tmpYmS(:,:,1,lz+1:lz+3) = tmpZpR(:,:,1,1:3)
@@ -2448,7 +2476,11 @@
           tmpYpS(:,:,3,-2:0) = tmpZmR(:,:,ly,1:3)
         end if
 
-        tmpYpS(:,:,1:3,1:lz) = f(:,:,ly-2:ly,:,s) 
+        !Merge distribution array and send buffer using ibnodes and ibnodes0 as a mask
+        !Intrinsic fortran90 function merge(truearray, falsearray, logicalarray)
+        do ip = 0, npop-1
+          tmpYpS(ip,:,1:3,1:lz) = merge(f(ip,:,ly-2:ly,:,s), tmpYpS(ip,:,1:3,1:lz), (ibnodes(1:lx,ly-2:ly,1:lz) < 0 .and. ibnodes0(1:lx,ly-2:ly,1:lz) < 0))
+        enddo
 
         if(utempinit) then
           tmpYpS(:,:,1,lz+1:lz+3) = tmpZpR(:,:,ly-2,1:3)
@@ -2505,7 +2537,6 @@
 !@subroutine collis_MRT9
 !@desc Constrain velocity for filling
 !============================================================================
-
       subroutine collis_MRT9(u9,v9,w9,rho9,f9)
       use var_inc
       implicit none
@@ -2522,121 +2553,121 @@
       real t1, tl1, tl2, tl3, tl4, tl5, tl6, tl7, tl8, tl9, tl10, tl11,&
             tl12, tl13, tl14, tl15, tl16, tl17, tl18, tl19, tl20, tl21
 
-          sum1 = f9(1) + f9(2) + f9(3) + f9(4) + f9(5) + f9(6)
-          sum2 = f9(7) + f9(8) + f9(9) + f9(10) + f9(11) + f9(12)        &
-             + f9(13) + f9(14) + f9(15) + f9(16) + f9(17) + f9(18)
-          sum3 = f9(7) - f9(8) + f9(9) - f9(10) + f9(11) - f9(12)        &
-             + f9(13) - f9(14)
-          sum4 = f9(7) + f9(8) - f9(9) - f9(10) + f9(15) - f9(16)        &
-             + f9(17) - f9(18)
-          sum5 = f9(11) + f9(12) - f9(13) - f9(14) + f9(15) + f9(16)     &
-             - f9(17) - f9(18)
-          sum6 = f9(1) + f9(2)
-          sum7 = f9(3) + f9(4) + f9(5) + f9(6)
-          sum8 = f9(7) + f9(8) + f9(9) + f9(10) + f9(11) + f9(12)        &
-             + f9(13) + f9(14)
-          sum9 = f9(15) + f9(16) + f9(17) + f9(18)
-          sum10 = f9(3) + f9(4) - f9(5) - f9(6)
-          sum11 = f9(7) + f9(8) + f9(9) + f9(10) - f9(11) - f9(12)       &
-             - f9(13) - f9(14)
+      sum1 = f9(1) + f9(2) + f9(3) + f9(4) + f9(5) + f9(6)
+      sum2 = f9(7) + f9(8) + f9(9) + f9(10) + f9(11) + f9(12)        &
+         + f9(13) + f9(14) + f9(15) + f9(16) + f9(17) + f9(18)
+      sum3 = f9(7) - f9(8) + f9(9) - f9(10) + f9(11) - f9(12)        &
+         + f9(13) - f9(14)
+      sum4 = f9(7) + f9(8) - f9(9) - f9(10) + f9(15) - f9(16)        &
+         + f9(17) - f9(18)
+      sum5 = f9(11) + f9(12) - f9(13) - f9(14) + f9(15) + f9(16)     &
+         - f9(17) - f9(18)
+      sum6 = f9(1) + f9(2)
+      sum7 = f9(3) + f9(4) + f9(5) + f9(6)
+      sum8 = f9(7) + f9(8) + f9(9) + f9(10) + f9(11) + f9(12)        &
+         + f9(13) + f9(14)
+      sum9 = f9(15) + f9(16) + f9(17) + f9(18)
+      sum10 = f9(3) + f9(4) - f9(5) - f9(6)
+      sum11 = f9(7) + f9(8) + f9(9) + f9(10) - f9(11) - f9(12)       &
+         - f9(13) - f9(14)
 
-          evlm1 = -30.0*f9(0) + coef2*sum1 + coef3*sum2
-          evlm2 = 12.0*f9(0) + coef4*sum1 + sum2
-          evlm3 = coef4*(f9(1) - f9(2)) + sum3
-          evlm4 = coef4*(f9(3) - f9(4)) + sum4
-          evlm5 = coef4*(f9(5) - f9(6)) + sum5
-          evlm6 = coef5*sum6 - sum7 + sum8 - coef5*sum9
-          evlm7 = coef4*sum6 + coef5*sum7 + sum8 - coef5*sum9
-          evlm8 = sum10 + sum11
-          evlm9 =-coef5*sum10 + sum11
-          evlm10 = f9(7) - f9(8) - f9(9) + f9(10)
-          evlm11 = f9(15) - f9(16) - f9(17) + f9(18)
-          evlm12 = f9(11) - f9(12) - f9(13) + f9(14)
-          evlm13 = f9(7) - f9(8) + f9(9) - f9(10) - f9(11) + f9(12)      &
-               - f9(13) + f9(14)
-          evlm14 =-f9(7) - f9(8) + f9(9) + f9(10) + f9(15) - f9(16)     & 
-               + f9(17) - f9(18)
-          evlm15 = f9(11) + f9(12) - f9(13) - f9(14) - f9(15) - f9(16)   &
-               + f9(17) + f9(18)
+      evlm1 = -30.0*f9(0) + coef2*sum1 + coef3*sum2
+      evlm2 = 12.0*f9(0) + coef4*sum1 + sum2
+      evlm3 = coef4*(f9(1) - f9(2)) + sum3
+      evlm4 = coef4*(f9(3) - f9(4)) + sum4
+      evlm5 = coef4*(f9(5) - f9(6)) + sum5
+      evlm6 = coef5*sum6 - sum7 + sum8 - coef5*sum9
+      evlm7 = coef4*sum6 + coef5*sum7 + sum8 - coef5*sum9
+      evlm8 = sum10 + sum11
+      evlm9 =-coef5*sum10 + sum11
+      evlm10 = f9(7) - f9(8) - f9(9) + f9(10)
+      evlm11 = f9(15) - f9(16) - f9(17) + f9(18)
+      evlm12 = f9(11) - f9(12) - f9(13) + f9(14)
+      evlm13 = f9(7) - f9(8) + f9(9) - f9(10) - f9(11) + f9(12)      &
+           - f9(13) + f9(14)
+      evlm14 =-f9(7) - f9(8) + f9(9) + f9(10) + f9(15) - f9(16)     & 
+           + f9(17) - f9(18)
+      evlm15 = f9(11) + f9(12) - f9(13) - f9(14) - f9(15) - f9(16)   &
+           + f9(17) + f9(18)
 
-          eqmc1 = evlm1
-          eqmc2 = evlm2
-          eqmc3 = evlm3
-          eqmc4 = evlm4
-          eqmc5 = evlm5
-          eqmc6 = evlm6
-          eqmc7 = evlm7
-          eqmc8 = evlm8
-          eqmc9 = evlm9
-          eqmc10 = evlm10
-          eqmc11 = evlm11
-          eqmc12 = evlm12
-          eqmc13 = evlm13
-          eqmc14 = evlm14
-    eqmc15 = evlm15
-
-
-          tl1 = val1i*rho9
-          tl2 = coef2*val2i*eqmc1
-          tl3 = coef3*val2i*eqmc1
-          tl4 = coef4*val3i*eqmc2
-          tl5 = val3i*eqmc2
-          tl6 = val4i*u9
-          tl7 = val5i*eqmc3
-          tl8 = val4i*v9
-          tl9 = val5i*eqmc4
-          tl10 = val4i*w9
-          tl11 = val5i*eqmc5
-          tl12 = val6i*eqmc6
-          tl13 = val7i*eqmc7
-          tl14 = val8i*eqmc8
-          tl15 = val9i*eqmc9
-          tl16 = -coef4i*eqmc10
-          tl17 = -coef4i*eqmc11
-          tl18 = -coef4i*eqmc12
-          tl19 = coef3i*eqmc13
-          tl20 = coef3i*eqmc14
-          tl21 = coef3i*eqmc15
+      eqmc1 = evlm1
+      eqmc2 = evlm2
+      eqmc3 = evlm3
+      eqmc4 = evlm4
+      eqmc5 = evlm5
+      eqmc6 = evlm6
+      eqmc7 = evlm7
+      eqmc8 = evlm8
+      eqmc9 = evlm9
+      eqmc10 = evlm10
+      eqmc11 = evlm11
+      eqmc12 = evlm12
+      eqmc13 = evlm13
+      eqmc14 = evlm14
+      eqmc15 = evlm15
 
 
-          f9(0) = tl1 - 30.0*val2i*eqmc1 + val8*val3i*eqmc2
-          suma = tl1 + tl2 + tl4
-          sumb = tl1 + tl3 + tl5
-          sumc = tl6 + coef4*tl7
-          sumd = coef5*tl12 + coef4*tl13
-          sume = tl8 + coef4*tl9
-          sumf = -tl12 + coef5*tl13 + tl14 - coef5*tl15
-          sumg = tl10 + coef4*tl11
-          sumh = -tl12 + coef5*tl13 - tl14 + coef5*tl15
+      tl1 = val1i*rho9
+      tl2 = coef2*val2i*eqmc1
+      tl3 = coef3*val2i*eqmc1
+      tl4 = coef4*val3i*eqmc2
+      tl5 = val3i*eqmc2
+      tl6 = val4i*u9
+      tl7 = val5i*eqmc3
+      tl8 = val4i*v9
+      tl9 = val5i*eqmc4
+      tl10 = val4i*w9
+      tl11 = val5i*eqmc5
+      tl12 = val6i*eqmc6
+      tl13 = val7i*eqmc7
+      tl14 = val8i*eqmc8
+      tl15 = val9i*eqmc9
+      tl16 = -coef4i*eqmc10
+      tl17 = -coef4i*eqmc11
+      tl18 = -coef4i*eqmc12
+      tl19 = coef3i*eqmc13
+      tl20 = coef3i*eqmc14
+      tl21 = coef3i*eqmc15
 
-          sumi = tl12 + tl13 + tl14 + tl15
-          sumk = tl12 + tl13 - tl14 - tl15
 
-          sump = -coef5*tl12 - coef5*tl13
+      f9(0) = tl1 - 30.0*val2i*eqmc1 + val8*val3i*eqmc2
+      suma = tl1 + tl2 + tl4
+      sumb = tl1 + tl3 + tl5
+      sumc = tl6 + coef4*tl7
+      sumd = coef5*tl12 + coef4*tl13
+      sume = tl8 + coef4*tl9
+      sumf = -tl12 + coef5*tl13 + tl14 - coef5*tl15
+      sumg = tl10 + coef4*tl11
+      sumh = -tl12 + coef5*tl13 - tl14 + coef5*tl15
 
-          sum67 = tl6 + tl7
-          sum89 = tl8 + tl9
-          sum1011 = tl10 + tl11
+      sumi = tl12 + tl13 + tl14 + tl15
+      sumk = tl12 + tl13 - tl14 - tl15
 
-          f9(1) = suma + sumc + sumd
-          f9(2) = suma - sumc + sumd
-          f9(3) = suma + sume + sumf
-          f9(4) = suma - sume + sumf
-          f9(5) = suma + sumg + sumh
-          f9(6) = suma - sumg + sumh
-          f9(7) = sumb + sum67 + sum89 + sumi + tl16 + tl19 - tl20
-          f9(8) = sumb - sum67 + sum89 + sumi - tl16 - tl19 - tl20
-          f9(9) = sumb + sum67 - sum89 + sumi - tl16 + tl19 + tl20
-          f9(10) = sumb - sum67 - sum89 + sumi + tl16 - tl19 + tl20
+      sump = -coef5*tl12 - coef5*tl13
 
-          f9(11) = sumb + sum67 + sum1011 + sumk + tl18 - tl19 + tl21
-          f9(12) = sumb - sum67 + sum1011 + sumk - tl18 + tl19 + tl21
-          f9(13) = sumb + sum67 - sum1011 + sumk - tl18 - tl19 - tl21
-          f9(14) = sumb - sum67 - sum1011 + sumk + tl18 + tl19 - tl21
+      sum67 = tl6 + tl7
+      sum89 = tl8 + tl9
+      sum1011 = tl10 + tl11
 
-          f9(15) = sumb + sum89 + sum1011 + sump + tl17 + tl20 - tl21
-          f9(16) = sumb - sum89 + sum1011 + sump - tl17 - tl20 - tl21
-          f9(17) = sumb + sum89 - sum1011 + sump - tl17 + tl20 + tl21
-          f9(18) = sumb - sum89 - sum1011 + sump + tl17 - tl20 + tl21
+      f9(1) = suma + sumc + sumd
+      f9(2) = suma - sumc + sumd
+      f9(3) = suma + sume + sumf
+      f9(4) = suma - sume + sumf
+      f9(5) = suma + sumg + sumh
+      f9(6) = suma - sumg + sumh
+      f9(7) = sumb + sum67 + sum89 + sumi + tl16 + tl19 - tl20
+      f9(8) = sumb - sum67 + sum89 + sumi - tl16 - tl19 - tl20
+      f9(9) = sumb + sum67 - sum89 + sumi - tl16 + tl19 + tl20
+      f9(10) = sumb - sum67 - sum89 + sumi + tl16 - tl19 + tl20
 
-          end subroutine collis_MRT9
+      f9(11) = sumb + sum67 + sum1011 + sumk + tl18 - tl19 + tl21
+      f9(12) = sumb - sum67 + sum1011 + sumk - tl18 + tl19 + tl21
+      f9(13) = sumb + sum67 - sum1011 + sumk - tl18 - tl19 - tl21
+      f9(14) = sumb - sum67 - sum1011 + sumk + tl18 + tl19 - tl21
+
+      f9(15) = sumb + sum89 + sum1011 + sump + tl17 + tl20 - tl21
+      f9(16) = sumb - sum89 + sum1011 + sump - tl17 - tl20 - tl21
+      f9(17) = sumb + sum89 - sum1011 + sump - tl17 + tl20 + tl21
+      f9(18) = sumb - sum89 - sum1011 + sump + tl17 - tl20 + tl21
+
+      end subroutine collis_MRT9
