@@ -2499,43 +2499,12 @@
       fillRecvYp(:,:,ly+1:ly+3,:) = tmpYpR(:,:,1:3,:)
 
       end subroutine exchngFill
-!=============================================================================
-!@subroutine feqpnt
-!@desc Calculates equilibirum distributions based of given input parameters
-!@param u9,v9,w9 = real; macro-scopic velocities at the given point
-!@param rho9 = real; density at the given point
-!@param feq9 = real array; stores calculated equilibrium distribution
-!=============================================================================
-      subroutine feqpnt(u9,v9,w9,rho9,feq9)
-      use mpi
-      use var_inc
-      implicit none
-
-      integer ip
-      real u9, v9, w9, rho9
-      real feq9(0:npop-1)
-      real usqr, G
-
-      usqr = u9*u9 + v9*v9 + w9*w9
-      usqr = 1.5*usqr
-
-      feq9(0) = ww0*(rho9 - usqr)
-
-      do ip = 1,6
-        G = (cix(ip)*u9 + ciy(ip)*v9 + ciz(ip)*w9)
-        feq9(ip) = ww1*(rho9 + 3.0*G + 4.5*G*G - usqr)
-      end do
- 
-      do ip = 7,npop-1
-        G = (cix(ip)*u9 + ciy(ip)*v9 + ciz(ip)*w9)
-        feq9(ip) = ww2*(rho9 + 3.0*G + 4.5*G*G - usqr)
-      end do
-
-      end subroutine feqpnt
-
 !============================================================================
 !@subroutine collis_MRT9
 !@desc Constrain velocity for filling
+!@param u9,v9,w9 = real; macro-scopic velocities at the given point
+!@param rho9 = real; density at the given point
+!@param f9 = real array; stores calculated equilibrium distribution
 !============================================================================
       subroutine collis_MRT9(u9,v9,w9,rho9,f9)
       use var_inc
