@@ -124,7 +124,6 @@
 
         else ! Load initial pre-relaxed flow
           call loadinitflow !@file saveload.f90
-          call macrovar !@file collison.f90
           istep0=0
           istep = istep0
           !For testing only
@@ -143,7 +142,6 @@
           released = .TRUE.
         end if
 
-        call macrovar !@file collision.f90
       END IF
 
       if(myid.eq.0)write(*,*)'Loading successful'
@@ -157,6 +155,9 @@
       !@file collision.f90
       call FORCING
 !     call FORCINGP
+      
+      !Call macrovar to initialize velocity variables
+      call macrovar !@file collision.f90
       time_start = MPI_WTIME()
 
 !=======================================================
