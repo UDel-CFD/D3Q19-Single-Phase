@@ -19,7 +19,7 @@ main: ${OBJ}
 #Optional auto clean object files
 	rm -rf *.o *.mod
 # Debug build changes flags to assist in program debugging
-debug: FFLAG = -g -r8 -C -CB -traceback -debug all -fp-model precise
+debug: FFLAG = -g -r8 -C -CB -check uninit -traceback -debug all -fp-model precise -fpe0 -fp-stack-check
 debug: main
 #Remove Old Object files, useful when recompiling
 clean:
