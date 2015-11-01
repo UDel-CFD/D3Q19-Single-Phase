@@ -2067,39 +2067,39 @@
         ! change within half time step. As long as the particles do not move 
         ! too fast, the following part is not necessary.
 
-        w1 = -0.5d0*(wp(1,id) + wpp(1,id))
-        w2 = -0.5d0*(wp(2,id) + wpp(2,id))
-        w3 = -0.5d0*(wp(3,id) + wpp(3,id))
-        omg1 = -0.5d0*(omgp(1,id) + omgpp(1,id))
-        omg2 = -0.5d0*(omgp(2,id) + omgpp(2,id))
-        omg3 = -0.5d0*(omgp(3,id) + omgpp(3,id))
+      !  w1 = -0.5d0*(wp(1,id) + wpp(1,id))
+      !  w2 = -0.5d0*(wp(2,id) + wpp(2,id))
+      !  w3 = -0.5d0*(wp(3,id) + wpp(3,id))
+      !  omg1 = -0.5d0*(omgp(1,id) + omgpp(1,id))
+      !  omg2 = -0.5d0*(omgp(2,id) + omgpp(2,id))
+      !  omg3 = -0.5d0*(omgp(3,id) + omgpp(3,id))
 
-        aa = w1*w1 + w2*w2 + w3*w3
-        bb = (xpnt - xc)*w1 + (ypnt - yc)*w2 + (zpnt -zc)*w3 
-        cc = (xpnt - xc)**2 + (ypnt - yc)**2 + (zpnt -zc)**2 - (rad)**2 
+      !  aa = w1*w1 + w2*w2 + w3*w3
+      !  bb = (xpnt - xc)*w1 + (ypnt - yc)*w2 + (zpnt -zc)*w3 
+      !  cc = (xpnt - xc)**2 + (ypnt - yc)**2 + (zpnt -zc)**2 - (rad)**2 
 
-        ddt0 = bb/aa 
-        ddt1 = sqrt(ddt0**2 - cc/aa) 
-        ddt = -ddt0 + ddt1  
+      !  ddt0 = bb/aa 
+      !  ddt1 = sqrt(ddt0**2 - cc/aa) 
+      !  ddt = -ddt0 + ddt1  
     
-        if(ddt < 0.d0) ddt = 0.d0
-        if(ddt > 1.d0) ddt = 1.d0
+      !  if(ddt < 0.d0) ddt = 0.d0
+      !  if(ddt > 1.d0) ddt = 1.d0
 
-        xp1 = xpnt + w1*ddt
-        yp1 = ypnt + w2*ddt
-        zp1 = zpnt + w3*ddt
+      !  xp1 = xpnt + w1*ddt
+      !  yp1 = ypnt + w2*ddt
+      !  zp1 = zpnt + w3*ddt
 
         ! (xp2, yp2, zp2) is the point on the particle surface. It is THROUGH this
         ! point the previous solid node (xpnt, ypnt, zpnt) moves to fluid region.
-        xp2 = xp1 + (omg2*(zp1-zc) - omg3*(yp1-yc))*ddt
-        yp2 = yp1 + (omg3*(xp1-xc) - omg1*(zp1-zc))*ddt
-        zp2 = zp1 + (omg1*(yp1-yc) - omg2*(xp1-xc))*ddt
+      !  xp2 = xp1 + (omg2*(zp1-zc) - omg3*(yp1-yc))*ddt
+      !  yp2 = yp1 + (omg3*(xp1-xc) - omg1*(zp1-zc))*ddt
+      !  zp2 = zp1 + (omg1*(yp1-yc) - omg2*(xp1-xc))*ddt
 
         ! Change xp2, yp2, zp2 to xpnt, ypnt and zpnt
 
-        xx0 = xp2 - xc
-        yy0 = yp2 - yc
-        zz0 = zp2 - zc
+        xx0 = xpnt - xc
+        yy0 = ypnt - yc
+        zz0 = zpnt - zc
 
         ! Lallemand and Luo, JCP 184, 2003, pp.414
         ! identify ipmx, the discrete velocity direction which maximizes the
