@@ -166,7 +166,7 @@
       do istep = istep0+1,istep0+nsteps 
 
 
-        if(myid.eq.0 .and. mod(istep,50).eq.0)then
+        if(myid.eq.0 .and. mod(istep,1).eq.0)then
         	write(*,*) 'istep=',istep
         endif
 
