@@ -837,6 +837,9 @@
       !If the distribution needed is outside our local domain 4 things occur
       !1. Indexers for storing request data are incremented (ipf_mymc, ipf_mypc, ipf_mzmc, ipf_mzpc)
       !2. Request data of the distribution we need is stored with custom data type ipf_node (interpolation fluid node)
+      !2a. Note: if the data is being request from a processor in the positive direction we adjust the cordinate locally
+      !	   This allows the use of different MPI domain sizes if needed. Only contraint is Y neighbors must have the same Z
+      !	   size and Z neighbors must have the same Y domain size. I.e. a task can only have one neighbor for each directon.
       !3. A flag used to determine which array we get interpolation data from is stored in iblinks
       !   (1 = mym, 2 = myp, 3 = mzm, 4 = mzp)
       !4. The request array index is stored in iblinks for easy retrival of this data when needed
@@ -847,7 +850,7 @@
         iblinks(0,2,n) = ipf_mymc
       elseif(jp1 > ly)then
         ipf_mypc = ipf_mypc + 1
-        ipf_myp(ipf_mypc) = ipf_node(ipi, ip1, jp1, kp1)
+        ipf_myp(ipf_mypc) = ipf_node(ipi, ip1, jp1-ly, kp1)
         iblinks(0,1,n) = 2
         iblinks(0,2,n) = ipf_mypc
       elseif(kp1 < 1)then
@@ -857,7 +860,7 @@
         iblinks(0,2,n) = ipf_mzmc
       elseif(kp1 > lz)then
         ipf_mzpc = ipf_mzpc + 1
-        ipf_mzp(ipf_mzpc) = ipf_node(ipi, ip1, jp1, kp1)
+        ipf_mzp(ipf_mzpc) = ipf_node(ipi, ip1, jp1, kp1-lz)
         iblinks(0,1,n) = 4
         iblinks(0,2,n) = ipf_mzpc
       endif
@@ -875,12 +878,12 @@
         endif
       elseif(jm1 > ly)then
         ipf_mypc = ipf_mypc + 1
-        ipf_myp(ipf_mypc) = ipf_node(ip, im1, jm1, km1)
+        ipf_myp(ipf_mypc) = ipf_node(ip, im1, jm1-ly, km1)
         iblinks(1,1,n) = 2
         iblinks(1,2,n) = ipf_mypc
         if(alpha > 0.5 .and. jm2 > ly .and. im2f)then
           ipf_mypc = ipf_mypc + 1
-          ipf_myp(ipf_mypc) = ipf_node(ip2, im2, jm2, km2)
+          ipf_myp(ipf_mypc) = ipf_node(ip2, im2, jm2-ly, km2)
           iblinks(2,1,n) = 2
           iblinks(2,2,n) = ipf_mypc
         endif
@@ -897,7 +900,7 @@
             iblinks(2,2,n) = ipf_mymc
           elseif(jm2 > ly)then
             ipf_mypc = ipf_mypc + 1
-            ipf_myp(ipf_mypc) = ipf_node(ip2, im2, jm2, km2)
+            ipf_myp(ipf_mypc) = ipf_node(ip2, im2, jm2-ly, km2)
             iblinks(2,1,n) = 2
             iblinks(2,2,n) = ipf_mypc
           else
@@ -909,7 +912,7 @@
         endif
       elseif(km1 > lz)then
         ipf_mzpc = ipf_mzpc + 1
-        ipf_mzp(ipf_mzpc) = ipf_node(ip, im1, jm1, km1)
+        ipf_mzp(ipf_mzpc) = ipf_node(ip, im1, jm1, km1-lz)
         iblinks(1,1,n) = 4
         iblinks(1,2,n) = ipf_mzpc
         if(alpha > 0.5 .and. im2f)then
@@ -920,12 +923,12 @@
             iblinks(2,2,n) = ipf_mymc
           elseif(jm2 > ly)then
             ipf_mypc = ipf_mypc + 1
-            ipf_myp(ipf_mypc) = ipf_node(ip2, im2, jm2, km2)
+            ipf_myp(ipf_mypc) = ipf_node(ip2, im2, jm2-ly, km2)
             iblinks(2,1,n) = 2
             iblinks(2,2,n) = ipf_mypc
           else
             ipf_mzpc = ipf_mzpc + 1
-            ipf_mzp(ipf_mzpc) = ipf_node(ip2, im2, jm2, km2)
+            ipf_mzp(ipf_mzpc) = ipf_node(ip2, im2, jm2, km2-lz)
             iblinks(2,1,n) = 4
             iblinks(2,2,n) = ipf_mzpc
           endif
@@ -939,7 +942,7 @@
             iblinks(2,2,n) = ipf_mymc
           elseif(jm2 > ly)then
             ipf_mypc = ipf_mypc + 1
-            ipf_myp(ipf_mypc) = ipf_node(ip2, im2, jm2, km2)
+            ipf_myp(ipf_mypc) = ipf_node(ip2, im2, jm2-ly, km2)
             iblinks(2,1,n) = 2
             iblinks(2,2,n) = ipf_mypc
           elseif(km2 < 1)then
@@ -949,7 +952,7 @@
             iblinks(2,2,n) = ipf_mzmc
           elseif(km2 > lz)then
             ipf_mzpc = ipf_mzpc + 1
-            ipf_mzp(ipf_mzpc) = ipf_node(ip2, im2, jm2, km2)
+            ipf_mzp(ipf_mzpc) = ipf_node(ip2, im2, jm2, km2-lz)
             iblinks(2,1,n) = 4
             iblinks(2,2,n) = ipf_mzpc
            endif
@@ -1258,7 +1261,7 @@
           allocate(mymIpfSend(count))
           mymIpfSend = 0
           ymcount = count
-          ipfReq(:)%y = ipfReq(:)%y - ly
+          ipfReq(:)%y = ipfReq(:)%y !No adjustment here, minus neighbors adjust cords locally
           dir = -1
         endif
         ! Parse Recieved data
@@ -1266,7 +1269,7 @@
           !If requested data is in the z neighbors (corner), add it to temporay array
           if(ipfReq(j)%z > lz)then 
             ipf_mzptc = ipf_mzptc + 1
-            ipf_mzpt(ipf_mzptc) = ipfReq(j)
+            ipf_mzpt(ipf_mzptc) = ipf_node(ipfReq(j)%ip,ipfReq(j)%x,ipfReq(j)%y,ipfReq(j)%z-lz) !Adjust z cord locally
             mzpt_index(ipf_mzptc) = cornerNode(j,dir)
           elseif(ipfReq(j)%z < 1)then
             ipf_mzmtc = ipf_mzmtc + 1
@@ -1344,7 +1347,7 @@
           !Allocate send buffers, and adjust cordinates to local grid
           allocate(mzmIpfSend(count))
           zmcount = count
-          ipfReq(:)%z = ipfReq(:)%z - lz
+          ipfReq(:)%z = ipfReq(:)%z !No adjustment here, minus neighbors adjust cords locally
 
           do j=1, count
             ip =  ipfReq(j)%ip
@@ -2067,39 +2070,39 @@
         ! change within half time step. As long as the particles do not move 
         ! too fast, the following part is not necessary.
 
-      !  w1 = -0.5d0*(wp(1,id) + wpp(1,id))
-      !  w2 = -0.5d0*(wp(2,id) + wpp(2,id))
-      !  w3 = -0.5d0*(wp(3,id) + wpp(3,id))
-      !  omg1 = -0.5d0*(omgp(1,id) + omgpp(1,id))
-      !  omg2 = -0.5d0*(omgp(2,id) + omgpp(2,id))
-      !  omg3 = -0.5d0*(omgp(3,id) + omgpp(3,id))
+        w1 = -0.5d0*(wp(1,id) + wpp(1,id))
+        w2 = -0.5d0*(wp(2,id) + wpp(2,id))
+        w3 = -0.5d0*(wp(3,id) + wpp(3,id))
+        omg1 = -0.5d0*(omgp(1,id) + omgpp(1,id))
+        omg2 = -0.5d0*(omgp(2,id) + omgpp(2,id))
+        omg3 = -0.5d0*(omgp(3,id) + omgpp(3,id))
 
-      !  aa = w1*w1 + w2*w2 + w3*w3
-      !  bb = (xpnt - xc)*w1 + (ypnt - yc)*w2 + (zpnt -zc)*w3 
-      !  cc = (xpnt - xc)**2 + (ypnt - yc)**2 + (zpnt -zc)**2 - (rad)**2 
+        aa = w1*w1 + w2*w2 + w3*w3
+        bb = (xpnt - xc)*w1 + (ypnt - yc)*w2 + (zpnt -zc)*w3 
+        cc = (xpnt - xc)**2 + (ypnt - yc)**2 + (zpnt -zc)**2 - (rad)**2 
 
-      !  ddt0 = bb/aa 
-      !  ddt1 = sqrt(ddt0**2 - cc/aa) 
-      !  ddt = -ddt0 + ddt1  
+        ddt0 = bb/aa 
+        ddt1 = sqrt(ddt0**2 - cc/aa) 
+        ddt = -ddt0 + ddt1  
     
-      !  if(ddt < 0.d0) ddt = 0.d0
-      !  if(ddt > 1.d0) ddt = 1.d0
+        if(ddt < 0.d0) ddt = 0.d0
+        if(ddt > 1.d0) ddt = 1.d0
 
-      !  xp1 = xpnt + w1*ddt
-      !  yp1 = ypnt + w2*ddt
-      !  zp1 = zpnt + w3*ddt
+        xp1 = xpnt + w1*ddt
+        yp1 = ypnt + w2*ddt
+        zp1 = zpnt + w3*ddt
 
         ! (xp2, yp2, zp2) is the point on the particle surface. It is THROUGH this
         ! point the previous solid node (xpnt, ypnt, zpnt) moves to fluid region.
-      !  xp2 = xp1 + (omg2*(zp1-zc) - omg3*(yp1-yc))*ddt
-      !  yp2 = yp1 + (omg3*(xp1-xc) - omg1*(zp1-zc))*ddt
-      !  zp2 = zp1 + (omg1*(yp1-yc) - omg2*(xp1-xc))*ddt
+        xp2 = xp1 + (omg2*(zp1-zc) - omg3*(yp1-yc))*ddt
+        yp2 = yp1 + (omg3*(xp1-xc) - omg1*(zp1-zc))*ddt
+        zp2 = zp1 + (omg1*(yp1-yc) - omg2*(xp1-xc))*ddt
 
         ! Change xp2, yp2, zp2 to xpnt, ypnt and zpnt
 
-        xx0 = xpnt - xc
-        yy0 = ypnt - yc
-        zz0 = zpnt - zc
+        xx0 = xp2 - xc
+        yy0 = yp2 - yc
+        zz0 = zp2 - zc
 
         ! Lallemand and Luo, JCP 184, 2003, pp.414
         ! identify ipmx, the discrete velocity direction which maximizes the
@@ -2216,11 +2219,8 @@
           ib0p3 = 1
         endif
 
-        ibpsum = ibp1 + ibp2 + ibp3
-        ib0psum = ib0p1 + ib0p2 + ib0p3
-
         !3-point extrapolation
-        if(ibpsum == -3 .and. ib0psum == -3)then
+        if(ibp1 < 0 .and. ib0p1 < 0 .and. ibp2 < 0 .and. ib0p2 < 0 .and. ibp3 < 0 .and. ib0p3 < 0)then
           f(0,i,j,k,s) = 3.d0*f9(0)-3.d0*f8(0)+f7(0)
           ! Note in the velocity constrained filling, only unknown
           ! directions are filled
