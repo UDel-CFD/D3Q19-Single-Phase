@@ -34,7 +34,7 @@
       integer,parameter:: npop = 19
 
       !Diagnostic and data output paramters
-      integer,parameter:: ndiag = 50, nstat = 1000  , nspec=1000
+      integer,parameter:: ndiag = 250, nstat = 1000  , nspec=1000
       integer,parameter:: nflowout = 5000, npartout = 5000, ntime = 100
       integer,parameter:: nmovieout = 20000000, nsij = 100    
 

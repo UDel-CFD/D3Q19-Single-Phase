@@ -323,6 +323,10 @@
 
 101   continue
 
+      if(myid.eq.0)then
+        write(*,*)'time_max = ',time_max
+      endif
+
       call MPI_FINALIZE(ierr)
 
       END PROGRAM main
