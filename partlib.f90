@@ -1000,6 +1000,8 @@
         k = zlink(n)
         ip = iplink(n)  
 
+        if(ibnodes(i,j,k)>0)goto 117 !Check to maky sure we are not inside a particle
+
         id = mlink(n)
         alpha = alink(n)
 
@@ -1202,6 +1204,7 @@
         torqp0(2,id) = torqp0(2,id) + dxmom*zz0 - dzmom*xx0 
         torqp0(3,id) = torqp0(3,id) + dymom*xx0 - dxmom*yy0
  
+ 117  continue
       end do     
 
       !Sum up forcing and torque on all solid particles across all MPI tasks
