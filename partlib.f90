@@ -1077,6 +1077,7 @@
         !Mid-link bounce back handling
         if(im1 < 1 .or. im1 > lx)then
           ff2 = f(ip,i,j,k,s)
+          ff3 = IBNODES_TRUE
           goto 112
         endif
         !Get interpolation fluid node 2 (ff2)
