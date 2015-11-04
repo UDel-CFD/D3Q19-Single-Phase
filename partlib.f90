@@ -785,7 +785,7 @@
       subroutine parse_MPI_links(ipi,i,j,k,alpha,n)
       use var_inc
 
-      integer ipi, i, j, k, ip, ip2, ix, iy, ik, n
+      integer ipi, i, j, k, ip, ip2, ix, iy, iz, n
       integer im1, jm1, km1, im2, jm2, km2, ip1, jp1, kp1
       real alpha
       logical im2f
