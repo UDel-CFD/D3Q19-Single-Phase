@@ -812,25 +812,9 @@
       if(alpha > 0.5)then
         ip = ipopp(ipi)
         ip2 = ipopp(ipi)
-        !Mid-link bounce back handling on x boundaries
-        if(im1 < 1 .or. im1 > lx)then
-          goto 116
-        elseif(im2 < 1 .or. im2 > lx)then
-          !Adjust for bounce back representation
-          ip2 = ipi
-          im2 = i - ix
-          jm2 = j - iy
-          km2 = k - iz
-        endif
       else
         ip = ipi
         ip2 = ipi
-        !Mid-link bounce back handling on x boundaries
-        if(im1 < 1 .or. im1 > lx)then
-          goto 116
-        elseif(im2 < 1 .or. im2 > lx)then
-          im2f = .FALSE. !No need to this if its out of bounds
-        endif
       endif
 
       !Determine if we need to request data from neighboring tasks
@@ -863,6 +847,26 @@
         ipf_mzp(ipf_mzpc) = ipf_node(ipi, ip1, jp1, kp1-lz)
         iblinks(0,1,n) = 4
         iblinks(0,2,n) = ipf_mzpc
+      endif
+
+      if(alpha > 0.5)then
+        !Mid-link bounce back handling on x boundaries
+        if(im1 < 1 .or. im1 > lx)then
+          goto 116
+        elseif(im2 < 1 .or. im2 > lx)then
+          !Adjust for bounce back representation
+          ip2 = ipi
+          im2 = i - ix
+          jm2 = j - iy
+          km2 = k - iz
+        endif
+      else
+        !Mid-link bounce back handling on x boundaries
+        if(im1 < 1 .or. im1 > lx)then
+          goto 116
+        elseif(im2 < 1 .or. im2 > lx)then
+          im2f = .FALSE. !No need to this if its out of bounds
+        endif
       endif
 
       if(jm1 < 1)then
