@@ -1472,17 +1472,17 @@
 !      integer, dimension(2):: idwp, idomgp
 
       integer, dimension(1):: idwp, idomgp
-
-      real ttt, vmax, wpmax, omgpmax,volf
+     real positomgx,positomgy,positomgz
+      real ttt, vmax, wpmax, omgpmax,volf,positx,posity,positz
       real, dimension(lx,ly,lz):: vel
-      real, dimension(npart):: wpmag, omgpmag
+      real  wpmag, omgpmag
       real, dimension(nproc):: vmax0,vmax0t
       integer, dimension(nproc):: im,jm,km,im0,jm0,km0
       real umean,vmean,wmean,urms,vrms,wrms,urmst,vrmst,wrmst
       real umeant,vmeant,wmeant
       integer i,j,k,imout,jmout,kmout,nfluid0,nfluid
 
-      character (len = 120):: fnm
+      character (len = 120):: fnm,fnm1
 !!!!!!!!!!!
       umean = 0.0
       vmean = 0.0
@@ -1537,23 +1537,35 @@
       call MPI_ALLREDUCE(km,km0,nproc,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
       call MPI_ALLREDUCE(vmax0,vmax0t,nproc,MPI_REAL8,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-!     if(myid == 0)then
-!       wpmax = 0.0
-!       omgpmax = 0.0
-!       idwp = 0
-!       idomgp = 0
 
-!       if(ipart)then
-!         wpmag = sqrt(wp(1,:)**2 + wp(2,:)**2 + wp(3,:)**2)
-!         wpmax = maxval(wpmag)
-!         idwp = maxloc(wpmag)
+      if(myid == 0)then
+       wpmax = 0.0
+       omgpmax = 0.0
+       idwp = 0
+       idomgp = 0
 
-!         omgpmag = sqrt(omgp(1,:)**2 + omgp(2,:)**2 + omgp(3,:)**2)
-!         omgpmax = maxval(omgpmag)
-!         idomgp = maxloc(omgpmag)
-!       end if
+       if(ipart)then
+       do i = 1,npart
+         wpmag = sqrt(wp(1,i)**2 + wp(2,i)**2 + wp(3,i)**2)
+         if(wpmag.gt.wpmax) then
+         wpmax = wpmag
+         idwp = i
+         positx = ypglb(1,i)
+         posity = ypglb(2,i)
+         positz = ypglb(3,i)
+         endif
+         omgpmag = sqrt(omgp(1,i)**2 + omgp(2,i)**2 + omgp(3,i)**2)
+         if(omgpmag.gt.omgpmax) then
+         omgpmax = omgpmag
+         idomgp = i
+         positomgx = ypglb(1,i)
+         positomgy = ypglb(2,i)
+         positomgz = ypglb(3,i)
+         endif
+       enddo
+       end if
 
-!     end if
+      end if
 
           rhoerr = maxval(rho,MASK = (ibnodes(1:lx,1:ly,1:lz) < 0))
           call MPI_ALLREDUCE(rhoerr,rhomax,1,MPI_REAL8,MPI_MAX, &
@@ -1581,10 +1593,11 @@
        volf = 1. - real(nfluid)/real(nx*ny*nz)
 
         fnm = trim(dirdiag)//'diag.dat'
-
+        fnm1 = trim(dirdiag)//'diag2.dat'
         open(26, file = trim(fnm), status = 'unknown',                 &
                  form = 'formatted', position = 'append')
-
+        open(58, file = trim(fnm1), status = 'unknown',  &
+                 form = 'formatted', position = 'append')
         ttt = real(istep)
 
         vmax = 0.0
@@ -1604,12 +1617,15 @@
        write(*,*)'ttt,vmax,imout,jmout,kmout,umean,vmean,wmean,umeans,vmeans,wmeans=', &
          ttt,vmax,imout,jmout,kmout,umeant,vmeant,wmeant,urmst,vrmst,wrmst,volf, &
                 rhomax,rhomin
-        close(26)
+       write(58,370) ttt, wpmax, idwp,  positx,   &
+        posity,positz,omgpmax,idomgp,positomgx,positomgy,positomgz
 
+        close(26)
+        close(58)
       end if
 
 260   format(2x, 2(1pe16.6),3I6,9(1pe16.6) )
-
+370   format(2x, 2(1pe16.6),1I6,3(1pe16.6),1(1pe16.6),1I6,3(1pe16.6))
       end subroutine diag
 
 !===========================================================================
@@ -4588,3 +4604,796 @@
         deallocate(vzsqt)
         end subroutine statistc4
 
+!===========================================================================
+        subroutine dissipation_calc
+        use mpi
+        use var_inc
+        implicit none
+        integer ix, iy, iz
+        real, dimension(0:npop-1) :: f9
+        real,allocatable,dimension(:,:,:) :: Sij2_m1, Sij2_m2
+        real,allocatable,dimension(:,:,:) :: Sxy_m1, Sxy_m2
+        real rho9, press9, ux9, uy9, uz9, ux9s, uy9s, uz9s
+
+        real eqm1, eqm6, eqm8, eqm10, eqm11, eqm12
+        real sum1, sum2, sum6, sum7, sum8, sum9, sum10, sum11
+        real evlm1, evlm6, evlm8, evlm10, evlm11, evlm12
+        real neqm1, neqm9, neqm11, neqm13, neqm14, neqm15
+        real Sxx, Syy, Szz, Sxy, Syz, Szx
+        real usqr, edtu, wght, feq9, fneq9
+        real Sij2m2_tmp,yplus
+        real dspave_m1t9,dspave_m2t9,Sxyave_m1t9,Sxyave_m2t9
+        integer i,ip
+        real, allocatable, dimension (:,:) :: tmp2D
+        integer, allocatable, dimension (:,:) :: itmp2D
+
+        integer,allocatable, dimension(:):: nfluid0,nfluid
+        real, allocatable,dimension(:) :: dspave_m1,dspave_m1t
+        real, allocatable,dimension(:) :: dspave_m2,dspave_m2t
+        real, allocatable,dimension(:) :: Sxyave_m1,Sxyave_m1t
+        real, allocatable,dimension(:) :: Sxyave_m2,Sxyave_m2t
+        character (len = 120):: fnm
+
+! Step 1, calculate the sxx, syy, szz, sxy, syz, sxz in each processor
+
+        allocate(Sij2_m1(lx,ly,lz))
+        allocate(Sij2_m2(lx,ly,lz))
+        allocate(Sxy_m1(lx,ly,lz))
+        allocate(Sxy_m2(lx,ly,lz))
+
+        do iz = 1,lz
+        do iy = 1,ly
+        do ix = 1,lx
+        if(ibnodes(ix,iy,iz) < 0) then
+
+! The dissipation rate is epsilon = 2 nu*<sij*sij>
+! sij can be either calculated in moment space or the f space, this step
+! is completely local.
+
+! 1, in moment space
+
+        f9 = f(:,ix,iy,iz,s)
+        rho9 = rho(ix,iy,iz)
+        ux9 = ux(ix,iy,iz)
+        uy9 = uy(ix,iy,iz)
+        uz9 = uz(ix,iy,iz)
+        ux9s = ux9*ux9
+        uy9s = uy9*uy9
+        uz9s = uz9*uz9
+
+        eqm1 = -11.0*rho9 + 19.0*(ux9s + uy9s + uz9s)
+        eqm6 = 2.0*ux9s - uy9s - uz9s
+        eqm8 = uy9s - uz9s
+        eqm10 = ux9*uy9
+        eqm11 = uy9*uz9
+        eqm12 = ux9*uz9
+
+        sum1 = f9(1) + f9(2) + f9(3) + f9(4) + f9(5) + f9(6)
+        sum2 = f9(7) + f9(8) + f9(9) + f9(10) + f9(11) + f9(12)        &
+             + f9(13) + f9(14) + f9(15) + f9(16) + f9(17) + f9(18)
+        sum6 = f9(1) + f9(2)
+        sum7 = f9(3) + f9(4) + f9(5) + f9(6)
+        sum8 = f9(7) + f9(8) + f9(9) + f9(10) + f9(11) + f9(12)        &
+             + f9(13) + f9(14)
+        sum9 = f9(15) + f9(16) + f9(17) + f9(18)
+        sum10 = f9(3) + f9(4) - f9(5) - f9(6)
+        sum11 = f9(7) + f9(8) + f9(9) + f9(10) - f9(11) - f9(12)       &
+              - f9(13) - f9(14)
+
+        evlm1 = -30.0*f9(0) + coef2*sum1 + coef3*sum2
+        evlm6 = coef5*sum6 - sum7 + sum8 - coef5*sum9
+        evlm8 = sum10 + sum11
+        evlm10 = f9(7) - f9(8) - f9(9) + f9(10)
+        evlm11 = f9(15) - f9(16) - f9(17) + f9(18)
+        evlm12 = f9(11) - f9(12) - f9(13) + f9(14)
+
+        neqm1 = s1*(evlm1 - eqm1)
+        neqm9 = s9*(evlm6 - eqm6)
+        neqm11 = s9*(evlm8 - eqm8)
+        neqm13 = s9*(evlm10 - eqm10)
+        neqm14 = s9*(evlm11 - eqm11)
+        neqm15 = s9*(evlm12 - eqm12)
+
+        Sxx = -(neqm1 + 19.0*neqm9) / 38.0
+        Syy = -(2.0*neqm1 - 19.0*(neqm9 - 3.0*neqm11)) / 76.0
+        Szz = -(2.0*neqm1 - 19.0*(neqm9 + 3.0*neqm11)) / 76.0
+        Sxy = -1.5*neqm13
+        Syz = -1.5*neqm14
+        Szx = -1.5*neqm15
+
+        Sij2_m1(ix,iy,iz) = Sxx*Sxx + Syy*Syy + Szz*Szz                &
+                    + 2.0*(Sxy*Sxy + Syz*Syz + Szx*Szx)
+        Sxy_m1(ix,iy,iz) = Sxy
+
+! Methid 2, in f space
+        Sxx = 0.0
+        Syy = 0.0
+        Szz = 0.0
+        Sxy = 0.0
+        Syz = 0.0
+        Szx = 0.0
+
+        usqr = 1.5*(ux9s + uy9s + uz9s)
+         do ip = 1,npop-1
+! first, calculate the equilibrium distribution function
+          if(ip <= 6) wght = ww1
+          if(ip > 6) wght = ww2
+
+          edtu = cix(ip)*ux9 + ciy(ip)*uy9 + ciz(ip)*uz9
+          feq9 = wght*(rho9 + 3.0*edtu + 4.5*edtu**2 - usqr)
+
+          fneq9 = f9(ip) - feq9
+
+          Sxx = Sxx + fneq9*real(cix(ip)*cix(ip))
+          Syy = Syy + fneq9*real(ciy(ip)*ciy(ip))
+          Szz = Szz + fneq9*real(ciz(ip)*ciz(ip))
+          Sxy = Sxy + fneq9*real(cix(ip)*ciy(ip))
+          Syz = Syz + fneq9*real(ciy(ip)*ciz(ip))
+          Szx = Szx + fneq9*real(ciz(ip)*cix(ip))
+        end do
+
+        Sij2m2_tmp = Sxx*Sxx + Syy*Syy + Szz*Szz                &
+                    + 2.0*(Sxy*Sxy + Syz*Syz + Szx*Szx)
+        Sij2_m2(ix,iy,iz) = Sij2m2_tmp*(1.5 / tau)**2
+        Sxy_m2(ix,iy,iz) = Sxy*(1.5/tau)
+!        else
+!        Sij2_m1(ix,iy,iz) = 0.d0
+!        Sij2_m2(ix,iy,iz) = 0.d0
+!        Sxy_m2(ix,iy,iz) = 0.d0
+!        Sxy_m1(ix,iy,iz) = 0.d0
+        end if
+        end do
+        end do
+        end do
+!        if(myid.eq.0) print*,'Sij2_m1'
+!        if(myid.eq.0) print*,Sij2_m1(3,:,:)
+!        if(myid.eq.0) print*,'Sxy_m1'
+!        if(myid.eq.0) print*,Sxy_m1(35,:,:)
+!        if(myid.eq.0) print*,'Sij2_m2'
+!        if(myid.eq.0) print*,Sij2_m2(3,:,:)
+!        if(myid.eq.0) print*,'Sxy_m2'
+!        if(myid.eq.0) print*,Sxy_m2(35,:,:)
+
+! Step 2, gathering data
+
+      allocate (tmp2D(ly,lz))
+      allocate (itmp2D(ly,lz))
+      allocate (dspave_m1(nx))
+      allocate (dspave_m2(nx))
+      allocate (Sxyave_m1(nx))
+      allocate (Sxyave_m2(nx))
+      allocate (nfluid0(nx))
+
+      dspave_m1 = 0.d0
+      dspave_m2 = 0.d0
+      Sxyave_m1 = 0.d0
+      Sxyave_m2 = 0.d0
+
+      do i = 1,lx
+      itmp2D = ibnodes(i,1:ly,1:lz)
+      nfluid0(i) = count(itmp2D < 0)
+      tmp2D = Sij2_m1(i,:,:)
+      dspave_m1(i) = sum (tmp2D,MASK = (itmp2D < 0))
+      tmp2D = Sij2_m2(i,:,:)
+      dspave_m2(i) = sum (tmp2D,MASK = (itmp2D < 0))
+      tmp2D = Sxy_m1(i,:,:)
+      Sxyave_m1(i) = sum (tmp2D,MASK = (itmp2D < 0))
+      tmp2D = Sxy_m2(i,:,:)
+      Sxyave_m2(i) = sum (tmp2D,MASK = (itmp2D < 0))
+      end do
+
+      deallocate(tmp2D)
+      deallocate(itmp2D)
+      deallocate(Sij2_m1)
+      deallocate(Sij2_m2)
+      deallocate(Sxy_m1)
+      deallocate(Sxy_m2)
+
+      allocate(nfluid(nx))
+      allocate(dspave_m1t(nx))
+      allocate(dspave_m2t(nx))
+      allocate(Sxyave_m1t(nx))
+      allocate(Sxyave_m2t(nx))
+
+      call MPI_BARRIER (MPI_COMM_WORLD,ierr)
+      call MPI_ALLREDUCE(nfluid0,nfluid,lx,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+      CALL MPI_ALLREDUCE(dspave_m1,dspave_m1t,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+      CALL MPI_ALLREDUCE(dspave_m2,dspave_m2t,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+      CALL MPI_ALLREDUCE(Sxyave_m1,Sxyave_m1t,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+      CALL MPI_ALLREDUCE(Sxyave_m2,Sxyave_m2t,lx,MPI_REAL8,MPI_SUM,mpi_comm_world,ierr)
+
+
+      deallocate(dspave_m1)
+      deallocate(dspave_m2)
+      deallocate(Sxyave_m1)
+      deallocate(Sxyave_m2)
+      deallocate(nfluid0)
+
+      if(myid.eq.0) then
+!      print*,nfluid
+      dspave_m1t = dspave_m1t/real(nfluid)
+      dspave_m2t = dspave_m2t/real(nfluid)
+      Sxyave_m1t = Sxyave_m1t/real(nfluid)
+      Sxyave_m2t = Sxyave_m2t/real(nfluid)
+
+      fnm = trim(dirstat)//'dissipation.dat'
+      open(127,file = trim(fnm),status = 'unknown',     &
+              form = 'formatted', position = 'append')
+
+      write(127,*) istep
+      do i = 1,lx
+      dspave_m1t9 = dspave_m1t(i)
+      dspave_m2t9 = dspave_m2t(i)
+      Sxyave_m1t9 = Sxyave_m1t(i)
+      Sxyave_m2t9 = Sxyave_m2t(i)
+
+      yplus = (real(i)-0.5d0)/ystar
+      if(i.gt.lxh) yplus = (real(lx-i) + 0.5)/ystar
+      write(127,985)real(i)-0.5d0,yplus,dspave_m1t9,dspave_m2t9, &
+          Sxyave_m1t9,Sxyave_m2t9
+      end do
+
+985   format(2x,6(1pe16.6))
+      close(127)
+      end if
+
+      deallocate(nfluid)
+      deallocate(Sxyave_m1t)
+      deallocate(Sxyave_m2t)
+      deallocate(dspave_m1t)
+      deallocate(dspave_m2t)
+
+      end subroutine dissipation_calc
+
+!========================================================
+
+      subroutine particle_volume
+      use mpi
+      use var_inc
+      implicit none
+
+      integer ix,iy,iz
+      integer ii,jj,i
+      integer ip,ilen,is,id
+      real rrbnd,rrbnds,drr,dist,posit,dist0
+      integer irrbnd,irr0,ntotalpp
+      real xc,yc,zc,xb,yb,zb
+      real dxij,dyij,dzij
+      integer,allocatable,dimension(:):: npart_center,npart_center_all
+      real,allocatable,dimension(:):: ppart_center
+      real,allocatable,dimension(:):: ppart_center2
+      character (len = 120):: fnm
+
+! From particle radius to 5 times of particle radius, bin the sphereical
+! region into numbers of shells. The thickness of each shell is drr, the
+! total number of shell is irrbnd
+      rrbnd = 5.d0*rad
+      rrbnds = rad
+      drr = 0.05*rad
+      irrbnd = int((rrbnd - rrbnds)/drr) + 1
+
+      allocate (npart_center(irrbnd))
+      npart_center = 0
+
+      do ii = 1,nps
+       xc = yp(1,ii)
+       yc = yp(2,ii)
+       zc = yp(3,ii)
+       id = ipglb(ii)
+
+       if(id < npart) then
+         dist0 = 5.1d0*rad
+
+       do jj = id+1,npart
+         xb = ypglb(1,jj)
+         yb = ypglb(2,jj)
+         zb = ypglb(3,jj)
+
+         if((yb - yc) > real(nyh)) yb = yb - real(ny)
+         if((yb - yc) < -real(nyh)) yb = yb + real(ny)
+
+         if((yb - yc) > real(nyh)) yb = yb - real(ny)
+         if((yb - yc) < -real(nyh)) yb = yb + real(ny)
+
+         if((zb - zc) > real(nzh)) zb = zb - real(nz)
+         if((zb - zc) < -real(nzh)) zb = zb + real(nz)
+
+         dxij = xc - xb
+         dyij = yc - yb
+         dzij = zc - zb
+
+         dist = sqrt(dxij*dxij + dyij*dyij + dzij*dzij)
+
+         if(dist.lt.dist0) dist0 = dist ! To find the closest particle
+
+       end do
+
+       irr0 = int((dist0 - rad)/drr) + 1
+       if(irr0.le.irrbnd) then
+         npart_center(irr0) = npart_center(irr0) + 1
+       end if
+! I don't count the particles that are too far away, so the total value
+! of ppart_center is not 0.
+       end if
+      end do
+! Note the total number of particle pairs is n(n-1)/2
+
+
+      allocate (npart_center_all(irrbnd))
+
+      ilen = irrbnd
+
+      CALL MPI_ALLREDUCE(npart_center,npart_center_all,ilen,MPI_INTEGER,&
+          MPI_SUM,MPI_COMM_WORLD,ierr)
+
+      deallocate (npart_center)
+
+
+      if(myid .eq. 0) then
+
+      allocate (ppart_center2(irrbnd))
+      allocate (ppart_center(irrbnd))
+
+        ppart_center = real(npart_center_all)/real(npart)
+
+        ntotalpp = 0
+        do i = 1,irrbnd
+        ntotalpp = ntotalpp + npart_center_all(i)
+        end do
+
+        ppart_center2 = real(npart_center_all)/real(ntotalpp)
+
+        fnm = trim(dirstat)//'part_dist.dat'
+        open(187, file = trim(fnm), status = 'unknown',      &
+                  form = 'formatted', position = 'append')
+        write(187,*)istep
+        do i = 1,irrbnd
+           posit = (real(i)-0.5d0)*drr
+           write(187,294)posit,npart_center_all(i),ppart_center(i),&
+            ppart_center2(i)
+        end do
+        close(187)
+
+      deallocate (ppart_center2)
+      deallocate (ppart_center)
+
+      end if
+
+      deallocate (npart_center_all)
+
+294   format(2x, 1(1pe16.6),I6,2(1pe16.6) )
+      end subroutine particle_volume
+
+
+!===================================================================
+      subroutine conditional_statistcs
+      use mpi
+      use var_inc
+      implicit none
+
+      real ux9, uy9, uz9, ux9s, uy9s, uz9s
+      character (len = 120):: fnm1, fnm2, fnm
+      integer ix, iy, iz
+!      real, dimension(0:npop-1) :: f9
+      real xc, yc, zc, xpnt, ypnt, zpnt, rrbnd, drr, rrmin, rrbnds
+      real xx0, yy0, zz0, rr0, ttt, rrmn, yplus
+      integer ip, ilen, is, i
+      integer irrbnd, irr0, icnttt, iprrmin
+      integer, allocatable, dimension(:):: icnt0, icnt
+      real, allocatable, dimension(:)::uavep0,uavep
+      real, allocatable, dimension(:)::vavep0,vavep
+      real, allocatable, dimension(:)::wavep0,wavep
+      real, allocatable, dimension(:)::urmsp0,urmsp
+      real, allocatable, dimension(:)::vrmsp0,vrmsp
+      real, allocatable, dimension(:)::wrmsp0,wrmsp
+      real umean9,vmean9,wmean9,urms9,vrms9,wrms9
+
+      rrbnd = 5.0*rad
+      rrbnds = 3.0*rad
+      drr = 0.05*rad
+      irrbnd = int((rrbnd - rad) / drr) + 1
+
+      allocate (uavep0(irrbnd))
+      allocate (vavep0(irrbnd))
+      allocate (wavep0(irrbnd))
+
+      allocate (urmsp0(irrbnd))
+      allocate (vrmsp0(irrbnd))
+      allocate (wrmsp0(irrbnd))
+
+      allocate (icnt0(irrbnd))
+
+      uavep0 = 0.d0
+      vavep0 = 0.d0
+      wavep0 = 0.d0
+
+      icnt0 = 0
+
+      urmsp0 = 0.d0
+      vrmsp0 = 0.d0
+      wrmsp0 = 0.d0
+
+      do iz = 1,lz
+      do iy = 1,ly
+      do ix = 1,lx
+      if(ibnodes(ix,iy,iz) < 0) then
+       ux9 = ux(ix,iy,iz)
+       uy9 = uy(ix,iy,iz)
+       uz9 = uz(ix,iy,iz)
+
+       ux9s = ux9*ux9
+       uy9s = uy9*uy9
+       uz9s = uz9*uz9
+
+       xpnt = real(ix) - 0.5d0
+       ypnt = real(iy) - 0.5d0 + real(indy*ly)
+       zpnt = real(iz) - 0.5d0 + real(indz*lz)
+
+       rrmin = real(lx)
+       iprrmin = -1
+
+       Do
+       do ip = 1,npart
+         xc = ypglb(1,ip)
+
+         xx0 = xpnt - xc
+
+         if(abs(xx0) <= rrbnds) then
+         yc = ypglb(2,ip)
+
+         if((yc - ypnt) > real(nyh)) yc = yc - real(ny)
+         if((yc - ypnt) < -real(nyh)) yc = yc + real(ny)
+
+         yy0 = ypnt - yc
+         if(abs(yy0) <= rrbnds) then
+
+         zc = ypglb(3,ip)
+         if((zc - zpnt) > real(nzh)) zc = zc - real(nz)
+         if((zc - zpnt) < -real(nzh)) zc = zc + real(nz)
+
+         zz0 = zpnt - zc
+         if(abs(zz0) <= rrbnds) then
+
+         rr0 = dsqrt(xx0*xx0 + yy0*yy0 + zz0*zz0)
+
+         if(rr0 <= rrbnds .and. rr0 < rrmin) then
+            rrmin = rr0
+            iprrmin = ip
+         end if
+         end if
+         end if
+         end if
+       end do
+
+       if(iprrmin > 0 .or. (rrbnds - rrbnd) >= 0.d0) then
+         goto 1123
+       else
+         rrbnds = rrbnds + rad
+       end if
+
+       END DO
+1123   continue
+
+       if(iprrmin > 0) then
+       irr0 = int((rrmin - rad) / drr) + 1
+       if(irr0.gt.irrbnd) irr0 = irrbnd
+       icnt0(irr0) = icnt0(irr0) + 1
+       uavep0(irr0) = uavep0(irr0) + ux9
+       vavep0(irr0) = vavep0(irr0) + uy9
+       wavep0(irr0) = wavep0(irr0) + uz9
+
+       urmsp0(irr0) = urmsp0(irr0) + ux9s
+       vrmsp0(irr0) = vrmsp0(irr0) + uy9s
+       wrmsp0(irr0) = wrmsp0(irr0) + uz9s
+       end if
+
+       end if
+       end do
+       end do
+       end do
+
+! Next, sum the quantities from all processors
+       allocate (uavep(irrbnd))
+       allocate (vavep(irrbnd))
+       allocate (wavep(irrbnd))
+       allocate (urmsp(irrbnd))
+       allocate (vrmsp(irrbnd))
+       allocate (wrmsp(irrbnd))
+
+       allocate (icnt(irrbnd))
+
+       ilen = irrbnd
+       CALL MPI_ALLREDUCE(icnt0,icnt,ilen,MPI_INTEGER,MPI_SUM,  &
+                         MPI_COMM_WORLD,ierr)
+       CALL MPI_ALLREDUCE(uavep0,uavep,ilen,MPI_REAL8,MPI_SUM,  &
+                         MPI_COMM_WORLD,ierr)
+       CALL MPI_ALLREDUCE(vavep0,vavep,ilen,MPI_REAL8,MPI_SUM, &
+                         MPI_COMM_WORLD,ierr)
+       CALL MPI_ALLREDUCE(wavep0,wavep,ilen,MPI_REAL8,MPI_SUM, &
+                         MPI_COMM_WORLD,ierr)
+       CALL MPI_ALLREDUCE(urmsp0,urmsp,ilen,MPI_REAL8,MPI_SUM,  &
+                         MPI_COMM_WORLD,ierr)
+       CALL MPI_ALLREDUCE(vrmsp0,vrmsp,ilen,MPI_REAL8,MPI_SUM, &
+                         MPI_COMM_WORLD,ierr)
+       CALL MPI_ALLREDUCE(wrmsp0,wrmsp,ilen,MPI_REAL8,MPI_SUM, &
+                         MPI_COMM_WORLD,ierr)
+
+       deallocate (icnt0)
+       deallocate (uavep0)
+       deallocate (vavep0)
+       deallocate (wavep0)
+       deallocate (urmsp0)
+       deallocate (vrmsp0)
+       deallocate (wrmsp0)
+!       if(myid.eq.0) write(*,*)'passed 2'
+! Calculate the mean velocity and rms velocity as functions of radial
+! distance from the particle surface
+       if(myid.eq.0) then
+       do is = 1,irrbnd
+       if(icnt(is).gt.0) then
+       uavep(is) = uavep(is)/real(icnt(is))/ustar
+       vavep(is) = vavep(is)/real(icnt(is))/ustar
+       wavep(is) = wavep(is)/real(icnt(is))/ustar
+
+       urmsp(is) = urmsp(is)/real(icnt(is))/ustar/ustar
+       vrmsp(is) = vrmsp(is)/real(icnt(is))/ustar/ustar
+       wrmsp(is) = wrmsp(is)/real(icnt(is))/ustar/ustar
+       else
+       uavep(is) = 0.d0
+       vavep(is) = 0.d0
+       wavep(is) = 0.d0
+
+       urmsp(is) = 0.d0
+       vrmsp(is) = 0.d0
+       wrmsp(is) = 0.d0
+       end if
+       end do
+       urmsp = urmsp - uavep*uavep
+       vrmsp = vrmsp - vavep*vavep
+       wrmsp = wrmsp - wavep*wavep
+
+       fnm = trim(dirstat)//'conditional_vel.dat'
+       open(139,file = trim(fnm),status = 'unknown',    &
+             form = 'formatted',position = 'append')
+
+       write(139,*)istep
+
+       do is = 1,irrbnd
+        umean9 = uavep(is)
+        vmean9 = vavep(is)
+        wmean9 = wavep(is)
+        urms9 = urmsp(is)
+        vrms9 = vrmsp(is)
+        wrms9 = wrmsp(is)
+        rrmn = (real(is)-0.5d0)*drr/rad + 1.d0
+        write(139,845)rrmn,umean9,vmean9,wmean9,urms9,vrms9,&
+            wrms9
+       end do
+       close (139)
+       end if
+
+845    format(2x,7(1pe16.6))
+       deallocate (icnt)
+       deallocate (uavep)
+       deallocate (vavep)
+       deallocate (wavep)
+       deallocate (urmsp)
+       deallocate (vrmsp)
+       deallocate (wrmsp)
+
+       end subroutine conditional_statistcs
+
+!============================================================
+       subroutine slip_velocity
+       use mpi
+       use var_inc
+       implicit none
+
+       integer ix,iy,iz,ip
+       integer iprrmin,ilen
+       real xpnt,ypnt,zpnt,xx0,yy0,zz0,rr0,xc,yc,zc
+       real shell1,shell2,shell3
+       real ux9,uy9,uz9
+       real velpx,velpy,velpz
+       real div1,slipvel9,drrnorm
+       integer,allocatable,dimension(:):: inct0,inct,inum0,inum
+       real,allocatable,dimension(:):: drrx0,drrx,slipx0,slipx
+       real,allocatable,dimension(:):: drry0,drry,slipy0,slipy
+       real,allocatable,dimension(:):: drrz0,drrz,slipz0,slipz
+       real,allocatable,dimension(:):: slipvel
+       character (len = 120):: fnm1, fnm2, fnm
+
+       shell1 = rad+0.2*rad - 0.5
+       shell2 = rad+0.2*rad + 0.5
+! First, for each node point, if it is in the shell region of a
+! particular particle, we need to record its flux
+
+       shell3 = rad+0.2*rad
+
+       allocate(inum0(npart))
+       allocate(slipx0(npart))
+       allocate(slipy0(npart))
+       allocate(slipz0(npart))
+
+       allocate(inct0(npart))
+       allocate(drrx0(npart))
+       allocate(drry0(npart))
+       allocate(drrz0(npart))
+
+       inum0 = 0
+       inct0 = 0
+
+       drrx0 = 0.d0
+       drry0 = 0.d0
+       drrz0 = 0.d0
+       slipx0 = 0.d0
+       slipy0 = 0.d0
+       slipz0 = 0.d0
+
+       do iz = 1,lz
+       do iy = 1,ly
+       do ix = 1,lx
+
+       xpnt = real(ix) - 0.5d0
+       ypnt = real(iy) - 0.5d0 + real(indy*ly)
+       zpnt = real(iz) - 0.5d0 + real(indz*lz)
+
+       ux9 = ux(ix,iy,iz)
+       uy9 = uy(ix,iy,iz)
+       uz9 = uz(ix,iy,iz)
+
+       if(ibnodes(ix,iy,iz) < 0) then
+!        iprrmin = -1
+        do ip = 1,npart
+
+          velpx = wp(1,ip)
+          velpy = wp(2,ip)
+          velpz = wp(3,ip)
+
+          xc = ypglb(1,ip)
+
+          xx0 = xpnt - xc
+
+          if(abs(xx0) <= shell2) then
+          yc = ypglb(2,ip)
+
+          if((yc - ypnt) > real(nyh)) yc = yc - real(ny)
+          if((yc - ypnt) < -real(nyh)) yc = yc + real(ny)
+
+          yy0 = ypnt - yc
+          if(abs(yy0) <= shell2) then
+          zc = ypglb(3,ip)
+
+          if((zc - zpnt) > real(nzh)) zc = zc - real(nz)
+          if((zc - zpnt) < -real(nzh)) zc = zc + real(nz)
+
+          zz0 = zpnt - zc
+          if(abs(zz0) <= shell2) then
+
+          rr0 = dsqrt(xx0*xx0 + yy0*yy0 + zz0*zz0)
+
+          if(rr0 <= shell2 .and. rr0 >= shell1) then
+            inct0(ip) = inct0(ip) + 1
+            div1 = (ux9 - velpx)*xx0 + (uy9 - velpy)*yy0 + &
+              (uz9 - velpz)*zz0
+            div1 = div1*(0.2*rad)**2/rr0**4
+
+            drrx0(ip) = drrx0(ip) + xx0*div1
+            drry0(ip) = drry0(ip) + yy0*div1
+            drrz0(ip) = drrz0(ip) + zz0*div1
+          end if
+
+          if(rr0 <= shell3) then
+            inum0(ip) = inum0(ip) + 1
+            slipx0(ip) = slipx0(ip) + (ux9 - velpx)
+            slipy0(ip) = slipy0(ip) + (uy9 - velpy)
+            slipz0(ip) = slipz0(ip) + (uz9 - velpz)
+          end if
+
+          end if
+          end if
+          end if
+
+        end do
+       end if
+       end do
+       end do
+       end do
+! Gathering data from each processors
+       allocate(inct(npart))
+       allocate(drrx(npart))
+       allocate(drry(npart))
+       allocate(drrz(npart))
+
+       allocate(inum(npart))
+       allocate(slipx(npart))
+       allocate(slipy(npart))
+       allocate(slipz(npart))
+
+       inct = 0
+       inum = 0
+       drrx = 0.d0
+       drry = 0.d0
+       drrz = 0.d0
+       slipx = 0.d0
+       slipy = 0.d0
+       slipz = 0.d0
+
+       ilen = npart
+       CALL MPI_ALLREDUCE(inct0,inct,ilen,MPI_INTEGER,MPI_SUM,  &
+                         MPI_COMM_WORLD,ierr)
+       CALL MPI_ALLREDUCE(drrx0,drrx,ilen,MPI_REAL8,MPI_SUM,  &
+                         MPI_COMM_WORLD,ierr)
+       CALL MPI_ALLREDUCE(drry0,drry,ilen,MPI_REAL8,MPI_SUM, &
+                         MPI_COMM_WORLD,ierr)
+       CALL MPI_ALLREDUCE(drrz0,drrz,ilen,MPI_REAL8,MPI_SUM, &
+                         MPI_COMM_WORLD,ierr)
+       CALL MPI_ALLREDUCE(inum0,inum,ilen,MPI_INTEGER,MPI_SUM,  &
+                         MPI_COMM_WORLD,ierr)
+       CALL MPI_ALLREDUCE(slipx0,slipx,ilen,MPI_REAL8,MPI_SUM,  &
+                         MPI_COMM_WORLD,ierr)
+       CALL MPI_ALLREDUCE(slipy0,slipy,ilen,MPI_REAL8,MPI_SUM, &
+                         MPI_COMM_WORLD,ierr)
+       CALL MPI_ALLREDUCE(slipz0,slipz,ilen,MPI_REAL8,MPI_SUM, &
+                         MPI_COMM_WORLD,ierr)
+
+       deallocate(inct0)
+       deallocate(drrx0)
+       deallocate(drry0)
+       deallocate(drrz0)
+       deallocate(inum0)
+       deallocate(slipx0)
+       deallocate(slipy0)
+       deallocate(slipz0)
+
+! Normalize to get the flux direction
+       if(myid.eq.0) then
+       allocate(slipvel(npart))
+       slipvel = 0.d0
+       do ip = 1,npart
+       if(inct(ip).gt.0) then
+       drrnorm = sqrt(drrx(ip)*drrx(ip) + drry(ip)*drry(ip) &
+           + drrz(ip)*drrz(ip))
+       drrx(ip) = drrx(ip)/drrnorm
+       drry(ip) = drry(ip)/drrnorm
+       drrz(ip) = drrz(ip)/drrnorm
+       end if
+       if(inum(ip).gt.0) then
+       slipx(ip) = slipx(ip)/real(inum(ip))
+       slipy(ip) = slipy(ip)/real(inum(ip))
+       slipz(ip) = slipz(ip)/real(inum(ip))
+       end if
+! Project the velocity
+       slipvel(ip) = slipx(ip)*drrx(ip)+slipy(ip)*drry(ip) &
+        + slipz(ip)*drrz(ip)
+       end do
+
+       fnm = trim(dirstat)//'slip_vel.dat'
+       open(139,file = trim(fnm),status = 'unknown',    &
+             form = 'formatted',position = 'append')
+
+       write(139,*)istep
+
+       do ip = 1,npart
+       slipvel9 = slipvel(ip)
+
+       write(139,877)ip,inct(ip),drrx(ip),drry(ip),drrz(ip),  &
+         inum(ip),slipx(ip),slipy(ip),slipz(ip),slipvel(ip)
+       end do
+       close(139)
+
+       deallocate(slipvel)
+       end if
+
+877    format(2x,2I8,3(1pe16.6),1I8,4(1pe16.6))
+
+       deallocate(inct)
+       deallocate(drrx)
+       deallocate(drry)
+       deallocate(drrz)
+       deallocate(inum)
+       deallocate(slipx)
+       deallocate(slipy)
+       deallocate(slipz)
+
+       end subroutine slip_velocity
