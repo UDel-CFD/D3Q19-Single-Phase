@@ -193,13 +193,8 @@
          call FORCING
         end if
 
-        !Executes Collision and Propagation of the Fluid
-        !@file collision.f90
-        !bnchstart = MPI_WTIME()
         call collision_MRT
-        !collision_MRT_bnch(istep-istpload) = MPI_WTIME() - bnchstart
         
-!        if (myid.eq.0)write(*,*)'Passed collision and streaming'
         if(ipart .and. istep >= irelease)then !If we have solid particles in our flow
           !Calculates interpolation bounce back for the fluid off the solid particles
           !@file partlib.f90
@@ -267,9 +262,9 @@
         ! statistc3 calculates the mean and rms vorticity profiles of fluid phase
         if(mod(istep,nstat) == 0) call statistc3
 
-        if(mod(istep,nflowout) == 0) call outputflow !@file saveload.f90
+        !if(mod(istep,nflowout) == 0) call outputflow !@file saveload.f90
 
-        if(ipart .and. istep >= irelease .and. mod(istep,npartout) == 0)call outputpart !@file saveload.f90
+        !if(ipart .and. istep >= irelease .and. mod(istep,npartout) == 0)call outputpart !@file saveload.f90
 
 !       if(ipart .and. istep >= irelease .and. mod(istep,nmovieout) == 0) then
 !          call moviedata

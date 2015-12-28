@@ -1,7 +1,7 @@
 !=============================================================================
 !@subroutine collision_MRT 
 !@desc Executes collision and propagation of the fluid. Current follows the
-!      two-array algorythm which fuses collision and propagation together
+!      swap algorythm which fuses collision and propagation together
 !      into a single step. Calculations have be movef to element-wise
 !      operations to help increase performance. May change in the future.
 !=============================================================================
@@ -27,23 +27,14 @@
            eqmc9, eqmc10, eqmc11, eqmc12, eqmc13, eqmc14, eqmc15
       real suma, sumb, sumc, sumd, sume, sumf, sumg, sumh, sumi, sumk, &
            sump, sum67, sum89, sum1011
-      integer ip, ix, iy, iz, imove, jmove, kmove, snext
+      integer ip, ipi, ix, iy, iz, imove, jmove, kmove, snext
       real fx9,fy9,fz9,G1,G2,G3
-
-      !Determine which array we will place updated distributions into
-      if(s .eq. 1)then
-        snext = 2
-      else
-        snext = 1
-      endif
 
       !Index through fluid nodes
       do iz = 1,lz
       do iy = 1,ly
       do ix = 1,lx
       !If we are not in a solid particle execute collision
-      if(ibnodes(ix,iy,iz) < 0)then
-
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
         uy9 = uy(ix,iy,iz)
@@ -72,7 +63,7 @@
           Fbar(ip) = ww2*(3.*G1 + 9.*G1*G2 - 3.*G3)
         enddo 
 
-        f9(:) = f(:,ix,iy,iz,s) + 0.5*Fbar(:)
+        f9(:) = f(:,ix,iy,iz) + 0.5*Fbar(:)
 
         t1 = ux9s + uy9s + uz9s
         eqm1 = -11.0*rho9 + 19.0*t1
@@ -212,12 +203,13 @@
         
         !Place updated distributions into post-stream locations
         !If that location is ina MPI neighbor place into proper send buffer
-        do ip = 0,npop-1
+        do ipi = 1,9
+          ip = ipswap(ipi)
           imove = ix + cix(ip) 
           jmove = iy + ciy(ip)
           kmove = iz + ciz(ip)
           if(imove < 1 .or. imove > lx)then
-            f(ipopp(ip),ix,iy,iz,snext) = f9(ip) + 0.5*Fbar(ip)
+            f(ipopp(ip),ix,iy,iz) = f9(ip) + 0.5*Fbar(ip)
           elseif(jmove < 1)then
              tmpymS(ip,imove,kmove) =  f9(ip) + 0.5*Fbar(ip)
           elseif(jmove > ly)then
@@ -227,21 +219,34 @@
           elseif(kmove > lz)then
             tmpzpS(ip,imove,jmove) = f9(ip) + 0.5*Fbar(ip)
           else
-            f(ip,imove,jmove,kmove,snext) = f9(ip) + 0.5*Fbar(ip)
+            f(ipopp(ip),ix,iy,iz) = f(ip,imove,jmove,kmove)
+            f(ip,imove,jmove,kmove) = f9(ip) + 0.5*Fbar(ip)
+          endif
+        enddo
+        
+        do ipi = 1,10
+          ip = ipstay(ipi)  
+          imove = ix + cix(ip) 
+          jmove = iy + ciy(ip)
+          kmove = iz + ciz(ip)
+          if(imove < 1 .or. imove > lx)then
+            f(ipopp(ip),ix,iy,iz) = f9(ip) + 0.5*Fbar(ip)
+          elseif(jmove < 1)then
+             tmpymS(ip,imove,kmove) =  f9(ip) + 0.5*Fbar(ip)
+          elseif(jmove > ly)then
+            tmpypS(ip,imove,kmove) = f9(ip) + 0.5*Fbar(ip)
+          elseif(kmove < 1)then
+            tmpzmS(ip,imove,jmove) = f9(ip) + 0.5*Fbar(ip)
+          elseif(kmove > lz)then
+            tmpzpS(ip,imove,jmove) = f9(ip) + 0.5*Fbar(ip)
+          else
+            f(ipopp(ip),ix,iy,iz) = f9(ip) + 0.5*Fbar(ip)
           endif
         enddo
       
-      endif
       end do !x
       end do !y
       end do !z
-
-      !Update two-array switch which indicates which array contians the updated distributions
-      if(s .eq. 1)then
-        s = 2
-      else
-        s =1
-      endif
 
       !Exchange information with MPI neighbors to update edges
       call collisionExchnge(tmpymS,tmpypS,tmpzmS,tmpzpS)
@@ -291,17 +296,17 @@
 
       !Update local domain Y edge nodes
       !Note we must account for wall bounce back here!
-      f(3,:,1,:,s) = tmpymR(1,:,1:lz)
-      f(7,2:lx,1,:,s) = tmpymR(2,2:lx,1:lz)
-      f(8,1:lx-1,1,:,s) = tmpymR(3,1:lx-1,1:lz)
-      f(15,:,1,:,s) = tmpymR(4,:,1:lz)
-      f(17,:,1,:,s) = tmpymR(5,:,1:lz)
+      f(3,:,1,:) = tmpymR(1,:,1:lz)
+      f(7,2:lx,1,:) = tmpymR(2,2:lx,1:lz)
+      f(8,1:lx-1,1,:) = tmpymR(3,1:lx-1,1:lz)
+      f(15,:,1,:) = tmpymR(4,:,1:lz)
+      f(17,:,1,:) = tmpymR(5,:,1:lz)
 
-      f(4,:,ly,:,s) = tmpypR(1,:,1:lz)
-      f(9,2:lx,ly,:,s) = tmpypR(2,2:lx,1:lz)
-      f(10,1:lx-1,ly,:,s) = tmpypR(3,1:lx-1,1:lz)
-      f(16,:,ly,:,s) = tmpypR(4,:,1:lz)
-      f(18,:,ly,:,s) = tmpypR(5,:,1:lz)
+      f(4,:,ly,:) = tmpypR(1,:,1:lz)
+      f(9,2:lx,ly,:) = tmpypR(2,2:lx,1:lz)
+      f(10,1:lx-1,ly,:) = tmpypR(3,1:lx-1,1:lz)
+      f(16,:,ly,:) = tmpypR(4,:,1:lz)
+      f(18,:,ly,:) = tmpypR(5,:,1:lz)
       
       !Add corner distributions to Z buffer
       tmpzmSi(17,:,1) = tmpymR(5,:,0)
@@ -333,19 +338,19 @@
 
       !Update local domain Z edge nodes
       !Note we must account for wall bounce back here!
-      f(5,:,:,1,s) = tmpzmR(1,:,:)
-      f(11,2:lx,:,1,s) = tmpzmR(2,2:lx,:)
-      f(12,1:lx-1,:,1,s) = tmpzmR(3,1:lx-1,:)
-      f(15,:,:,1,s) = tmpzmR(4,:,:)
-      f(16,:,:,1,s) = tmpzmR(5,:,:)
+      f(5,:,:,1) = tmpzmR(1,:,:)
+      f(11,2:lx,:,1) = tmpzmR(2,2:lx,:)
+      f(12,1:lx-1,:,1) = tmpzmR(3,1:lx-1,:)
+      f(15,:,:,1) = tmpzmR(4,:,:)
+      f(16,:,:,1) = tmpzmR(5,:,:)
 
-      f(6,:,:,lz,s) = tmpzpR(1,:,:)
-      f(13,2:lx,:,lz,s) = tmpzpR(2,2:lx,:)
-      f(14,1:lx-1,:,lz,s) = tmpzpR(3,1:lx-1,:)
-      f(17,:,:,lz,s) = tmpzpR(4,:,:)
-      f(18,:,:,lz,s) = tmpzpR(5,:,:)
+      f(6,:,:,lz) = tmpzpR(1,:,:)
+      f(13,2:lx,:,lz) = tmpzpR(2,2:lx,:)
+      f(14,1:lx-1,:,lz) = tmpzpR(3,1:lx-1,:)
+      f(17,:,:,lz) = tmpzpR(4,:,:)
+      f(18,:,:,lz) = tmpzpR(5,:,:)
 
-      end subroutine
+      end subroutine collisionExchnge
 !=============================================================================
 !@subroutine macrovar 
 !@desc Calculates macroscopic fluid properties density(rho), x-velocity(ux),
@@ -369,7 +374,7 @@
       do ix = 1,lx
         if(ibnodes(ix,iy,iz) < 0)then
           !If we are not inside a solid particle
-          f9 = f(:,ix,iy,iz,s)
+          f9 = f(:,ix,iy,iz)
 
           sum1 = f9(7) - f9(10)
           sum2 = f9(9) - f9(8)
@@ -448,9 +453,9 @@
 
       integer ip
 
-      rho = f(0,:,:,:,s)
+      rho = f(0,:,:,:)
       do ip = 1,npop-1
-        rho = rho + f(ip,:,:,:,s)
+        rho = rho + f(ip,:,:,:)
       end do
 
       end subroutine rhoupdat 

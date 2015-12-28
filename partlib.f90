@@ -1065,7 +1065,7 @@
         !Use iblinks(0,1,:) to determine which array to get data from. (1 = mym, 2 = myp, 3 = mzm, 4 = mzp)
         !Use iblinks(0,2,n) to get index of the distribution needed
         if(iblinks(0,1,n) == 0)then
-          ff1 = f(ip,ip1,jp1,kp1,s)
+          ff1 = f(ip,ip1,jp1,kp1)
         elseif(iblinks(0,1,n) == 1)then
           ff1 = mymIpfRecv(iblinks(0,2,n))
         elseif(iblinks(0,1,n) == 2)then
@@ -1080,13 +1080,13 @@
        IF(alpha > 0.5)then
         !Mid-link bounce back handling
         if(im1 < 1 .or. im1 > lx)then
-          ff2 = f(ip,i,j,k,s)
+          ff2 = f(ip,i,j,k)
           ff3 = IBNODES_TRUE
           goto 112
         endif
         !Get interpolation fluid node 2 (ff2)
         if(iblinks(1,1,n) == 0)then
-          ff2 = f(ipp,im1,jm1,km1,s)
+          ff2 = f(ipp,im1,jm1,km1)
         elseif(iblinks(1,1,n) == 1)then
           ff2 = mymIpfRecv(iblinks(1,2,n))
         elseif(iblinks(1,1,n) == 2)then
@@ -1105,13 +1105,13 @@
         !Get interpolation fluid node 3 (ff3)
         if(iblinks(2,1,n) == 0)then
           if(im2 == 0 .or. im2 == lx+1)then !If we're only one out use bounce back!
-            ff3 = f(ip,im1,jm1,km1,s)
+            ff3 = f(ip,im1,jm1,km1)
           else
             !Check Pre-Stream location for solid node conflicts
             if(ibnodes(im1,jm1,km1)>0)then
               ff3 = IBNODES_TRUE
             else
-              ff3 = f(ipp,im2,jm2,km2,s)
+              ff3 = f(ipp,im2,jm2,km2)
             endif
           endif
         elseif(iblinks(2,1,n) == 1)then
@@ -1129,12 +1129,12 @@
         if(ff3 > IBNODES_TRUE - 1)then
             c1 = 0.5 / alpha
             c2 = 1.0 - c1
-            f(ipp,i,j,k,s) = c1*ff1 + c2*ff2 - 6.0*wwp(ip)*c1*uwpro
+            f(ipp,i,j,k) = c1*ff1 + c2*ff2 - 6.0*wwp(ip)*c1*uwpro
         else !Use 3-point interpolation scheme
             c1 = 1.0 / alpha / (2.0*alpha + 1.0)
             c2 = (2.0*alpha - 1.0) / alpha
             c3 = 1.0 - c1 - c2
-            f(ipp,i,j,k,s) = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ip)*c1*uwpro
+            f(ipp,i,j,k) = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ip)*c1*uwpro
         endif
 
        !If the solid boundary's distance from the fluid node is <= 0.5
@@ -1144,7 +1144,7 @@
             ff2 = IBNODES_TRUE
             goto 113
         else
-            ff2 = f(ip,i,j,k,s)
+            ff2 = f(ip,i,j,k)
         endif
         !ff3 is out of bounds so set to IBNODES_TRUE
         if(im1 < 1 .or. im1 > lx)then
@@ -1158,7 +1158,7 @@
           if(ibnodes(im2,jm2,km2)>0)then
             ff3 = IBNODES_TRUE
           else
-            ff3 = f(ip,im1,jm1,km1,s)
+            ff3 = f(ip,im1,jm1,km1)
           endif
         elseif(iblinks(1,1,n) == 1)then
           ff3 = mymIpfRecv(iblinks(1,2,n))
@@ -1173,20 +1173,20 @@
 
         !If solid node conflict with ff2, use simple bounce back with momentum term
         if(ff2 > IBNODES_TRUE - 1)then
-          f(ipp,i,j,k,s) = ff1 - 6.0*wwp(ip)*uwpro
+          f(ipp,i,j,k) = ff1 - 6.0*wwp(ip)*uwpro
         else if(ff3 > IBNODES_TRUE - 1)then !If solid node conflict with ff3, use 2-point interpolation
-          f(ipp,i,j,k,s) = 2.0*alpha*(ff1 - ff2) + ff2 - 6.0*wwp(ip)*uwpro
+          f(ipp,i,j,k) = 2.0*alpha*(ff1 - ff2) + ff2 - 6.0*wwp(ip)*uwpro
         else !Use 3-point interpolation scheme
           c1 = alpha*(1.0 + 2.0*alpha)
           c2 = 1.0 - 4.0*alpha*alpha
           c3 = -alpha*(1.0 - 2.0*alpha)
-          f(ipp,i,j,k,s) = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ip)*uwpro
+          f(ipp,i,j,k) = c1*ff1 + c2*ff2 + c3*ff3 - 6.0*wwp(ip)*uwpro
         end if
        ENDIF
 
        !Just a back up check to ensure something didn't go wrong, can get removed...
-!        if(abs(f(ipp,i,j,k,s)) > 1e-2)then
-!          write(*,*)'=',myid,f(ipp,i,j,k,s),alpha,'='
+!        if(abs(f(ipp,i,j,k)) > 1e-2)then
+!          write(*,*)'=',myid,f(ipp,i,j,k),alpha,'='
 !          write(*,*)ip,i,j,k,iblinks(0,1,n),iblinks(1,1,n),iblinks(2,1,n)
 !          write(*,*),iblinks(0,2,n),iblinks(1,2,n),iblinks(2,2,n)
 !          write(*,*)im1,jm1,km1,im2,jm2,km2
@@ -1194,9 +1194,9 @@
 !        endif
 
         !Compute force and torque acting on particles
-        dff = ff1 + f(ipp,i,j,k,s)
+        dff = ff1 + f(ipp,i,j,k)
         !Galiliean Invarient moment exchange
-        dff2 = f(ipp,i,j,k,s) - ff1
+        dff2 = f(ipp,i,j,k) - ff1
         dxmom = dff*real(ix) + uwx*dff2
         dymom = dff*real(iy) + uwy*dff2
         dzmom = dff*real(iz) + uwz*dff2
@@ -1296,14 +1296,14 @@
               if(ibnodes(xm1,ym1,zm1) > 0)then
                 mypIpfSend(j) = IBNODES_TRUE
               else
-                mypIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z,s)
+                mypIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
               endif
             else
               !Check Pre-Stream location for solid node conflicts (Ignores x wall)
               if(ibnodes(xm1,ym1,zm1) > 0)then
                 mymIpfSend(j) = IBNODES_TRUE
               else
-                mymIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z,s)
+                mymIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
               endif
             endif
           endif         
@@ -1346,7 +1346,7 @@
             if(ibnodes(xm1,ym1,zm1) > 0)then
               mzpIpfSend(j) = IBNODES_TRUE
             else
-              mzpIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z,s)
+              mzpIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
             endif
           enddo
           !Send distribution data back
@@ -1367,7 +1367,7 @@
             if(ibnodes(xm1,ym1,zm1) > 0)then
               mzmIpfSend(j) = IBNODES_TRUE
             else
-              mzmIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z,s)
+              mzmIpfSend(j) = f(ip, ipfReq(j)%x, ipfReq(j)%y, ipfReq(j)%z)
             endif
           enddo
           !Send distribution data back
@@ -2175,7 +2175,7 @@
             else
               ibp1 = ibnodes(ip1,jp1,kp1)
               ib0p1 = ibnodes0(ip1,jp1,kp1)
-              f9 = f(:,ip1,jp1,kp1,s)
+              f9 = f(:,ip1,jp1,kp1)
             end if
           end if
         !Get extrapolation point 2
@@ -2192,7 +2192,7 @@
             else
               ibp2 = ibnodes(ip2,jp2,kp2)
               ib0p2 = ibnodes0(ip2,jp2,kp2)
-              f8 = f(:,ip2,jp2,kp2,s)
+              f8 = f(:,ip2,jp2,kp2)
            end if
           end if
         !Get extrapolation point 3
@@ -2209,7 +2209,7 @@
             else
               ibp3 = ibnodes(ip3,jp3,kp3)
               ib0p3 = ibnodes0(ip3,jp3,kp3)
-              f7 = f(:,ip3,jp3,kp3,s)
+              f7 = f(:,ip3,jp3,kp3)
            end if
           end if
         endif !p3
@@ -2229,7 +2229,7 @@
 
         !3-point extrapolation
         if(ibp1 < 0 .and. ib0p1 < 0 .and. ibp2 < 0 .and. ib0p2 < 0 .and. ibp3 < 0 .and. ib0p3 < 0)then
-          f(0,i,j,k,s) = 3.d0*f9(0)-3.d0*f8(0)+f7(0)
+          f(0,i,j,k) = 3.d0*f9(0)-3.d0*f8(0)+f7(0)
           ! Note in the velocity constrained filling, only unknown
           ! directions are filled
           do ipop = 1,npop-1
@@ -2237,40 +2237,40 @@
             iy1 = ciy(ipop)
             iz1 = ciz(ipop)
             if(ibnodes0(i-ix1,j-iy1,k-iz1).gt.0) then
-              f(ipop,i,j,k,s) = 3.d0*f9(ipop)-3.d0*f8(ipop)+f7(ipop)
+              f(ipop,i,j,k) = 3.d0*f9(ipop)-3.d0*f8(ipop)+f7(ipop)
             end if
           end do
         !2-point extrapolation
         elseif(ibp1 < 0 .and. ib0p1 < 0 .and. ibp2 < 0 .and. ib0p2 < 0)then
-          f(0,i,j,k,s) = 2.d0*f9(0)-f8(0)
+          f(0,i,j,k) = 2.d0*f9(0)-f8(0)
           do ipop = 1,npop-1
             ix1 = cix(ipop)
             iy1 = ciy(ipop)
             iz1 = ciz(ipop)
             if(ibnodes0(i-ix1,j-iy1,k-iz1).gt.0) then
-              f(ipop,i,j,k,s) = 2.d0*f9(ipop)-f8(ipop)
+              f(ipop,i,j,k) = 2.d0*f9(ipop)-f8(ipop)
             end if
           end do    
         !1 point extrapolation
         elseif(ibp1 < 0 .and. ib0p1 < 0)then
-          f(0,i,j,k,s) = f9(0)
+          f(0,i,j,k) = f9(0)
           do ipop = 1,npop-1
             ix1 = cix(ipop)
             iy1 = ciy(ipop)
             iz1 = ciz(ipop)
             if(ibnodes0(i-ix1,j-iy1,k-iz1).gt.0) then
-              f(ipop,i,j,k,s) = f9(ipop)
+              f(ipop,i,j,k) = f9(ipop)
             end if
           end do
         !Set to 0, if no points availiable
         else
-          f(0,i,j,k,s) = 0.d0
+          f(0,i,j,k) = 0.d0
           do ipop = 1,npop-1
             ix1 = cix(ipop)
             iy1 = ciy(ipop)
             iz1 = ciz(ipop)
             if(ibnodes0(i-ix1,j-iy1,k-iz1).gt.0) then
-              f(ipop,i,j,k,s) = 0.d0
+              f(ipop,i,j,k) = 0.d0
             end if
           end do
         END IF
@@ -2313,7 +2313,7 @@
               else if(kp1 < 1 ) then
               f9 = fillRecvZm(:,ip1,jp1,kp1)
               else
-              f9 = f(:,ip1,jp1,kp1,s)
+              f9 = f(:,ip1,jp1,kp1)
               end if
             end if
 
@@ -2350,11 +2350,11 @@
         v9 = w2 + omg3*xx0 - omg1*zz0
         w9 = w3 + omg1*yy0 - omg2*xx0
 
-        f9 = f(:,i,j,k,s)
+        f9 = f(:,i,j,k)
         !Execute collision
         call collis_MRT9(u9,v9,w9,rho9,f9)
         !Equilibrium + non-equilibrium refill
-        f(:,i,j,k,s) = f9
+        f(:,i,j,k) = f9
       end do
 
       end subroutine beads_filling
@@ -2403,7 +2403,7 @@
         !Merge distribution array and send buffer using ibnodes and ibnodes0 as a mask
         !Intrinsic fortran90 function merge(truearray, falsearray, logicalarray)
         do ip = 0, npop-1
-          tmpZpS(ip,:,:,1:3) = merge(f(ip,:,:,lz-2:lz,s), tmpZpS(ip,:,:,1:3), (ibnodes(1:lx,1:ly,lz-2:lz) < 0 .and. ibnodes0(1:lx,1:ly,lz-2:lz) < 0))
+          tmpZpS(ip,:,:,1:3) = merge(f(ip,:,:,lz-2:lz), tmpZpS(ip,:,:,1:3), (ibnodes(1:lx,1:ly,lz-2:lz) < 0 .and. ibnodes0(1:lx,1:ly,lz-2:lz) < 0))
         enddo
 
         call MPI_ISEND(tmpZpS,ilenz,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(nreq),ierr)
@@ -2414,7 +2414,7 @@
         !Merge distribution array and send buffer using ibnodes and ibnodes0 as a mask
         !Intrinsic fortran90 function merge(truearray, falsearray, logicalarray)
         do ip = 0, npop-1
-          tmpZmS(ip,:,:,1:3) = merge(f(ip,:,:,1:3,s), tmpZmS(ip,:,:,1:3), (ibnodes(1:lx,1:ly,1:3) < 0 .and. ibnodes0(1:lx,1:ly,1:3) < 0))
+          tmpZmS(ip,:,:,1:3) = merge(f(ip,:,:,1:3), tmpZmS(ip,:,:,1:3), (ibnodes(1:lx,1:ly,1:3) < 0 .and. ibnodes0(1:lx,1:ly,1:3) < 0))
         enddo
 
         call MPI_ISEND(tmpZmS,ilenz,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(nreq),ierr)
@@ -2452,7 +2452,7 @@
         !Merge distribution array and send buffer using ibnodes and ibnodes0 as a mask
         !Intrinsic fortran90 function merge(truearray, falsearray, logicalarray)
         do ip = 0, npop-1
-          tmpYmS(ip,:,1:3,1:lz) = merge(f(ip,:,1:3,:,s), tmpYmS(ip,:,1:3,1:lz), (ibnodes(1:lx,1:3,1:lz) < 0 .and. ibnodes0(1:lx,1:3,1:lz) < 0))
+          tmpYmS(ip,:,1:3,1:lz) = merge(f(ip,:,1:3,:), tmpYmS(ip,:,1:3,1:lz), (ibnodes(1:lx,1:3,1:lz) < 0 .and. ibnodes0(1:lx,1:3,1:lz) < 0))
         enddo
 
         if(utempinit) then
@@ -2476,7 +2476,7 @@
         !Merge distribution array and send buffer using ibnodes and ibnodes0 as a mask
         !Intrinsic fortran90 function merge(truearray, falsearray, logicalarray)
         do ip = 0, npop-1
-          tmpYpS(ip,:,1:3,1:lz) = merge(f(ip,:,ly-2:ly,:,s), tmpYpS(ip,:,1:3,1:lz), (ibnodes(1:lx,ly-2:ly,1:lz) < 0 .and. ibnodes0(1:lx,ly-2:ly,1:lz) < 0))
+          tmpYpS(ip,:,1:3,1:lz) = merge(f(ip,:,ly-2:ly,:), tmpYpS(ip,:,1:3,1:lz), (ibnodes(1:lx,ly-2:ly,1:lz) < 0 .and. ibnodes0(1:lx,ly-2:ly,1:lz) < 0))
         enddo
 
         if(utempinit) then
