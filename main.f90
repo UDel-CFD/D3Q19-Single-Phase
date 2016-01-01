@@ -89,7 +89,7 @@
             !@file collision.f90
             call rhoupdat
 
-            call collision_MRT !@file collision.f90
+            call swap !@file collision.f90
 
             !Determine the maximum density change
             rhoerr = maxval(abs(rho - rhop))        
@@ -193,7 +193,7 @@
          call FORCING
         end if
 
-        call collision_MRT
+        call swap
         
         if(ipart .and. istep >= irelease)then !If we have solid particles in our flow
           !Calculates interpolation bounce back for the fluid off the solid particles

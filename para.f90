@@ -385,10 +385,14 @@
       allocate (wy(lx+2,ly+lyext,lz))
       allocate (wz(lx+2,ly+lyext,lz))
       allocate (ibnodes(0:lx+1,0:ly+1,0:lz+1))
-      allocate(force_realx(lx,ly,lz))
-      allocate(force_realy(lx,ly,lz))
-      allocate(force_realz(lx,ly,lz))
-
+      allocate (force_realx(lx,ly,lz))
+      allocate (force_realy(lx,ly,lz))
+      allocate (force_realz(lx,ly,lz))
+      
+      allocate (collZpS(0:npop-1,lx,ly))
+      allocate (collZmS(0:npop-1,lx,ly))
+      allocate (collYpS(0:npop-1,lx,0:lz+1))
+      allocate (collYmS(0:npop-1,lx,0:lz+1))
       ibnodes = -1
 
       if(ipart)then !If particles are being used

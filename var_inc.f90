@@ -109,6 +109,9 @@
       integer,allocatable,dimension(:,:,:):: isnodes, isnodes0 
       
       real,allocatable,dimension(:,:,:,:):: f
+      
+      real,allocatable,dimension(:,:,:):: collZpS, collZmS, collYpS, collYmS
+      
       integer,dimension(9):: ipswap
       integer,dimension(10):: ipstay
 
