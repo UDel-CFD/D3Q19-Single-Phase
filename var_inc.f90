@@ -27,7 +27,7 @@
       integer(kind = 8):: plan_RC, plan_CR, plan_F, plan_B  
       
       !Domain size paramters
-      integer,parameter:: nx7=200,nx = nx7-1, ny = 2*nx7, nz = nx7
+      integer,parameter:: nx7=300,nx = nx7-1, ny = 2*nx7, nz = nx7
       integer,parameter:: lx = nx
       integer,parameter:: lxh = lx/2, lyh = ny/2
       integer,parameter:: nxh = nx7/2, nyh = ny/2, nzh = nz/2
@@ -42,7 +42,7 @@
       integer,parameter:: iflowseed = 54321
       integer,parameter:: NTAB = 32
       real,parameter:: rho0 = 1.0, rhopart = 1.0
-      integer,parameter:: npart = 200 
+      integer,parameter:: npart = 270 
       real,parameter:: rad = 15.0, mingap = 3.0, mingap_w =3.0
       integer,parameter:: irelease = 10
       integer,parameter:: iprocrate = 2  
@@ -107,13 +107,9 @@
       integer,allocatable,dimension(:):: ipglb, ovlpflag, ovlpflagt
       integer,allocatable,dimension(:,:,:):: ibnodes, ibnodes0
       integer,allocatable,dimension(:,:,:):: isnodes, isnodes0 
-      
-      real,allocatable,dimension(:,:,:,:):: f
-      
-      real,allocatable,dimension(:,:,:):: collZpS, collZmS, collYpS, collYmS
-      
-      integer,dimension(9):: ipswap
-      integer,dimension(10):: ipstay
+
+      integer s
+      real,allocatable,dimension(:,:,:,:,:):: f
 
       !Particle Specific Arrays/ Variables
       integer nbfill, maxbfill

@@ -1,456 +1,19 @@
 !=============================================================================
-!@subroutine swap
-!@desc Executes collision and propagation of the fluid. Current follows the
-!      swap algorythm which fuses collision and propagation together
-!      into a single step. Calculations have be movef to element-wise
-!      operations to help increase performance. May change in the future.
-!=============================================================================
-      subroutine swap    
-      use mpi
-      use var_inc
-      implicit none 
-
-      real, dimension(0:npop-1) :: f9
-      
-      real, dimension(5,lx,0:lz+1):: collYpSi, collYmSi, collYpR, collYmR
-      real, dimension(5,lx,ly):: collZpSi, collZmSi, collZmR, collZpR
-      integer status_array(MPI_STATUS_SIZE,4), req(4)
-      integer ilen
-      
-      integer ip, ipi, ix, iy, iz, imove, jmove, kmove
-      real fx9,fy9,fz9,G1,G2,G3
-
-      call swap_edge_start
-      
-      !Create send buffers
-      !Note that we only pass the distributions needed to decrease message size
-      collYpSi(1,:,:) = collYpS(3,:,:)
-      collYpSi(2,:,:) = collYpS(7,:,:)
-      collYpSi(3,:,:) = collYpS(8,:,:)
-      collYpSi(4,:,:) = collYpS(15,:,:)
-      collYpSi(5,:,:) = collYpS(17,:,:)
-
-      collYmSi(1,:,:) = collYmS(4,:,:)
-      collYmSi(2,:,:) = collYmS(9,:,:)
-      collYmSi(3,:,:) = collYmS(10,:,:)
-      collYmSi(4,:,:) = collYmS(16,:,:)
-      collYmSi(5,:,:) = collYmS(18,:,:)
-
-      ilen = 5 * lx * (lz + 2)
-      !Send/Recieve updated distributions with Y MPI neighbors
-      call MPI_IRECV(collYmR,ilen,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(collYpR,ilen,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(2),ierr)
-
-      call MPI_ISEND(collYmSi,ilen,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(collYpSi,ilen,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(4),ierr)
-      
-      !Index through fluid nodes
-      do iz = 2,lz/2
-      do iy = 2,ly-1
-      do ix = 2,lx-1
-        
-        call collision_MRT9(ix,iy,iz,f9)
-        !Place updated distributions into post-stream locations
-        !If that location is ina MPI neighbor place into proper send buffer
-        do ipi = 1,9
-          ip = ipswap(ipi)
-          imove = ix + cix(ip) 
-          jmove = iy + ciy(ip)
-          kmove = iz + ciz(ip)
-          
-          f(ipopp(ip),ix,iy,iz) = f(ip,imove,jmove,kmove)
-          f(ip,imove,jmove,kmove) = f9(ip)
-        enddo
-        
-        do ipi = 1,10
-          ip = ipstay(ipi)  
-          imove = ix + cix(ip) 
-          jmove = iy + ciy(ip)
-          kmove = iz + ciz(ip)
-          
-          f(ipopp(ip),ix,iy,iz) = f9(ip)
-        enddo
-      end do !x
-      end do !y
-      end do !z
-
-      call MPI_WAITALL(4,req,status_array,ierr)
-
-      !Update local domain Y edge nodes
-      !Note we must account for wall bounce back here!
-      f(3,:,1,:) = collYmR(1,:,1:lz)
-      f(7,2:lx,1,:) = collYmR(2,2:lx,1:lz)
-      f(8,1:lx-1,1,:) = collYmR(3,1:lx-1,1:lz)
-      f(15,:,1,:) = collYmR(4,:,1:lz)
-      f(17,:,1,:) = collYmR(5,:,1:lz)
-
-      f(4,:,ly,:) = collYpR(1,:,1:lz)
-      f(9,2:lx,ly,:) = collYpR(2,2:lx,1:lz)
-      f(10,1:lx-1,ly,:) = collYpR(3,1:lx-1,1:lz)
-      f(16,:,ly,:) = collYpR(4,:,1:lz)
-      f(18,:,ly,:) = collYpR(5,:,1:lz)
-      
-      !Add corner distributions to Z buffer
-      collZmS(17,:,1) = collYmR(5,:,0)
-      collZmS(18,:,ly) = collYpR(5,:,0)
-      collZpS(15,:,1) = collYmR(4,:,lz+1)
-      collZpS(16,:,ly) = collYpR(4,:,lz+1)
-
-      !Add local data to Z send buffers
-      collZpSi(1,:,:) = collZpS(5,:,:)
-      collZpSi(2,:,:) = collZpS(11,:,:)
-      collZpSi(3,:,:) = collZpS(12,:,:)
-      collZpSi(4,:,:) = collZpS(15,:,:)
-      collZpSi(5,:,:) = collZpS(16,:,:)
-
-      collZmSi(1,:,:) = collZmS(6,:,:)
-      collZmSi(2,:,:) = collZmS(13,:,:)
-      collZmSi(3,:,:) = collZmS(14,:,:)
-      collZmSi(4,:,:) = collZmS(17,:,:)
-      collZmSi(5,:,:) = collZmS(18,:,:)
-
-      ilen = 5*lx*ly
-      !Send/Recieve updated distributions with Z MPI neighbors
-      call MPI_IRECV(collZmR,ilen,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(1),ierr)
-      call MPI_IRECV(collZpR,ilen,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(2),ierr)
-
-      call MPI_ISEND(collZmSi,ilen,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(3),ierr)
-      call MPI_ISEND(collZpSi,ilen,MPI_REAL8,mzp,0,MPI_COMM_WORLD,req(4),ierr)
-
-      do iz = lz/2+1,lz-1
-      do iy = 2,ly-1
-      do ix = 2,lx-1
-        
-        call collision_MRT9(ix,iy,iz,f9)
-        !Place updated distributions into post-stream locations
-        !If that location is ina MPI neighbor place into proper send buffer
-        do ipi = 1,9
-          ip = ipswap(ipi)
-          imove = ix + cix(ip) 
-          jmove = iy + ciy(ip)
-          kmove = iz + ciz(ip)
-          
-          f(ipopp(ip),ix,iy,iz) = f(ip,imove,jmove,kmove)
-          f(ip,imove,jmove,kmove) = f9(ip)
-        enddo
-        
-        do ipi = 1,10
-          ip = ipstay(ipi)  
-          imove = ix + cix(ip) 
-          jmove = iy + ciy(ip)
-          kmove = iz + ciz(ip)
-          
-          f(ipopp(ip),ix,iy,iz) = f9(ip)
-        enddo
-      end do !x
-      end do !y
-      end do !z
-      
-      call MPI_WAITALL(4,req,status_array,ierr)
-
-      !Update local domain Z edge nodes
-      !Note we must account for wall bounce back here!
-      f(5,:,:,1) = collZmR(1,:,:)
-      f(11,2:lx,:,1) = collZmR(2,2:lx,:)
-      f(12,1:lx-1,:,1) = collZmR(3,1:lx-1,:)
-      f(15,:,:,1) = collZmR(4,:,:)
-      f(16,:,:,1) = collZmR(5,:,:)
-
-      f(6,:,:,lz) = collZpR(1,:,:)
-      f(13,2:lx,:,lz) = collZpR(2,2:lx,:)
-      f(14,1:lx-1,:,lz) = collZpR(3,1:lx-1,:)
-      f(17,:,:,lz) = collZpR(4,:,:)
-      f(18,:,:,lz) = collZpR(5,:,:)
-      
-      call swapEdge2
-
-      end subroutine swap
-!=============================================================================
-!@subroutine swap
-!@desc Executes collision and propagation of the fluid. Current follows the
-!      swap algorythm which fuses collision and propagation together
-!      into a single step. Calculations have be movef to element-wise
-!      operations to help increase performance. May change in the future.
-!=============================================================================
-      subroutine swap_edge_start
-      use mpi
-      use var_inc
-      implicit none 
-
-      real, dimension(0:npop-1) :: f9
-      integer ip, ipi, ix, iy, iz, imove, jmove, kmove
-      integer ilen
-      
-      !X minus wall
-      ix = 1
-      do iz = 2,lz-1
-      do iy = 2,ly-1
-        call collision_MRT9(ix,iy,iz,f9)
-        do ip = 0, npop-1
-          imove = ix + cix(ip) 
-          jmove = iy + ciy(ip)
-          kmove = iz + ciz(ip)
-          
-          f(ipopp(ip),ix,iy,iz) = f9(ip)
-        enddo
-      end do !y
-      end do !z
-      
-      !X plus wall
-      ix = lx
-      do iz = 2,lz-1
-      do iy = 2,ly-1
-        call collision_MRT9(ix,iy,iz,f9)
-        do ip = 0, npop-1
-          imove = ix + cix(ip) 
-          jmove = iy + ciy(ip)
-          kmove = iz + ciz(ip)
-          
-         f(ipopp(ip),ix,iy,iz) = f9(ip)
-        enddo
-      end do !y
-      end do !z
-      
-      !Y minus wall
-      iy = 1
-      do iz = 1,lz
-      do ix = 1,lx
-        call collision_MRT9(ix,iy,iz,f9)
-        do ip = 0, npop-1
-          imove = ix + cix(ip) 
-          jmove = iy + ciy(ip)
-          kmove = iz + ciz(ip)
-          if(imove < 1 .or. imove > lx)then
-            f(ipopp(ip),ix,iy,iz) = f9(ip)
-          elseif(jmove < 1)then
-             collYmS(ip,imove,kmove) =  f9(ip)
-          elseif(kmove < 1)then
-            collZmS(ip,imove,jmove) = f9(ip)
-          elseif(kmove > lz)then
-            collZpS(ip,imove,jmove) = f9(ip)
-          else
-            f(ipopp(ip),ix,iy,iz) = f9(ip)
-          endif
-        enddo
-      end do !x
-      end do !z
-      
-      !Y plus wall
-      iy = ly
-      do iz = 1,lz
-      do ix = 1,lx
-        call collision_MRT9(ix,iy,iz,f9)
-        do ip = 0, npop-1
-          imove = ix + cix(ip) 
-          jmove = iy + ciy(ip)
-          kmove = iz + ciz(ip)
-          if(imove < 1 .or. imove > lx)then
-            f(ipopp(ip),ix,iy,iz) = f9(ip)
-          elseif(jmove > ly)then
-            collYpS(ip,imove,kmove) = f9(ip)
-          elseif(kmove < 1)then
-            collZmS(ip,imove,jmove) = f9(ip)
-          elseif(kmove > lz)then
-            collZpS(ip,imove,jmove) = f9(ip)
-          else
-            f(ipopp(ip),ix,iy,iz) = f9(ip)
-          endif
-        enddo
-      end do !x
-      end do !z
-      
-      !Z minus wall
-      iz = 1
-      do iy = 2,ly-1
-      do ix = 1,lx 
-        call collision_MRT9(ix,iy,iz,f9)
-        do ip = 0, npop-1
-          imove = ix + cix(ip) 
-          jmove = iy + ciy(ip)
-          kmove = iz + ciz(ip)
-          if(imove < 1 .or. imove > lx)then
-            f(ipopp(ip),ix,iy,iz) = f9(ip)
-          elseif(kmove < 1)then
-            collZmS(ip,imove,jmove) = f9(ip)
-          else
-            f(ipopp(ip),ix,iy,iz) = f9(ip)
-          endif
-        enddo
-      end do !x
-      end do !y
-      
-      !Z minus wall
-      iz = lz
-      do iy = 2,ly-1
-      do ix = 1,lx
-        call collision_MRT9(ix,iy,iz,f9)
-        do ip = 0, npop-1
-          imove = ix + cix(ip) 
-          jmove = iy + ciy(ip)
-          kmove = iz + ciz(ip)
-          if(imove < 1 .or. imove > lx)then
-            f(ipopp(ip),ix,iy,iz) = f9(ip)
-          elseif(kmove > lz)then
-            collZpS(ip,imove,jmove) = f9(ip)
-          else
-            f(ipopp(ip),ix,iy,iz) = f9(ip)
-          endif
-        enddo
-      end do !x
-      end do !y
-
-      end subroutine swap_edge_start
-!=============================================================================
-!@subroutine swap
-!@desc Executes collision and propagation of the fluid. Current follows the
-!      swap algorythm which fuses collision and propagation together
-!      into a single step. Calculations have be movef to element-wise
-!      operations to help increase performance. May change in the future.
-!=============================================================================
-      subroutine swapEdge2
-      use mpi
-      use var_inc
-      implicit none 
-
-      integer ip, ipi, ix, iy, iz, imove, jmove, kmove
-      real tempDist
-
-      !X minus wall
-      ix = 1
-      do iz = 2,lz-1
-      do iy = 2,ly-1
-        do ipi = 1,9
-          ip = ipswap(ipi)
-          imove = ix + cix(ip) 
-          jmove = iy + ciy(ip)
-          kmove = iz + ciz(ip)
-          if(imove > 0)then
-            tempDist = f(ipopp(ip),ix,iy,iz)
-            f(ipopp(ip),ix,iy,iz) = f(ip,imove,jmove,kmove)
-            f(ip,imove,jmove,kmove) = tempDist
-          endif
-        enddo
-      end do !y
-      end do !z
-      
-      !X plus wall
-      ix = lx
-      do iz = 2,lz-1
-      do iy = 2,ly-1
-        do ipi = 1,9
-          ip = ipswap(ipi)
-          imove = ix + cix(ip) 
-          jmove = iy + ciy(ip)
-          kmove = iz + ciz(ip)
-          if(imove < lx+1)then
-            tempDist = f(ipopp(ip),ix,iy,iz)
-            f(ipopp(ip),ix,iy,iz) = f(ip,imove,jmove,kmove)
-            f(ip,imove,jmove,kmove) = tempDist
-          endif
-        enddo
-      end do !y
-      end do !z
-      
-      !Y minus wall
-      iy = 1
-      do iz = 1,lz
-      do ix = 1,lx
-        do ipi = 1,9
-          ip = ipswap(ipi)
-          imove = ix + cix(ip) 
-          jmove = iy + ciy(ip)
-          kmove = iz + ciz(ip)
-          if(imove < 1 .or. imove > lx)then
-          elseif(jmove < 1)then
-          elseif(kmove < 1)then
-          elseif(kmove > lz)then
-          else
-            tempDist = f(ipopp(ip),ix,iy,iz)
-            f(ipopp(ip),ix,iy,iz) = f(ip,imove,jmove,kmove)
-            f(ip,imove,jmove,kmove) = tempDist
-          endif
-        enddo
-      end do !x
-      end do !z
-      
-      !Y plus wall
-      iy = ly
-      do iz = 1,lz
-      do ix = 1,lx
-        do ipi = 1,9
-          ip = ipswap(ipi)
-          imove = ix + cix(ip) 
-          jmove = iy + ciy(ip)
-          kmove = iz + ciz(ip)
-          if(imove < 1 .or. imove > lx)then
-          elseif(jmove > ly)then
-          elseif(kmove < 1)then
-          elseif(kmove > lz)then
-          else
-            tempDist = f(ipopp(ip),ix,iy,iz)
-            f(ipopp(ip),ix,iy,iz) = f(ip,imove,jmove,kmove)
-            f(ip,imove,jmove,kmove) = tempDist
-          endif
-        enddo
-      end do !x
-      end do !z
-      
-      !Z minus wall
-      iz = 1
-      do iy = 2,ly-1
-      do ix = 1,lx 
-        do ipi = 1,9
-          ip = ipswap(ipi)
-          imove = ix + cix(ip) 
-          jmove = iy + ciy(ip)
-          kmove = iz + ciz(ip)
-          if(imove < 1 .or. imove > lx)then
-          elseif(kmove < 1)then
-          else
-            tempDist = f(ipopp(ip),ix,iy,iz)
-            f(ipopp(ip),ix,iy,iz) = f(ip,imove,jmove,kmove)
-            f(ip,imove,jmove,kmove) = tempDist
-          endif
-        enddo
-      end do !x
-      end do !y
-      
-      !Z minus wall
-      iz = lz
-      do iy = 2,ly-1
-      do ix = 1,lx
-        do ipi = 1,9
-          ip = ipswap(ipi)
-          imove = ix + cix(ip) 
-          jmove = iy + ciy(ip)
-          kmove = iz + ciz(ip)
-          if(imove < 1 .or. imove > lx)then
-          elseif(kmove > lz)then
-          else
-            tempDist = f(ipopp(ip),ix,iy,iz)
-            f(ipopp(ip),ix,iy,iz) = f(ip,imove,jmove,kmove)
-            f(ip,imove,jmove,kmove) = tempDist
-          endif
-        enddo
-      end do !x
-      end do !y
-
-      end subroutine swapEdge2      
-
-!=============================================================================
 !@subroutine collision_MRT 
 !@desc Executes collision and propagation of the fluid. Current follows the
-!      swap algorythm which fuses collision and propagation together
+!      two-array algorythm which fuses collision and propagation together
 !      into a single step. Calculations have be movef to element-wise
 !      operations to help increase performance. May change in the future.
 !=============================================================================
-      subroutine collision_MRT9(ix,iy,iz,f9)    
+      subroutine collision_MRT    
       use mpi
       use var_inc
       implicit none 
 
       real, dimension(0:npop-1) :: f9
       real, dimension(0:npop-1) :: Fbar
+      real, dimension(0:npop-1,lx,ly)     :: tmpzpS, tmpzmS
+      real, dimension(0:npop-1,lx,0:lz+1) :: tmpypS,tmpymS
       real rho9, ux9, uy9, uz9, ux9s, uy9s, uz9s
       real t1, tl1, tl2, tl3, tl4, tl5, tl6, tl7, tl8, tl9, tl10, tl11,&
            tl12, tl13, tl14, tl15, tl16, tl17, tl18, tl19, tl20, tl21
@@ -464,10 +27,23 @@
            eqmc9, eqmc10, eqmc11, eqmc12, eqmc13, eqmc14, eqmc15
       real suma, sumb, sumc, sumd, sume, sumf, sumg, sumh, sumi, sumk, &
            sump, sum67, sum89, sum1011
-      integer ip, ipi, ix, iy, iz, imove, jmove, kmove, snext
+      integer ip, ix, iy, iz, imove, jmove, kmove, snext
       real fx9,fy9,fz9,G1,G2,G3
 
+      !Determine which array we will place updated distributions into
+      if(s .eq. 1)then
+        snext = 2
+      else
+        snext = 1
+      endif
+
+      !Index through fluid nodes
+      do iz = 1,lz
+      do iy = 1,ly
+      do ix = 1,lx
       !If we are not in a solid particle execute collision
+      if(ibnodes(ix,iy,iz) < 0)then
+
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
         uy9 = uy(ix,iy,iz)
@@ -485,18 +61,18 @@
         Fbar(0) = -G3
 
         do ip=1,6
-        G1 = cix(ip)*fx9 + ciy(ip)*fy9 + ciz(ip)*fz9
-        G2 = cix(ip)*ux9 + ciy(ip)*uy9 + ciz(ip)*uz9
-        Fbar(ip) = ww1*(3.*G1 + 9.*G1*G2 - 3.*G3)
+          G1 = cix(ip)*fx9 + ciy(ip)*fy9 + ciz(ip)*fz9
+          G2 = cix(ip)*ux9 + ciy(ip)*uy9 + ciz(ip)*uz9
+          Fbar(ip) = ww1*(3.*G1 + 9.*G1*G2 - 3.*G3)
         enddo
 
         do ip=7,(npop-1)
-        G1 = cix(ip)*fx9 + ciy(ip)*fy9 + ciz(ip)*fz9
-        G2 = cix(ip)*ux9 + ciy(ip)*uy9 + ciz(ip)*uz9
-        Fbar(ip) = ww2*(3.*G1 + 9.*G1*G2 - 3.*G3)
+          G1 = cix(ip)*fx9 + ciy(ip)*fy9 + ciz(ip)*fz9
+          G2 = cix(ip)*ux9 + ciy(ip)*uy9 + ciz(ip)*uz9
+          Fbar(ip) = ww2*(3.*G1 + 9.*G1*G2 - 3.*G3)
         enddo 
 
-        f9(:) = f(:,ix,iy,iz) + 0.5*Fbar(:)
+        f9(:) = f(:,ix,iy,iz,s) + 0.5*Fbar(:)
 
         t1 = ux9s + uy9s + uz9s
         eqm1 = -11.0*rho9 + 19.0*t1
@@ -517,22 +93,22 @@
 
         sum1 = f9(1) + f9(2) + f9(3) + f9(4) + f9(5) + f9(6)        
         sum2 = f9(7) + f9(8) + f9(9) + f9(10) + f9(11) + f9(12)        &
-            + f9(13) + f9(14) + f9(15) + f9(16) + f9(17) + f9(18)      
+             + f9(13) + f9(14) + f9(15) + f9(16) + f9(17) + f9(18)      
         sum3 = f9(7) - f9(8) + f9(9) - f9(10) + f9(11) - f9(12)        &
-            + f9(13) - f9(14)
+             + f9(13) - f9(14)
         sum4 = f9(7) + f9(8) - f9(9) - f9(10) + f9(15) - f9(16)        &
-            + f9(17) - f9(18)
+             + f9(17) - f9(18)
         sum5 = f9(11) + f9(12) - f9(13) - f9(14) + f9(15) + f9(16)     &
-            - f9(17) - f9(18)
+             - f9(17) - f9(18)
         sum6 = f9(1) + f9(2)
         sum7 = f9(3) + f9(4) + f9(5) + f9(6)
         sum8 = f9(7) + f9(8) + f9(9) + f9(10) + f9(11) + f9(12)        &
-            + f9(13) + f9(14)
+             + f9(13) + f9(14)
         sum9 = f9(15) + f9(16) + f9(17) + f9(18)
         sum10 = f9(3) + f9(4) - f9(5) - f9(6)
         sum11 = f9(7) + f9(8) + f9(9) + f9(10) - f9(11) - f9(12)       &
-            - f9(13) - f9(14)
-
+              - f9(13) - f9(14)
+    
         evlm1 = -30.0*f9(0) + coef2*sum1 + coef3*sum2
         evlm2 = 12.0*f9(0) + coef4*sum1 + sum2
         evlm3 = coef4*(f9(1) - f9(2)) + sum3
@@ -546,12 +122,12 @@
         evlm11 = f9(15) - f9(16) - f9(17) + f9(18)
         evlm12 = f9(11) - f9(12) - f9(13) + f9(14)
         evlm13 = f9(7) - f9(8) + f9(9) - f9(10) - f9(11) + f9(12)      &
-            - f9(13) + f9(14)
+               - f9(13) + f9(14)
         evlm14 =-f9(7) - f9(8) + f9(9) + f9(10) + f9(15) - f9(16)      &
-            + f9(17) - f9(18)
+               + f9(17) - f9(18)
         evlm15 = f9(11) + f9(12) - f9(13) - f9(14) - f9(15) - f9(16)   &
-            + f9(17) + f9(18)
-
+               + f9(17) + f9(18)
+   
         eqmc1 = evlm1 - s1*(evlm1 - eqm1)
         eqmc2 = evlm2 - s2*(evlm2 - eqm2)
         eqmc3 = evlm3 - s4*(evlm3 - eqm3)
@@ -602,10 +178,10 @@
         sumf = -tl12 + coef5*tl13 + tl14 - coef5*tl15
         sumg = tl10 + coef4*tl11
         sumh = -tl12 + coef5*tl13 - tl14 + coef5*tl15
-
+ 
         sumi = tl12 + tl13 + tl14 + tl15
         sumk = tl12 + tl13 - tl14 - tl15
-
+ 
         sump = -coef5*tl12 - coef5*tl13
 
         sum67 = tl6 + tl7
@@ -623,99 +199,153 @@
         f9(8) = sumb - sum67 + sum89 + sumi - tl16 - tl19 - tl20
         f9(9) = sumb + sum67 - sum89 + sumi - tl16 + tl19 + tl20
         f9(10) = sumb - sum67 - sum89 + sumi + tl16 - tl19 + tl20
-
+ 
         f9(11) = sumb + sum67 + sum1011 + sumk + tl18 - tl19 + tl21
         f9(12) = sumb - sum67 + sum1011 + sumk - tl18 + tl19 + tl21
         f9(13) = sumb + sum67 - sum1011 + sumk - tl18 - tl19 - tl21
         f9(14) = sumb - sum67 - sum1011 + sumk + tl18 + tl19 - tl21
-
+ 
         f9(15) = sumb + sum89 + sum1011 + sump + tl17 + tl20 - tl21
         f9(16) = sumb - sum89 + sum1011 + sump - tl17 - tl20 - tl21
         f9(17) = sumb + sum89 - sum1011 + sump - tl17 + tl20 + tl21
         f9(18) = sumb - sum89 - sum1011 + sump + tl17 - tl20 + tl21
-
+        
         !Place updated distributions into post-stream locations
         !If that location is ina MPI neighbor place into proper send buffer
         do ip = 0,npop-1
-            f9(ip) = f9(ip) +0.5*Fbar(ip)
+          imove = ix + cix(ip) 
+          jmove = iy + ciy(ip)
+          kmove = iz + ciz(ip)
+          if(imove < 1 .or. imove > lx)then
+            f(ipopp(ip),ix,iy,iz,snext) = f9(ip) + 0.5*Fbar(ip)
+          elseif(jmove < 1)then
+             tmpymS(ip,imove,kmove) =  f9(ip) + 0.5*Fbar(ip)
+          elseif(jmove > ly)then
+            tmpypS(ip,imove,kmove) = f9(ip) + 0.5*Fbar(ip)
+          elseif(kmove < 1)then
+            tmpzmS(ip,imove,jmove) = f9(ip) + 0.5*Fbar(ip)
+          elseif(kmove > lz)then
+            tmpzpS(ip,imove,jmove) = f9(ip) + 0.5*Fbar(ip)
+          else
+            f(ip,imove,jmove,kmove,snext) = f9(ip) + 0.5*Fbar(ip)
+          endif
         enddo
-        
-      end subroutine collision_MRT9
+      
+      endif
+      end do !x
+      end do !y
+      end do !z
+
+      !Update two-array switch which indicates which array contians the updated distributions
+      if(s .eq. 1)then
+        s = 2
+      else
+        s =1
+      endif
+
+      !Exchange information with MPI neighbors to update edges
+      call collisionExchnge(tmpymS,tmpypS,tmpzmS,tmpzpS)
+
+      end subroutine collision_MRT
 !=============================================================================
 !@subroutine collisionExchnge 
 !@desc Exchanges updated fluid distributions between neighboring MPI tasks and
 !      updates the local domains edges with distributions recieved
-!@param collYmSi,collYpSi,collZmSi,collZpSi = real array; contains fluid
+!@param tmpymSi,tmpypSi,tmpzmSi,tmpzpSi = real array; contains fluid
 !       distributions that need to be passed to nieghboring MPI tasks
 !=============================================================================
-      ! subroutine collisionExchnge
-      ! use var_inc
-      ! use mpi
-      ! implicit none
+      subroutine collisionExchnge(tmpymSi,tmpypSi,tmpzmSi,tmpzpSi)
+      use var_inc
+      use mpi
+      implicit none
 
-      ! integer ilen
-      ! integer status_array(MPI_STATUS_SIZE,4), req(4)
-      ! real, dimension(5,lx,ly):: collZpSi, collZmSi, collZmR, collZpR
+      integer ilen
+      integer status_array(MPI_STATUS_SIZE,4), req(4)
+      real, dimension(0:npop-1,lx,0:lz+1) ::  tmpypSi, tmpymSi
+      real, dimension(0:npop-1,lx,ly)     :: tmpzpSi, tmpzmSi
+      real, dimension(5,lx,0:lz+1):: tmpypS, tmpymS, tmpypR, tmpymR
+      real, dimension(5,lx,ly):: tmpzpS, tmpzmS, tmpzmR, tmpzpR
 
-      ! call MPI_WAITALL(4,collYreq,status_array,ierr)
+      !Create send buffers
+      !Note that we only pass the distributions needed to decrease message size
+      tmpypS(1,:,:) = tmpypSi(3,:,:)
+      tmpypS(2,:,:) = tmpypSi(7,:,:)
+      tmpypS(3,:,:) = tmpypSi(8,:,:)
+      tmpypS(4,:,:) = tmpypSi(15,:,:)
+      tmpypS(5,:,:) = tmpypSi(17,:,:)
 
-      ! !Update local domain Y edge nodes
-      ! !Note we must account for wall bounce back here!
-      ! f(3,:,1,:) = collYmR(1,:,1:lz)
-      ! f(7,2:lx,1,:) = collYmR(2,2:lx,1:lz)
-      ! f(8,1:lx-1,1,:) = collYmR(3,1:lx-1,1:lz)
-      ! f(15,:,1,:) = collYmR(4,:,1:lz)
-      ! f(17,:,1,:) = collYmR(5,:,1:lz)
+      tmpymS(1,:,:) = tmpymSi(4,:,:)
+      tmpymS(2,:,:) = tmpymSi(9,:,:)
+      tmpymS(3,:,:) = tmpymSi(10,:,:)
+      tmpymS(4,:,:) = tmpymSi(16,:,:)
+      tmpymS(5,:,:) = tmpymSi(18,:,:)
 
-      ! f(4,:,ly,:) = collYpR(1,:,1:lz)
-      ! f(9,2:lx,ly,:) = collYpR(2,2:lx,1:lz)
-      ! f(10,1:lx-1,ly,:) = collYpR(3,1:lx-1,1:lz)
-      ! f(16,:,ly,:) = collYpR(4,:,1:lz)
-      ! f(18,:,ly,:) = collYpR(5,:,1:lz)
+      ilen = 5 * lx * (lz + 2)
+      !Send/Recieve updated distributions with Y MPI neighbors
+      call MPI_IRECV(tmpymR,ilen,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(1),ierr)
+      call MPI_IRECV(tmpypR,ilen,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(2),ierr)
+
+      call MPI_ISEND(tmpymS,ilen,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(3),ierr)
+      call MPI_ISEND(tmpypS,ilen,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(4),ierr)
+      call MPI_WAITALL(4,req,status_array,ierr)
+
+      !Update local domain Y edge nodes
+      !Note we must account for wall bounce back here!
+      f(3,:,1,:,s) = tmpymR(1,:,1:lz)
+      f(7,2:lx,1,:,s) = tmpymR(2,2:lx,1:lz)
+      f(8,1:lx-1,1,:,s) = tmpymR(3,1:lx-1,1:lz)
+      f(15,:,1,:,s) = tmpymR(4,:,1:lz)
+      f(17,:,1,:,s) = tmpymR(5,:,1:lz)
+
+      f(4,:,ly,:,s) = tmpypR(1,:,1:lz)
+      f(9,2:lx,ly,:,s) = tmpypR(2,2:lx,1:lz)
+      f(10,1:lx-1,ly,:,s) = tmpypR(3,1:lx-1,1:lz)
+      f(16,:,ly,:,s) = tmpypR(4,:,1:lz)
+      f(18,:,ly,:,s) = tmpypR(5,:,1:lz)
       
-      ! !Add corner distributions to Z buffer
-      ! collZmS(17,:,1) = collYmR(5,:,0)
-      ! collZmS(18,:,ly) = collYpR(5,:,0)
-      ! collZpS(15,:,1) = collYmR(4,:,lz+1)
-      ! collZpS(16,:,ly) = collYpR(4,:,lz+1)
+      !Add corner distributions to Z buffer
+      tmpzmSi(17,:,1) = tmpymR(5,:,0)
+      tmpzmSi(18,:,ly) = tmpypR(5,:,0)
+      tmpzpSi(15,:,1) = tmpymR(4,:,lz+1)
+      tmpzpSi(16,:,ly) = tmpypR(4,:,lz+1)
 
-      ! !Add local data to Z send buffers
-      ! collZpSi(1,:,:) = collZpS(5,:,:)
-      ! collZpSi(2,:,:) = collZpS(11,:,:)
-      ! collZpSi(3,:,:) = collZpS(12,:,:)
-      ! collZpSi(4,:,:) = collZpS(15,:,:)
-      ! collZpSi(5,:,:) = collZpS(16,:,:)
+      !Add local data to Z send buffers
+      tmpzpS(1,:,:) = tmpzpSi(5,:,:)
+      tmpzpS(2,:,:) = tmpzpSi(11,:,:)
+      tmpzpS(3,:,:) = tmpzpSi(12,:,:)
+      tmpzpS(4,:,:) = tmpzpSi(15,:,:)
+      tmpzpS(5,:,:) = tmpzpSi(16,:,:)
 
-      ! collZmSi(1,:,:) = collZmS(6,:,:)
-      ! collZmSi(2,:,:) = collZmS(13,:,:)
-      ! collZmSi(3,:,:) = collZmS(14,:,:)
-      ! collZmSi(4,:,:) = collZmS(17,:,:)
-      ! collZmSi(5,:,:) = collZmS(18,:,:)
+      tmpzmS(1,:,:) = tmpzmSi(6,:,:)
+      tmpzmS(2,:,:) = tmpzmSi(13,:,:)
+      tmpzmS(3,:,:) = tmpzmSi(14,:,:)
+      tmpzmS(4,:,:) = tmpzmSi(17,:,:)
+      tmpzmS(5,:,:) = tmpzmSi(18,:,:)
 
-      ! ilen = 5*lx*ly
-      ! !Send/Recieve updated distributions with Z MPI neighbors
-      ! call MPI_IRECV(collZmR,ilen,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(1),ierr)
-      ! call MPI_IRECV(collZpR,ilen,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(2),ierr)
+      ilen = 5*lx*ly
+      !Send/Recieve updated distributions with Z MPI neighbors
+      call MPI_IRECV(tmpzmR,ilen,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(1),ierr)
+      call MPI_IRECV(tmpzpR,ilen,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(2),ierr)
 
-      ! call MPI_ISEND(collZmSi,ilen,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(3),ierr)
-      ! call MPI_ISEND(collZpSi,ilen,MPI_REAL8,mzp,0,MPI_COMM_WORLD,req(4),ierr)
-      ! call MPI_WAITALL(4,req,status_array,ierr)
+      call MPI_ISEND(tmpzmS,ilen,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(3),ierr)
+      call MPI_ISEND(tmpzpS,ilen,MPI_REAL8,mzp,0,MPI_COMM_WORLD,req(4),ierr)
+      call MPI_WAITALL(4,req,status_array,ierr)
 
-      ! !Update local domain Z edge nodes
-      ! !Note we must account for wall bounce back here!
-      ! f(5,:,:,1) = collZmR(1,:,:)
-      ! f(11,2:lx,:,1) = collZmR(2,2:lx,:)
-      ! f(12,1:lx-1,:,1) = collZmR(3,1:lx-1,:)
-      ! f(15,:,:,1) = collZmR(4,:,:)
-      ! f(16,:,:,1) = collZmR(5,:,:)
+      !Update local domain Z edge nodes
+      !Note we must account for wall bounce back here!
+      f(5,:,:,1,s) = tmpzmR(1,:,:)
+      f(11,2:lx,:,1,s) = tmpzmR(2,2:lx,:)
+      f(12,1:lx-1,:,1,s) = tmpzmR(3,1:lx-1,:)
+      f(15,:,:,1,s) = tmpzmR(4,:,:)
+      f(16,:,:,1,s) = tmpzmR(5,:,:)
 
-      ! f(6,:,:,lz) = collZpR(1,:,:)
-      ! f(13,2:lx,:,lz) = collZpR(2,2:lx,:)
-      ! f(14,1:lx-1,:,lz) = collZpR(3,1:lx-1,:)
-      ! f(17,:,:,lz) = collZpR(4,:,:)
-      ! f(18,:,:,lz) = collZpR(5,:,:)
+      f(6,:,:,lz,s) = tmpzpR(1,:,:)
+      f(13,2:lx,:,lz,s) = tmpzpR(2,2:lx,:)
+      f(14,1:lx-1,:,lz,s) = tmpzpR(3,1:lx-1,:)
+      f(17,:,:,lz,s) = tmpzpR(4,:,:)
+      f(18,:,:,lz,s) = tmpzpR(5,:,:)
 
-      ! end subroutine collisionExchnge
+      end subroutine
 !=============================================================================
 !@subroutine macrovar 
 !@desc Calculates macroscopic fluid properties density(rho), x-velocity(ux),
@@ -739,7 +369,7 @@
       do ix = 1,lx
         if(ibnodes(ix,iy,iz) < 0)then
           !If we are not inside a solid particle
-          f9 = f(:,ix,iy,iz)
+          f9 = f(:,ix,iy,iz,s)
 
           sum1 = f9(7) - f9(10)
           sum2 = f9(9) - f9(8)
@@ -818,9 +448,9 @@
 
       integer ip
 
-      rho = f(0,:,:,:)
+      rho = f(0,:,:,:,s)
       do ip = 1,npop-1
-        rho = rho + f(ip,:,:,:)
+        rho = rho + f(ip,:,:,:,s)
       end do
 
       end subroutine rhoupdat 

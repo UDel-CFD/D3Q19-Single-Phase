@@ -14,16 +14,18 @@
 !=======================================================
       ! true: if a entirely new run is desired
       ! false: wish to load an old flow
-      newrun = .true.
+      newrun = .false.
       ! true: if one wants to load an old pre-relaxed flow
       ! false: wish to load an previous simulaiton
-      newinitflow = .true. 
+      newinitflow = .false. 
 
       ! Initial timestep one want to load flow/ particle data from
       ! It can be any step # at which the "endrunflow" & "endrunpart" data are saved
-      istpload = 0
+      istpload = 1700000
       ! Number of time steps in main loop
-      nsteps = 100
+      nsteps = 5000
+
+      s = 1 !Global switch used for 2-array algorithm
 
       istep0 = 0
       istep00 = 1 
@@ -179,16 +181,12 @@
       ciz = (/0, 0, 0, 0, 0,  1,-1,0, 0, 0, 0,1, 1,-1,-1,1, 1,-1,-1/) 
       
       !Arrray used for finding the opposite velocity
-      ipopp=(/0, 2, 1, 4, 3, 6, 5, 10, 9, 8, 7, 14, 13, 12, 11, 18, 17, 16, 15/)
-      
-      !Arrray used for swap collision
-      ipswap=(/2,4,6,9,10,13,14,17,18/)
-      ipstay=(/0,1,3,5,7,8,11,12,15,16/) 
+      ipopp=(/0, 2, 1, 4, 3, 6, 5, 10, 9, 8, 7, 14, 13, 12, 11, 18, 17, 16, 15/) 
 
 !=======================================================
 ! Create MPI topology
 !=======================================================
-      nprocY = 20 !MPI topology width
+      nprocY = 30 !MPI topology width
       nprocZ = nproc/nprocY !MPI topology height
 
       ly = ny/nprocY         !local division of dist for procs in y dir
@@ -228,10 +226,10 @@
 !=======================================================
 ! Declare reading and writing directories
 !=======================================================
-      dircntdflow0 = trim('/glade/scratch/ngeneva/SwapTesting/')
-      dircntdpart0 = trim('/glade/scratch/ngeneva/SwapTesting/')
+      dircntdflow0 = trim('/glade/scratch/cpeng/Channel_MRT_New5/')
+      dircntdpart0 = trim('/glade/scratch/cpeng/Channel_MRT_New5/')
 
-      dirgenr = '/glade/scratch/ngeneva/SwapTesting/'
+      dirgenr = '/glade/scratch/ngeneva/Channel_MRT_New5/'
       dirdiag = trim(dirgenr)//'diag/'
       dirstat = trim(dirgenr)//'stat/'
       dirprobe = trim(dirgenr)//'probe/'
@@ -364,7 +362,7 @@
       use var_inc
       implicit none
 
-      allocate (f(0:npop-1,lx,ly,lz))
+      allocate (f(0:npop-1,lx,ly,lz,2))
       allocate (rho(lx,ly,lz))
       allocate (rhop(lx,ly,lz))
       allocate (ux(lx,ly,lz))
@@ -385,14 +383,10 @@
       allocate (wy(lx+2,ly+lyext,lz))
       allocate (wz(lx+2,ly+lyext,lz))
       allocate (ibnodes(0:lx+1,0:ly+1,0:lz+1))
-      allocate (force_realx(lx,ly,lz))
-      allocate (force_realy(lx,ly,lz))
-      allocate (force_realz(lx,ly,lz))
-      
-      allocate (collZpS(0:npop-1,lx,ly))
-      allocate (collZmS(0:npop-1,lx,ly))
-      allocate (collYpS(0:npop-1,lx,0:lz+1))
-      allocate (collYmS(0:npop-1,lx,0:lz+1))
+      allocate(force_realx(lx,ly,lz))
+      allocate(force_realy(lx,ly,lz))
+      allocate(force_realz(lx,ly,lz))
+
       ibnodes = -1
 
       if(ipart)then !If particles are being used
