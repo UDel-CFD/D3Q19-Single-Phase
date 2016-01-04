@@ -14,18 +14,16 @@
 !=======================================================
       ! true: if a entirely new run is desired
       ! false: wish to load an old flow
-      newrun = .false.
+      newrun = .true.
       ! true: if one wants to load an old pre-relaxed flow
       ! false: wish to load an previous simulaiton
-      newinitflow = .false. 
+      newinitflow = .true. 
 
       ! Initial timestep one want to load flow/ particle data from
       ! It can be any step # at which the "endrunflow" & "endrunpart" data are saved
-      istpload = 1700000
+      istpload = 0
       ! Number of time steps in main loop
-      nsteps = 5000
-
-      s = 1 !Global switch used for 2-array algorithm
+      nsteps = 100
 
       istep0 = 0
       istep00 = 1 
@@ -181,12 +179,16 @@
       ciz = (/0, 0, 0, 0, 0,  1,-1,0, 0, 0, 0,1, 1,-1,-1,1, 1,-1,-1/) 
       
       !Arrray used for finding the opposite velocity
-      ipopp=(/0, 2, 1, 4, 3, 6, 5, 10, 9, 8, 7, 14, 13, 12, 11, 18, 17, 16, 15/) 
+      ipopp=(/0, 2, 1, 4, 3, 6, 5, 10, 9, 8, 7, 14, 13, 12, 11, 18, 17, 16, 15/)
+      
+      !Arrray used for swap collision
+      ipswap=(/2,4,6,9,10,13,14,17,18/)
+      ipstay=(/0,1,3,5,7,8,11,12,15,16/) 
 
 !=======================================================
 ! Create MPI topology
 !=======================================================
-      nprocY = 30 !MPI topology width
+      nprocY = 20 !MPI topology width
       nprocZ = nproc/nprocY !MPI topology height
 
       ly = ny/nprocY         !local division of dist for procs in y dir
@@ -226,10 +228,10 @@
 !=======================================================
 ! Declare reading and writing directories
 !=======================================================
-      dircntdflow0 = trim('/glade/scratch/cpeng/Channel_MRT_New5/')
-      dircntdpart0 = trim('/glade/scratch/cpeng/Channel_MRT_New5/')
+      dircntdflow0 = trim('/glade/scratch/ngeneva/SwapTesting/')
+      dircntdpart0 = trim('/glade/scratch/ngeneva/SwapTesting/')
 
-      dirgenr = '/glade/scratch/ngeneva/Channel_MRT_New5/'
+      dirgenr = '/glade/scratch/ngeneva/SwapTesting/'
       dirdiag = trim(dirgenr)//'diag/'
       dirstat = trim(dirgenr)//'stat/'
       dirprobe = trim(dirgenr)//'probe/'
@@ -362,7 +364,7 @@
       use var_inc
       implicit none
 
-      allocate (f(0:npop-1,lx,ly,lz,2))
+      allocate (f(0:npop-1,lx,ly,lz))
       allocate (rho(lx,ly,lz))
       allocate (rhop(lx,ly,lz))
       allocate (ux(lx,ly,lz))

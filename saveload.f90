@@ -50,7 +50,7 @@
                form = 'unformatted')
 
       write(10) istep
-      write(10) f(:,:,:,:,s), rho
+      write(10) f(:,:,:,:), rho
       write(10) ux, uy, uz
 
       close(10)
@@ -76,7 +76,7 @@
                form = 'unformatted')
 
       read(10) istep
-      read(10) f(:,:,:,:,s), rho
+      read(10) f(:,:,:,:), rho
       read(10) ux, uy, uz
 
       close(10)
@@ -102,7 +102,7 @@
                form = 'unformatted')
 
       write(10) istat 
-      write(10) f(:,:,:,:,s)
+      write(10) f(:,:,:,:)
 
       close(10)
 
@@ -138,7 +138,7 @@
 
       close(10)
       
-      f(:,:,:,:,s) = f9   
+      f(:,:,:,:) = f9   
 
 ! output double precision f9 to ascii format
 !      fnm = trim(dirinitflow)//'real4_02/finit.'                       &
@@ -209,7 +209,7 @@
                form = 'unformatted')
 
       write(12) istep, istat, imovie 
-      write(12) f(:,:,:,:,s)
+      write(12) f(:,:,:,:)
 
       close(12)
 
@@ -311,7 +311,7 @@
                form = 'unformatted')
 
       read(12) istep0, istat, imovie 
-      read(12) f(:,:,:,:,s)
+      read(12) f(:,:,:,:)
 
       close(12)
 
@@ -362,7 +362,7 @@
         read(12) f9
         close(12)
 
-        f(:,:,:,1+ii*lz9:(ii+1)*lz9,s) = f9
+        f(:,:,:,1+ii*lz9:(ii+1)*lz9) = f9
       end do
 
       deallocate (f9)
@@ -413,7 +413,7 @@
       read(12) f9
       close(12)
 
-      f(:,:,:,:,s) = f9(:,:,:,1+ii*lz:(ii+1)*lz)
+      f(:,:,:,:) = f9(:,:,:,1+ii*lz:(ii+1)*lz)
 
       deallocate (f9)
 
@@ -1986,7 +1986,7 @@
       do ix = 1,lx
       if(ibnodes(ix,iy,iz) < 0)then
 
-        f9 = f(:,ix,iy,iz,s)
+        f9 = f(:,ix,iy,iz)
 
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
@@ -2278,7 +2278,7 @@
       do ix = 1,lx
       if(ibnodes(ix,iy,iz) < 0)then
 
-        f9 = f(:,ix,iy,iz,s)
+        f9 = f(:,ix,iy,iz)
 
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
@@ -2357,7 +2357,7 @@
         feq(ip,:,:,:) = ww2*(rho + 3.0*edtu + 4.5*edtu**2 - usqr)
       end do
 
-      fneq = f(:,:,:,:,s) - feq
+      fneq = f(:,:,:,:) - feq
 
       do iz = 1,lz
       do iy = 1,ly
@@ -2636,7 +2636,7 @@
       do ix = 1,lx
       if(ibnodes(ix,iy,iz) < 0)then
 
-        f9 = f(:,ix,iy,iz,s)
+        f9 = f(:,ix,iy,iz)
 
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
@@ -2711,7 +2711,7 @@
         Syz = 0.0
         Szx = 0.0
 
-        f9 = f(:,ix,iy,iz,s)
+        f9 = f(:,ix,iy,iz)
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
         uy9 = uy(ix,iy,iz)
@@ -3016,7 +3016,7 @@
 ! Method 1: calculate in the moment space.
 ! see Yu H. et al. Computers & Fluids 35, pp. 957-965, 2006, Appendix.
 
-        f9 = f(:,ix,iy,iz,s)
+        f9 = f(:,ix,iy,iz)
 
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
@@ -3446,7 +3446,7 @@
 ! Method 1: calculate in the moment space.
 ! see Yu H. et al. Computers & Fluids 35, pp. 957-965, 2006, Appendix.
 
-        f9 = f(:,ix,iy,iz,s)
+        f9 = f(:,ix,iy,iz)
 
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
@@ -3875,8 +3875,8 @@
        do k9 = 2,31
        do j9 = 2,31
        do i9 = 1,64
-       write(60,600)i9,j9,k9,ibnodes(i9,j9,k9),f(1,i9,j9,k9,s),f(2,i9,j9,k9,s) &
-                   ,f(3,i9,j9,k9,s),f(4,i9,j9,k9,s)
+       write(60,600)i9,j9,k9,ibnodes(i9,j9,k9),f(1,i9,j9,k9),f(2,i9,j9,k9) &
+                   ,f(3,i9,j9,k9),f(4,i9,j9,k9)
        end do
        end do
        end do
@@ -4652,7 +4652,7 @@
 
 ! 1, in moment space
 
-        f9 = f(:,ix,iy,iz,s)
+        f9 = f(:,ix,iy,iz)
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
         uy9 = uy(ix,iy,iz)
