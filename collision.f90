@@ -34,6 +34,8 @@
       do iz = 1,lz
       do iy = 1,ly
       do ix = 1,lx
+        
+      if(ibnodes(ix,iy,iz) > 0) goto 111
       !If we are not in a solid particle execute collision
         rho9 = rho(ix,iy,iz)
         ux9 = ux(ix,iy,iz)
@@ -202,7 +204,28 @@
         f9(18) = sumb - sum89 - sum1011 + sump + tl17 - tl20 + tl21
         
         !Place updated distributions into post-stream locations
-        !If that location is ina MPI neighbor place into proper send buffer
+        !If that location is ina MPI neighbor place into proper send buffer     
+        do ipi = 1,10
+          ip = ipstay(ipi)  
+          imove = ix + cix(ip) 
+          jmove = iy + ciy(ip)
+          kmove = iz + ciz(ip)
+          if(imove < 1 .or. imove > lx)then
+            f(ipopp(ip),ix,iy,iz) = f9(ip) + 0.5*Fbar(ip)
+          elseif(jmove < 1)then
+             tmpymS(ip,imove,kmove) =  f9(ip) + 0.5*Fbar(ip)
+          elseif(jmove > ly)then
+            tmpypS(ip,imove,kmove) = f9(ip) + 0.5*Fbar(ip)
+          elseif(kmove < 1)then
+            tmpzmS(ip,imove,jmove) = f9(ip) + 0.5*Fbar(ip)
+          elseif(kmove > lz)then
+            tmpzpS(ip,imove,jmove) = f9(ip) + 0.5*Fbar(ip)
+          else
+            f(ipopp(ip),ix,iy,iz) = f9(ip) + 0.5*Fbar(ip)
+          endif
+        enddo
+
+111     continue        
         do ipi = 1,9
           ip = ipswap(ipi)
           imove = ix + cix(ip) 
@@ -221,26 +244,6 @@
           else
             f(ipopp(ip),ix,iy,iz) = f(ip,imove,jmove,kmove)
             f(ip,imove,jmove,kmove) = f9(ip) + 0.5*Fbar(ip)
-          endif
-        enddo
-        
-        do ipi = 1,10
-          ip = ipstay(ipi)  
-          imove = ix + cix(ip) 
-          jmove = iy + ciy(ip)
-          kmove = iz + ciz(ip)
-          if(imove < 1 .or. imove > lx)then
-            f(ipopp(ip),ix,iy,iz) = f9(ip) + 0.5*Fbar(ip)
-          elseif(jmove < 1)then
-             tmpymS(ip,imove,kmove) =  f9(ip) + 0.5*Fbar(ip)
-          elseif(jmove > ly)then
-            tmpypS(ip,imove,kmove) = f9(ip) + 0.5*Fbar(ip)
-          elseif(kmove < 1)then
-            tmpzmS(ip,imove,jmove) = f9(ip) + 0.5*Fbar(ip)
-          elseif(kmove > lz)then
-            tmpzpS(ip,imove,jmove) = f9(ip) + 0.5*Fbar(ip)
-          else
-            f(ipopp(ip),ix,iy,iz) = f9(ip) + 0.5*Fbar(ip)
           endif
         enddo
       
