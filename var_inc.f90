@@ -27,7 +27,7 @@
       integer(kind = 8):: plan_RC, plan_CR, plan_F, plan_B  
       
       !Domain size paramters
-      integer,parameter:: nx7=200,nx = nx7-1, ny = 2*nx7, nz = nx7
+      integer,parameter:: nx7=100,nx = nx7-1, ny = nx7-3, nz = nx7
       integer,parameter:: lx = nx
       integer,parameter:: lxh = lx/2, lyh = ny/2
       integer,parameter:: nxh = nx7/2, nyh = ny/2, nzh = nz/2
@@ -35,7 +35,7 @@
 
       !Diagnostic and data output paramters
       integer,parameter:: ndiag = 250, nstat = 1000  , nspec=1000
-      integer,parameter:: nflowout = 5000, npartout = 5000, ntime = 100
+      integer,parameter:: nflowout = 1000, npartout = 5000, ntime = 100
       integer,parameter:: nmovieout = 20000000, nsij = 100    
 
       !Other fluid/ particle related parameters
@@ -73,25 +73,6 @@
       real stf0, stf1, stf0_w, stf1_w
       real time_start, time_end, time_diff, time_max,      &
                        time_lmt, time_buff, time_bond
-      real time1,time2,time_coll,time_strea,time_macro,   &
-           time_collmax,time_streamax,time_macromax,      &
-           time_collmin,time_streamin,time_macromin,      &
-           time_stXp,time_stXm,time_stYp,time_stYm, &
-           time_stZp,time_stZm,    &
-           time_stXpmax,time_stXmmax,time_stYpmax,time_stYmmax, &
-           time_stZpmax,time_stZmmax,    &
-           time_stXpmin,time_stXmmin,time_stYpmin,time_stYmmin, &
-           time_stZpmin,time_stZmmin
-      real time_stream_start,time_stream_end,time_stream,  &
-            time_stream_start2,time_stream_end2, time_stream2
-      real time_stream_max, time_stream_avg, time_stream_sum
-      real time_collcum,time_streacum,time_macrocum
-      real time_bcol,time_blub,time_bmov,time_bred,time_blin, &
-           time_bfil,time_diffmax,time_diffcum
-      real time_bcolmax,time_blubmax,time_bmovmax,time_bredmax, &
-           time_blinmax,time_bfilmax
-      real time_bcolcum,time_blubcum,time_bmovcum,time_bredcum, &
-           time_blincum,time_bfilcum 
       integer,dimension(0:npop-1):: cix, ciy, ciz, ipopp
       integer,dimension(NTAB):: ivp 
       real,dimension(npop-1):: wwp
@@ -102,6 +83,7 @@
       real,dimension(ny)     :: kyr,kzr
       real,allocatable,dimension(:,:,:):: force_realx,force_realy,force_realz
 
+      integer,allocatable,dimension(:)::mpily, mpilz
       integer,allocatable,dimension(:,:,:):: ik2 
       integer,allocatable,dimension(:):: icouples 
       integer,allocatable,dimension(:):: ipglb, ovlpflag, ovlpflagt

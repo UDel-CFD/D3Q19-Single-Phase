@@ -688,20 +688,22 @@
 
 !      call ibnodeassmbl(ibnodes9)
 
-      call outputux
+      !call outputux
 
       call outputuy
 
-      call outputuz
+      !call outputuz
 
-      call outputpress
+      !call outputpress
 
-      call outputvort
+      !call outputvort
 
       end subroutine outputflow   
-!===========================================================================
-
-! This subroutine has already been modified for 2D DD
+!=============================================================================
+!@subroutine ibnodeassmbl
+!@desc Collects all ibnodes data from all MPI tasks to be used in the remaining
+!      output flow subroutines
+!=============================================================================
       subroutine ibnodeassmbl(ibnodes9) 
       use mpi
       use var_inc
@@ -709,156 +711,174 @@
 
       integer,allocatable,dimension(:,:,:):: ibnodes9
       integer,allocatable,dimension(:,:,:):: ibnodes1
-
-      integer ip, ilen, indy9, indz9
+      integer ip, i, ilen, indy1, indz1, indy9, indz9
       integer status(MPI_STATUS_SIZE)
+        
       if (myid .eq. 0) then
-      allocate(ibnodes9(1:lx,1:ny,1:nz))
-      allocate(ibnodes1(1:lx,1:ly,1:lz))
+        allocate(ibnodes9(1:lx,1:ny,1:nz))
       end if
+      !Collect all ibnodes data if solid particles are present
       if(ipart)then
-        ilen = lx*ly*lz
-
         if(myid == 0)then
           ibnodes9(:,1:ly,1:lz) = ibnodes(1:lx,1:ly,1:lz) 
-
           do ip = 1,nproc-1
-            call MPI_RECV(ibnodes1,ilen,MPI_INTEGER,ip,1,              &
-                          MPI_COMM_WORLD,status,ierr)
+            !We must account for different local domain sizes
+            ilen = lx*mpily(ip)*mpilz(ip)
+            allocate(ibnodes1(1:lx,1:mpily(ip),1:mpilz(ip)))
+            
+            call MPI_RECV(ibnodes1,ilen,MPI_INTEGER,ip,1,MPI_COMM_WORLD,status,ierr)
 
-       indy9 = mod(ip,nprocY)
-       indz9 = int(ip/nprocY)
-
-       ibnodes9(1:lx,indy9*ly+1:indy9*ly+ly,indz9*lz+1:indz9*lz+lz)=ibnodes1 
-       end do
-
-       else
-          call MPI_SEND(ibnodes,ilen,MPI_INTEGER,0,1,                  &
-                        MPI_COMM_WORLD,ierr)
-
-       deallocate(ibnodes9)
-       deallocate(ibnodes1)
-       end if
-
-      else
-
+            indy1 = mod(ip,nprocY)
+            indz1 = int(ip/nprocY)
+            indy9 = 0
+            indz9 = 0
+            do i = 0, indy1-1
+              indy9 = indy9 + mpily(indz1*nprocY + i)
+            enddo
+            do i = 0, indz1-1
+              indz9 = indz9 + mpilz(i*nprocY + indy1)
+            enddo
+            ibnodes9(1:lx,indy9+1:indy9+mpily(ip),indz9+1:indz9+mpilz(ip))=ibnodes1
+            deallocate(ibnodes1)
+            end do
+        else
+          ilen = lx*ly*lz
+          call MPI_SEND(ibnodes,ilen,MPI_INTEGER,0,1,MPI_COMM_WORLD,ierr)
+          deallocate(ibnodes9)
+        end if
+      else !If no solid particles set all to -1
         ibnodes9 = -1
-      
       end if
 
-      end subroutine ibnodeassmbl      
-!===========================================================================
-
-! This has been modified for 2D DD
+      end subroutine ibnodeassmbl        
+!=============================================================================
+!@subroutine outputux
+!@desc Collects all x velocit data from all MPI tasks and writes to file
+!=============================================================================
       subroutine outputux   
       use mpi 
       use var_inc
       implicit none
 
-
-      integer ip, ilen, indy9, indz9
+      integer ip,i,j,k,ilen,indy1,indz1,indy9,indz9
       integer status(MPI_STATUS_SIZE)
       integer istp1, istp2, istp3, istp4, istp5, istp6, istp7
-      
+      real xx0,zz0,rr0,uu9
       real,allocatable,dimension(:,:,:):: ux9
       real,allocatable,dimension(:,:,:):: ux0
 
       character (len = 120):: fnm
 
-      ilen = lx*ly*lz
-
+      !Collect velocity data from all MPI tasks
       if(myid == 0)then
+        allocate(ux9(1:lx,1:ny,1:nz))
+        ux9(:,:,1:lz) = ux
 
-       allocate(ux9(1:lx,1:ny,1:nz))
-       allocate(ux0(1:lx,1:ly,1:lz))
+        do ip = 1,nproc-1
+          !We must account for different local domain sizes
+          ilen = lx*mpily(ip)*mpilz(ip)
+          allocate(ux0(1:lx,1:mpily(ip),1:mpilz(ip)))
+          
+          call MPI_RECV(ux0,ilen,MPI_REAL8,ip,1,MPI_COMM_WORLD,status,ierr)
+         
+          indy1 = mod(ip,nprocY)
+          indz1 = int(ip/nprocY)
+          indy9 = 0
+          indz9 = 0
+          do i = 0, indy1-1
+            indy9 = indy9 + mpily(indz1*nprocY + i)
+          enddo
+          do i = 0, indz1-1
+            indz9 = indz9 + mpilz(i*nprocY + indy1)
+          enddo
+          ux9(:,indy9+1:indy9+mpily(ip),indz9+1:indz9+mpilz(ip)) = ux0
+          deallocate(ux0)       
+         end do
+       else
+         ilen = lx*ly*lz
+         call MPI_SEND(ux,ilen,MPI_REAL8,0,1,MPI_COMM_WORLD,ierr)
+       end if
 
-       ux9(:,:,1:lz) = ux
-
-       do ip = 1,nproc-1
-         call MPI_RECV(ux0,ilen,MPI_REAL8,ip,1,MPI_COMM_WORLD,status,ierr)
-
-      indy9 = mod(ip,nprocY)
-      indz9 = int(ip/nprocY)
-      ux9(:,indy9*ly+1:indy9*ly+ly,indz9*lz+1:indz9*lz+lz) = ux0          
-      end do
-
-      else
-       call MPI_SEND(ux,ilen,MPI_REAL8,0,1,MPI_COMM_WORLD,ierr)
-      end if
-
-      if(myid == 0)then
-
-! zero out the velocity inside particle for plot purpose
+       if(myid == 0)then
+         !Zero out the velocity inside particle for plot purpose
 !        where(ibnodes9 > 0) ux9 = 0.0
+            
+         istp1 = istep / 1000000
+         istp2 = mod(istep,1000000) / 100000
+         istp3 = mod(istep,100000) / 10000
+         istp4 = mod(istep,10000) / 1000
+         istp5 = mod(istep,1000) / 100
+         istp6 = mod(istep,100) / 10
+         istp7 = mod(istep,10)    
 
-        istp1 = istep / 1000000
-        istp2 = mod(istep,1000000) / 100000
-        istp3 = mod(istep,100000) / 10000
-        istp4 = mod(istep,10000) / 1000
-        istp5 = mod(istep,1000) / 100
-        istp6 = mod(istep,100) / 10
-        istp7 = mod(istep,10)    
+         fnm = trim(dirflowout)//'ux'                                   &
+         //char(istp1 + 48)//char(istp2 + 48)//char(istp3 + 48)     &
+         //char(istp4 + 48)//char(istp5 + 48)//char(istp6 + 48)     &
+         //char(istp7 + 48)//'.dat' 
 
-        fnm = trim(dirflowout)//'ux'                                   &
-            //char(istp1 + 48)//char(istp2 + 48)//char(istp3 + 48)     &
-            //char(istp4 + 48)//char(istp5 + 48)//char(istp6 + 48)     &
-            //char(istp7 + 48)//'.dat' 
-
-        open(16, file = trim(fnm), status = 'unknown',                 &
-                 form = 'formatted')
-
-        write(16,160) ux9 
+         open(16, file = trim(fnm), status = 'unknown',                 &
+                  form = 'formatted')
+        
+         write(16,160) ux9 
 
         close(16)
        deallocate(ux9)
-       deallocate(ux0)
 
       end if
 
 160   format(2x,8(1pe16.6))
-
       end subroutine outputux   
-!===========================================================================
-
+!=============================================================================
+!@subroutine outputuy
+!@desc Collects all y velocity data from all MPI tasks and writes to file
+!=============================================================================
       subroutine outputuy 
       use mpi 
       use var_inc
       implicit none
 
-
-      integer ip, ilen, indy9, indz9
+      integer ip,i,j,k,n,ilen,indy1,indz1,indy9,indz9
       integer status(MPI_STATUS_SIZE)
       integer istp1, istp2, istp3, istp4, istp5, istp6, istp7
+      real uuss, uut, xx0, time1
       
       real,allocatable,dimension(:,:,:):: uy9
       real,allocatable,dimension(:,:,:):: uy0
+      character (len = 120):: fnm, fnm2
 
-      character (len = 120):: fnm
-
-      ilen = lx*ly*lz
-
+      !Collect velocities for every MPI task
       if(myid == 0)then
-
         allocate(uy9(1:lx,1:ny,1:nz))
-        allocate(uy0(1:lx,1:ly,1:lz))
-        uy9(:,:,1:lz) = uy   
+        uy9(:,1:ly,1:lz) = uy   
 
         do ip = 1,nproc-1
+          !We must account for different local domain sizes
+          ilen = lx*mpily(ip)*mpilz(ip)
+          allocate(uy0(1:lx,1:mpily(ip),1:mpilz(ip)))
           call MPI_RECV(uy0,ilen,MPI_REAL8,ip,1,MPI_COMM_WORLD,status,ierr)
-
-      indy9 = mod(ip,nprocY)
-      indz9 = int(ip/nprocY)
-          uy9(:,indy9*ly+1:indy9*ly+ly,indz9*lz+1:indz9*lz+lz) = uy0          
+          
+          indy1 = mod(ip,nprocY)
+          indz1 = int(ip/nprocY)
+          indy9 = 0
+          indz9 = 0
+          do i = 0, indy1-1
+            indy9 = indy9 + mpily(indz1*nprocY + i)
+          enddo
+          do i = 0, indz1-1
+            indz9 = indz9 + mpilz(i*nprocY + indy1)
+          enddo
+          
+          uy9(:,indy9+1:indy9+mpily(ip),indz9+1:indz9+mpilz(ip)) = uy0
+          deallocate(uy0)        
         end do
-
       else
+        ilen = lx*ly*lz
         call MPI_SEND(uy,ilen,MPI_REAL8,0,1,MPI_COMM_WORLD,ierr)
       end if
 
       if(myid == 0)then
-
-! zero out the velocity inside particle for plot purpose
-!        where(ibnodes9 > 0) uy9 = 0.0
+        ! zero out the velocity inside particle for plot purpose
+        !where(ibnodes9 > 0) uy9 = 0.0
 
         istp1 = istep / 1000000
         istp2 = mod(istep,1000000) / 100000
@@ -868,7 +888,12 @@
         istp6 = mod(istep,100) / 10
         istp7 = mod(istep,10)    
 
-        fnm = trim(dirflowout)//'uy'                                   &
+        fnm = trim(dirflowout)//'uy_profile'                           &
+            //char(istp1 + 48)//char(istp2 + 48)//char(istp3 + 48)     &
+            //char(istp4 + 48)//char(istp5 + 48)//char(istp6 + 48)     &
+            //char(istp7 + 48)//'.dat' 
+
+        fnm2 = trim(dirflowout)//'uy'                                   &
             //char(istp1 + 48)//char(istp2 + 48)//char(istp3 + 48)     &
             //char(istp4 + 48)//char(istp5 + 48)//char(istp6 + 48)     &
             //char(istp7 + 48)//'.dat' 
@@ -876,58 +901,87 @@
         open(17, file = trim(fnm), status = 'unknown',                 &
                  form = 'formatted')
 
-        write(17,170) uy9 
+        !open(18, file = trim(fnm2), status = 'unknown',                 &
+        !         form = 'formatted')
 
+        !Output streamwise profile with theoretical solutions
+        time1 = istep*visc/((real(nx)/2.d0)**2)
+        do i = 1, nx/2
+        k = ny/2
+            xx0 = abs(real(i) - 0.5 - real(nx)/2.d0)
+           !Laminar Steady State Solution
+            uuss = (4*ustar)/(real(nx)**2)*((real(nx)/2)**2-xx0**2)
+           !Laminar Unsteady Solution
+            uut = 0
+            do n= 0, 25
+                uut = uut + (4*(-1)**n)/(pi*(n+0.5))**3*exp(-((real(n)+0.5)**2)*(pi**2)*time1)* &
+                    dcos((real(n)+0.5)*pi*(xx0/(real(nx)/2.d0)))
+            enddo
+            uut = (1-(xx0/(real(nx)/2.d0))**2)-uut
+            
+            write(17,170) real(i),xx0,time1,uy9(i,:,k)/ustar,uut,uuss/ustar
+        enddo
         close(17)
+        
+        !Dump all uy velocity data
+        !write(18,170) uy9 
+        !close(18)
 
         deallocate(uy9)
-        deallocate(uy0)
       end if
 
 170   format(2x,8(1pe16.6))
-
       end subroutine outputuy      
-!===========================================================================
-
+!=============================================================================
+!@subroutine outputuz
+!@desc Collects all z velocity data from all MPI tasks and writes to file
+!=============================================================================
       subroutine outputuz 
       use mpi 
       use var_inc
       implicit none
 
-
-      integer ip, ilen, indy9, indz9
+      integer ip,i,j,k,ilen,indy1,indz1,indy9,indz9
       integer status(MPI_STATUS_SIZE)
       integer istp1, istp2, istp3, istp4, istp5, istp6, istp7
       
       real,allocatable,dimension(:,:,:):: uz9    
       real,allocatable,dimension(:,:,:):: uz0    
-
       character (len = 120):: fnm
 
-      ilen = lx*ly*lz
-
+      !Collect velocities for every MPI task
       if(myid == 0)then
         allocate(uz9(1:lx,1:ny,1:nz))
-        allocate(uz0(1:lx,1:ly,1:lz))
-
         uz9(:,:,1:lz) = uz       
 
         do ip = 1,nproc-1
+        !We must account for different local domain sizes
+          ilen = lx*mpily(ip)*mpilz(ip)
+          allocate(uz0(1:lx,1:mpily(ip),1:mpilz(ip)))
           call MPI_RECV(uz0,ilen,MPI_REAL8,ip,1,MPI_COMM_WORLD,status,ierr)
 
-      indy9 = mod(ip,nprocY)
-      indz9 = int(ip/nprocY)
-          uz9(:,indy9*ly+1:indy9*ly+ly,indz9*lz+1:indz9*lz+lz) = uz0          
+          indy1 = mod(ip,nprocY)
+          indz1 = int(ip/nprocY)
+          indy9 = 0
+          indz9 = 0
+          do i = 0, indy1-1
+            indy9 = indy9 + mpily(indz1*nprocY + i)
+          enddo
+          do i = 0, indz1-1
+            indz9 = indz9 + mpilz(i*nprocY + indy1)
+          enddo
+          uz9(:,indy9+1:indy9+mpily(ip),indz9+1:indz9+mpilz(ip)) = uz0
+          deallocate(uz0)         
         end do
 
       else
+        ilen = lx*ly*lz
         call MPI_SEND(uz,ilen,MPI_REAL8,0,1,MPI_COMM_WORLD,ierr)
       end if
 
       if(myid == 0)then
-
-! zero out the velocity inside particle for plot purpose
-!        where(ibnodes9 > 0) uz9 = 0.0
+        ! zero out the velocity inside particle for plot purpose
+        !where(ibnodes9 > 0) uz9 = 0.0
 
         istp1 = istep / 1000000
         istp2 = mod(istep,1000000) / 100000
@@ -949,15 +1003,15 @@
 
         close(18)
         deallocate(uz9)
-        deallocate(uz0)
 
       end if
 
 180   format(2x,8(1pe16.6))
-
       end subroutine outputuz      
-!===========================================================================
-
+!=============================================================================
+!@subroutine outputpress
+!@desc Collects all pressure data from all MPI tasks and writes to file
+!=============================================================================
       subroutine outputpress   
       use mpi 
       use var_inc
@@ -965,38 +1019,47 @@
 
 !      integer, dimension(lx,ly,nz):: ibnodes9
 
-      integer ip, ilen, indy9, indz9
+      integer ip,i,j,k,ilen,indy1,indz1,indy9,indz9
       integer status(MPI_STATUS_SIZE)
       integer istp1, istp2, istp3, istp4, istp5, istp6, istp7
       
       real,allocatable, dimension(:,:,:):: rho9    
       real,allocatable, dimension(:,:,:):: rho1    
-
       character (len = 120):: fnm
 
-      ilen = lx*ly*lz
-
+      !Collect pressure data from all MPI tasks
       if(myid == 0)then
         allocate (rho9(1:nx,1:ny,1:nz))
-        allocate (rho1(1:lx,1:ly,1:lz))
-        rho9(:,:,1:lz) = rho       
-
+        rho9(:,:,1:lz) = rho
+        
         do ip = 1,nproc-1
+          !We must account for different local domain sizes
+          ilen = lx*mpily(ip)*mpilz(ip)
+          allocate (rho1(1:lx,1:mpily(ip),1:mpilz(ip)))
+          
           call MPI_RECV(rho1,ilen,MPI_REAL8,ip,1,MPI_COMM_WORLD,status,ierr)
 
-      indy9 = mod(ip,nprocY)
-      indz9 = int(ip/nprocY)
-          rho9(:,indy9*ly+1:indy9*ly+ly,indz9*lz+1:indz9*lz+lz) = rho1            
+          indy1 = mod(ip,nprocY)
+          indz1 = int(ip/nprocY)
+          indy9 = 0
+          indz9 = 0
+          do i = 0, indy1-1
+            indy9 = indy9 + mpily(indz1*nprocY + i)
+          enddo
+          do i = 0, indz1-1
+            indz9 = indz9 + mpilz(i*nprocY + indy1)
+          enddo
+          rho9(:,indy9+1:indy9+mpily(ip),indz9+1:indz9+mpilz(ip)) = rho1
+          deallocate(rho1)          
         end do
-
       else
+        ilen = lx*ly*lz
         call MPI_SEND(rho,ilen,MPI_REAL8,0,1,MPI_COMM_WORLD,ierr)
       end if
 
       if(myid == 0)then
-
-! zero out the density inside particle for plot purpose
-!        where(ibnodes9 > 0) rho9 = 0.0
+        !Zero out the density inside particle for plot purpose
+        !where(ibnodes9 > 0) rho9 = 0.0
 
         istp1 = istep / 1000000
         istp2 = mod(istep,1000000) / 100000
@@ -1018,12 +1081,10 @@
 
         close(19)
         deallocate(rho9)
-        deallocate(rho1)
 
       end if
 
 190   format(2x,8(1pe16.6))
-
       end subroutine outputpress      
 !===========================================================================
 
@@ -1032,36 +1093,45 @@
       use var_inc
       implicit none
 
-!      integer, dimension(lx,ly,nz):: ibnodes9
-
-      integer ip, ilen, iy, iz
+      integer ip,i,j,k,ilen,indy1,indz1,indy9,indz9
       integer status(MPI_STATUS_SIZE)
       integer istp1, istp2, istp3, istp4, istp5, istp6
       
       real, dimension(lx,ny,nz):: vort9
-      real, dimension(lx,ly,lz):: vort, vort0    
-
+      real, dimension(lx,ly,lz):: vort 
+      real, allocatable, dimension(:,:,:):: vort0   
       character (len = 120):: fnm
 
-! prepare vorticity field ox, oy, oz, and magnitude field vort
+      !Prepare vorticity field ox, oy, oz, and magnitude field vort
       call vortcalc
       vort = sqrt(ox*ox + oy*oy + oz*oz)
-   
-      ilen = lx*ly*lz
 
       if(myid == 0)then
-
         vort9(:,1:ly,1:lz) = vort         
 
         do ip = 1,nproc-1
+          !We must account for different local domain sizes
+          ilen = lx*mpily(ip)*mpilz(ip)
+          allocate (vort0(1:lx,1:mpily(ip),1:mpilz(ip)))
+          
           call MPI_RECV(vort0,ilen,MPI_REAL8,ip,1,MPI_COMM_WORLD,status,ierr)
-          iy = mod(ip,nprocY)
-          iz = int(ip/nprocY)
-
-          vort9(:,(iy*ly + 1):((iy + 1)*ly),(iz*lz + 1):((iz + 1)*lz)) = vort0            
+          
+          indy1 = mod(ip,nprocY)
+          indz1 = int(ip/nprocY)
+          indy9 = 0
+          indz9 = 0
+          do i = 0, indy1-1
+            indy9 = indy9 + mpily(indz1*nprocY + i)
+          enddo
+          do i = 0, indz1-1
+            indz9 = indz9 + mpilz(i*nprocY + indy1)
+          enddo
+          vort9(:,indy9+1:indy9+mpily(ip),indz9+1:indz9+mpilz(ip)) = vort0
+          deallocate(vort0)           
         end do
 
       else
+        ilen = lx*ly*lz
         call MPI_SEND(vort,ilen,MPI_REAL8,0,1,MPI_COMM_WORLD,ierr)
       end if
 
@@ -1483,7 +1553,14 @@
       integer i,j,k,imout,jmout,kmout,nfluid0,nfluid
 
       character (len = 120):: fnm,fnm1
-!!!!!!!!!!!
+      
+      positomgx = 0.0
+      positomgy = 0.0
+      positomgz = 0.0
+      positx = 0.0
+      posity = 0.0
+      positz = 0.0
+
       umean = 0.0
       vmean = 0.0
       wmean = 0.0
@@ -1539,30 +1616,29 @@
 
 
       if(myid == 0)then
-       wpmax = 0.0
-       omgpmax = 0.0
-       idwp = 0
-       idomgp = 0
-
-       if(ipart)then
-       do i = 1,npart
-         wpmag = sqrt(wp(1,i)**2 + wp(2,i)**2 + wp(3,i)**2)
-         if(wpmag.gt.wpmax) then
-         wpmax = wpmag
-         idwp = i
-         positx = ypglb(1,i)
-         posity = ypglb(2,i)
-         positz = ypglb(3,i)
-         endif
-         omgpmag = sqrt(omgp(1,i)**2 + omgp(2,i)**2 + omgp(3,i)**2)
-         if(omgpmag.gt.omgpmax) then
-         omgpmax = omgpmag
-         idomgp = i
-         positomgx = ypglb(1,i)
-         positomgy = ypglb(2,i)
-         positomgz = ypglb(3,i)
-         endif
-       enddo
+        wpmax = 0.0
+        omgpmax = 0.0
+        idwp = 0
+        idomgp = 0
+        if(ipart)then
+        do i = 1,npart
+            wpmag = sqrt(wp(1,i)**2 + wp(2,i)**2 + wp(3,i)**2)
+            if(wpmag.gt.wpmax) then
+            wpmax = wpmag
+            idwp = i
+            positx = ypglb(1,i)
+            posity = ypglb(2,i)
+            positz = ypglb(3,i)
+            endif
+            omgpmag = sqrt(omgp(1,i)**2 + omgp(2,i)**2 + omgp(3,i)**2)
+            if(omgpmag.gt.omgpmax) then
+            omgpmax = omgpmag
+            idomgp = i
+            positomgx = ypglb(1,i)
+            positomgy = ypglb(2,i)
+            positomgz = ypglb(3,i)
+            endif
+        enddo
        end if
 
       end if

@@ -425,13 +425,23 @@
       implicit none
 
       integer idir, iflag, i, j, k, n, it, jt, kt
-      real xc, yc, zc, dx, dy, dz, v0
+      real xc, yc, zc, dx, dy, dz, v0, alphay, alphaz
       real tx, ty, tz, tx0,  ty0, tz0
 
       real, dimension(lx,ly):: tmpZm,tmpZp   
       real, dimension(lx,0:lz+1):: tmpYm, tmpYp 
       integer, dimension(8):: trix, triy, triz
       real, dimension(8):: v
+
+      !Get global position of local fluid domain
+      alphay = 0
+      alphaz = 0
+      do i = 0, indy-1
+         alphay = alphay + mpily(indz*nprocY + i)
+      enddo
+      do i = 0, indz-1
+        alphaz = alphaz + mpilz(i*nprocY + indy)
+      enddo
 
       !Hold indices used to get interpolation points
       trix = (/0,1,1,0,0,1,1,0/)
@@ -444,13 +454,13 @@
 
       !Get the corner position of the box used to interpolate
       i = int((xc + 0.5) / dx)
-      j = int((yc - real(indy*ly) + 0.5) / dy)
+      j = int((yc - alphay + 0.5) / dy)
       k = int((zc - real(indz*lz) + 0.5) / dz)
 
       !Calculate constants used for interpolation
       tx = (xc + 0.5 - real(i)) / dx
-      ty = (yc - real(indy*ly) + 0.5 - real(j)) / dy
-      tz = (zc - real(indz*lz) + 0.5 - real(k)) / dz
+      ty = (yc - alphay + 0.5 - real(j)) / dy
+      tz = (zc - alphaz + 0.5 - real(k)) / dz
 
       tx0 = 1.0 - tx
       ty0 = 1.0 - ty
@@ -546,8 +556,17 @@
       nfbeads = 0
       nlink = 0
       nbfill = 0
-      alphay = dfloat(indy*ly)+ 0.5d0
-      alphaz = dfloat(indz*lz)+ 0.5d0
+      !Get global position of local fluid domain
+      alphay = 0
+      alphaz = 0
+      do i = 0, indy-1
+         alphay = alphay + mpily(indz*nprocY + i)
+      enddo
+      do i = 0, indz-1
+        alphaz = alphaz + mpilz(i*nprocY + indy)
+      enddo
+      alphay = alphay + 0.5
+      alphaz = alphaz + 0.5
       
       !Execute a global search for particles that are touching our local domain (course search)
       do id=1,npart
@@ -615,8 +634,8 @@
                     kmove = k + ciz(ip)
 
                     xx1 = dfloat(imove) - 0.5d0 - xc
-                    yy1 = dfloat(jmove) - 0.5d0 - yc + dfloat(indy*ly)
-                    zz1 = dfloat(kmove) - 0.5d0 - zc + dfloat(indz*lz)
+                    yy1 = dfloat(jmove) - yc - 1.d0 + alphay
+                    zz1 = dfloat(kmove) - zc - 1.d0 + alphaz
 
                     rr1 = xx1**2 + yy1**2 + zz1**2  
                     rr11 = rr1 - (rad*1.d0)**2  
@@ -984,7 +1003,7 @@
       real uwx, uwy, uwz, uwpro, ff1, ff2, ff3
       real w1, w2, w3, omg1, omg2, omg3 
       real c1, c2, c3, dff, dff2, dxmom, dymom, dzmom
-      real xpnt, ypnt, zpnt
+      real xpnt, ypnt, zpnt, alphay, alphaz
 
       real,dimension(lx,ly,lz):: f9print,alphaprint,ff1print
       real, dimension(3,npart):: fHIp0, torqp0
@@ -995,6 +1014,16 @@
 
       !First get data needed from neighboring MPI tasks
       call exchng2direct(mymIpfRecv,mypIpfRecv,mzmIpfRecv,mzpIpfRecv)
+
+      !Get global position of local fluid domain
+      alphay = 0
+      alphaz = 0
+      do i = 0, indy-1
+         alphay = alphay + mpily(indz*nprocY + i)
+      enddo
+      do i = 0, indz-1
+        alphaz = alphaz + mpilz(i*nprocY + indy)
+      enddo
 
       !Parse through all boundary links found in beads_links
       do n = 1,nlink
@@ -1016,8 +1045,8 @@
         zc = ypglb(3,id) 
 
         xpnt = real(i) - 0.5
-        ypnt = real(j) - 0.5 + real(indy*ly)
-        zpnt = real(k) - 0.5 + real(indz*lz)
+        ypnt = real(j) - 0.5 + alphay
+        zpnt = real(k) - 0.5 + alphaz
 
         !Use the nearest particle center instead of the real center
         !if((xc - xpnt) > real(nxh)) xc = xc - real(nx) !Removed periodicity in x
@@ -1620,7 +1649,7 @@
       integer, dimension(msize):: tmp2li, tmp2ri, tmp2ui, tmp2di, tmpsi, tmp0i
       integer, dimension(msize):: tmp2dli, tmp2dri, tmp2uli, tmp2uri
 
-      real xc, yc, zc
+      real xc, yc, zc, i, alphay, alphayp1, alphaz, alphazp1
       real, dimension(3,npart):: yp0 
       real, dimension(21,msize):: tmp2l, tmp2r, tmp2d, tmp2u, tmps, tmp0
       real, dimension(21,msize):: tmp2dl, tmp2dr, tmp2ul, tmp2ur
@@ -1656,18 +1685,37 @@
       tmp2ul = 0.0
       tmp2ur = 0.0
       tmps = 0.0
+      
+      !Get global position of local fluid domain
+      alphay = 0
+      alphaz = 0
+      do i = 0, indy-1
+         alphay = alphay + mpily(indz*nprocY + i)
+      enddo
+      do i = 0, indz-1
+        alphaz = alphaz + mpilz(i*nprocY + indy)
+      enddo
+      
+      alphayp1 = 0
+      alphazp1 = 0
+      do i = 0, indy
+         alphayp1 = alphayp1 + mpily(indz*nprocY + i)
+      enddo
+      do i = 0, indz
+        alphazp1 = alphazp1 + mpilz(i*nprocY + indy)
+      enddo
 
       do ip = 1,nps
         yc = yp(2,ip)
         zc = yp(3,ip)
        
  
-        if(zc < real(indz*lz))then
+        if(zc < alphaz)then
 
-          if(yc < real(indy*ly))then             !1
+          if(yc < alphay)then             !1
            n2dl = n2dl + 1
            id2dl(n2dl) = ip
-          else if(yc >= real((indy+1)*ly))then   !7
+          else if(yc >= alphayp1)then   !7
            n2ul = n2ul + 1
            id2ul(n2ul) = ip
           else                                   !8
@@ -1675,12 +1723,12 @@
            id2l(n2l) = ip
           endif
 
-        else if(zc >= real((indz+1)*lz))then
+        else if(zc >= alphazp1)then
 
-          if(yc < real(indy*ly))then             !3
+          if(yc < alphay)then             !3
            n2dr = n2dr + 1
            id2dr(n2dr) = ip
-          else if(yc >= real((indy+1)*ly))then   !5
+          else if(yc >= alphayp1)then   !5
            n2ur = n2ur + 1
            id2ur(n2ur) = ip
           else                                   !4
@@ -1690,10 +1738,10 @@
 
         else
 
-          if(yc < real(indy*ly))then             !2
+          if(yc < alphay)then             !2
            n2d = n2d + 1
            id2d(n2d) = ip
-          else if(yc >= real((indy+1)*ly))then   !6
+          else if(yc >= alphayp1)then   !6
            n2u = n2u + 1
            id2u(n2u) = ip
           else                                   !stay
@@ -2025,7 +2073,7 @@
       real aa, bb, cc, ddt, ddt0, ddt1  
       real xp1, yp1, zp1, xp2, yp2, zp2
       real xx0, yy0, zz0, prod0, prod
-      real rho9, u9, v9, w9
+      real rho9, u9, v9, w9, alphay, alphaz
       !Temporary array for sending filling request data      
       logical, dimension(nproc*8):: tempFlags
       real, dimension(0:npop-1):: f9, f8, f7
@@ -2039,6 +2087,16 @@
 
       ! Send and recieve data for filling
       call exchngFill
+      
+      !Get global position of local fluid domain
+      alphay = 0
+      alphaz = 0
+      do i = 0, indy-1
+         alphay = alphay + mpily(indz*nprocY + i)
+      enddo
+      do i = 0, indz-1
+        alphaz = alphaz + mpilz(i*nprocY + indy)
+      enddo
 
       !Parse through fill nodes
       do n=1, nbfill
@@ -2057,8 +2115,8 @@
         k = zbfill(n)
 
         xpnt = dfloat(i) - 0.5d0 
-        ypnt = dfloat(j) - 0.5d0 + dfloat(indy*ly)   
-        zpnt = dfloat(k) - 0.5d0 + dfloat(indz*lz)
+        ypnt = dfloat(j) - 0.5d0 + alphay   
+        zpnt = dfloat(k) - 0.5d0 + alphaz
 
         !Use the nearest particle center instead of the real center
         !if((xc - xpnt) > dfloat(nxh)) xc = xc - dfloat(nx)

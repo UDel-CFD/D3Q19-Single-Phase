@@ -516,6 +516,7 @@
       implicit none
       integer ixs,ihh,i,j,k,jj,kk
       real x9,y9,z9,Amp0,beta9,gamma9,Tpd, phase9,Tpdp,ixs0
+      real alphay, alphaz
 
       Tpd = 2000.
       Tpdp = 1500.
@@ -529,34 +530,45 @@
       force_realx(:,:,:) = 0.0
       force_realy(:,:,:) = force_in_y
       force_realz(:,:,:) = 0.0
-! add some perturbation
+      
+      !Get global position of local fluid domain
+      alphay = 0
+      alphaz = 0
+      do i = 0, indy-1
+         alphay = alphay + mpily(indz*nprocY + i)
+      enddo
+      do i = 0, indz-1
+        alphaz = alphaz + mpilz(i*nprocY + indy)
+      enddo
+      
+      !Add some perturbation
       ixs = ixs0
       ihh = lxh/2
       do k=1,lz
-      kk = k + indz*lz
-      z9 = pi2*(real(kk)-0.5)/real(nz)
-      do j=1,ly
-      jj = j + indy*ly
-      y9 = pi2*(real(jj)-0.5)/real(ny)
-      do i=1,ihh
-      x9 = pi2*(real(i)-0.5)/real(ihh)
-      force_realx(i+ixs,j,k) = force_in_y*0.5*Amp0*real(ihh)*(1.-cos(x9))  &
+        kk = k + alphaz
+        z9 = pi2*(real(kk)-0.5)/real(nz)
+        do j=1,ly
+         jj = j + alphay
+         y9 = pi2*(real(jj)-0.5)/real(ny)
+         do i=1,ihh
+           x9 = pi2*(real(i)-0.5)/real(ihh)
+           force_realx(i+ixs,j,k) = force_in_y*0.5*Amp0*real(ihh)*(1.-cos(x9))  &
                                  *cos(beta9*y9)*cos(gamma9*z9)
-      force_realy(i+ixs,j,k) = force_in_y*(1.0-Amp0*real(ny)/beta9    &
+           force_realy(i+ixs,j,k) = force_in_y*(1.0-Amp0*real(ny)/beta9    &
                        *sin(x9)*sin(beta9*y9)*cos(gamma9*z9))
-      force_realz(i+ixs,j,k) = force_in_y*0.5*Amp0*real(nz)/gamma9*   &
+           force_realz(i+ixs,j,k) = force_in_y*0.5*Amp0*real(nz)/gamma9*   &
                         sin(x9)*cos(beta9*y9)*sin(gamma9*z9)
-      end do
-      end do
-      end do
+          end do!x
+         end do!y
+      end do!z
 
       ihh = lxh/2
       ixs = nx - ixs0 - ihh
       do k=1,lz
-      kk = k + indz*lz
+      kk = k + alphaz
       z9 = pi2*(real(kk)-0.5)/real(nz)
       do j=1,ly
-      jj = j + indy*ly
+      jj = j + alphay
       y9 = pi2*( (real(jj)-0.5)/real(ny) + phase9 )
       do i=1,ihh
       x9 = pi2*(real(i)-0.5)/real(ihh)

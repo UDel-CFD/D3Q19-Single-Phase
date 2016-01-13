@@ -4,6 +4,7 @@
 !=============================================================================      
       subroutine para
       use var_inc
+      use mpi
       implicit none
 
       logical dirExist
@@ -23,7 +24,7 @@
       ! It can be any step # at which the "endrunflow" & "endrunpart" data are saved
       istpload = 0
       ! Number of time steps in main loop
-      nsteps = 100
+      nsteps = 10000
 
       istep0 = 0
       istep00 = 1 
@@ -42,6 +43,9 @@
       pi = 4.0*atan(1.0) 
       pi2 = 2.0*pi
       
+!====================================      
+      ! Turbulent channel flow
+!==================================== 
       ! specify the force magnitude
 !     visc = 0.0032
 !     Rstar = 200.0
@@ -56,7 +60,14 @@
       !End time step of perturbatuon forcing
       !Not used in particle laden
       npforcing = 0
-
+!==================================== 
+     !Laminar channel flow
+!==================================== 
+      Rstar = 20
+      ustar = 0.05
+      visc =  2.d0*ustar*real(nx)/Rstar
+      force_in_y = 8.d0*visc*ustar/real(nx)**2
+      
       ! not used
       kpeak = 4         ! It does not matter. Starting from stagnant flow
       u0in = 0.0503     ! It does not matter. Starting from stagnant flow
@@ -188,18 +199,53 @@
 !=======================================================
 ! Create MPI topology
 !=======================================================
-      nprocY = 20 !MPI topology width
+      nprocY = 4 !MPI topology width
       nprocZ = nproc/nprocY !MPI topology height
+      if(nprocY > nproc .and. myid == 0)write(*,*)'MPI row count is too large!'
 
-      ly = ny/nprocY         !local division of dist for procs in y dir
-      lz = nz/nprocZ         !local division of dist for procs in z dir
-
-      if((mod(myid,nprocY)+1).eq.nprocY) then
-        lyext=2
+      !Handling different stream wise direction lengths
+      if(ny-nprocY*int(ny/nprocY) > nprocY/2)then
+        if((mod(myid,nprocY)+1).eq.nprocY) then
+            ly = int((ny+(nprocY-mod(ny,nprocY)))/nprocY) - (nprocY-mod(ny,nprocY))
+        else
+           ly = int((ny+(nprocY-mod(ny,nprocY)))/nprocY)
+        endif
       else
-        lyext=0
+        if((mod(myid,nprocY)+1).eq.nprocY) then
+            ly = int((ny+mod(ny,nprocY))/nprocY) + mod(ny,nprocY)
+        else
+           ly = int((ny+mod(ny,nprocY))/nprocY)
+        endif
       endif
-      lly = ly+lyext
+      
+      !Handling different Z direction lengths
+      if(nz-nprocZ*int(nz/nprocZ) > nprocZ/2)then
+        if((mod(int(myid/nprocY),nprocZ)+1).eq.nprocZ) then
+            lz= int((nz+(nprocZ-mod(nz,nprocZ)))/nprocZ) - (nprocZ-mod(nz,nprocZ))
+        else
+           lz = int((nz+(nprocZ-mod(nz,nprocZ)))/nprocZ)
+        endif
+      else
+        if((mod(int(myid/nprocY),nprocZ)+1).eq.nprocZ) then
+           lz = int((nz+mod(nz,nprocZ))/nprocZ) + mod(nz,nprocZ)
+        else
+           lz = int((nz+mod(nz,nprocZ))/nprocZ)
+        endif
+      endif
+
+      allocate(mpily(0:nproc-1))
+      allocate(mpilz(0:nproc-1))
+      
+      !Distribute local mpi domain sizes to all processors
+      CALL MPI_ALLGATHER(ly,1,MPI_INTEGER,mpily,1,MPI_INTEGER,MPI_COMM_WORLD,ierr)
+      CALL MPI_ALLGATHER(lz,1,MPI_INTEGER,mpilz,1,MPI_INTEGER,MPI_COMM_WORLD,ierr)
+      
+      if(myid == 0)then
+        write(*,*)'MPI topology constructed, id,ly,lz:'
+        do i =0, nproc-1
+           write(*,*) i,mpily(i),mpilz(i)
+        enddo
+      endif
 
       !Determine MPI neighbor Ids
       indy = mod(myid,nprocY)
@@ -210,7 +256,6 @@
 
       myp = indz*nprocY + mod(indy+1,nprocY) !right
       mym = indz*nprocY + mod(indy+nprocY-1,nprocY) !left
-
 
       mypzp = mod(indz+1,nprocZ)*nprocY + mod(indy+1,nprocY) !top-right corner
       mypzm = mod(indz+nprocZ-1,nprocZ)*nprocY + mod(indy+1,nprocY) !bottom-right corner
@@ -228,10 +273,10 @@
 !=======================================================
 ! Declare reading and writing directories
 !=======================================================
-      dircntdflow0 = trim('/glade/scratch/ngeneva/SwapTesting/')
-      dircntdpart0 = trim('/glade/scratch/ngeneva/SwapTesting/')
+      dircntdflow0 = trim('/glade/scratch/ngeneva/D3Q19_Laminar/')
+      dircntdpart0 = trim('/glade/scratch/ngeneva/D3Q19_Laminar/')
 
-      dirgenr = '/glade/scratch/ngeneva/SwapTesting/'
+      dirgenr = '/glade/scratch/ngeneva/D3Q19_Laminar/'
       dirdiag = trim(dirgenr)//'diag/'
       dirstat = trim(dirgenr)//'stat/'
       dirprobe = trim(dirgenr)//'probe/'
@@ -271,8 +316,8 @@
 !=======================================================
 ! Particle related parameters
 !=======================================================
-      ipart = .true.
-      released = .FALSE.
+      ipart = .false.
+      released = .false.
 
       !Flag indicating node is inside solid particle
       !Used in the direct request system in beads_collision
