@@ -907,7 +907,7 @@
         !Output streamwise profile with theoretical solutions
         time1 = istep*visc/((real(nx)/2.d0)**2)
         do i = 1, nx/2
-        k = ny/2
+        k = nz/2
             xx0 = abs(real(i) - 0.5 - real(nx)/2.d0)
            !Laminar Steady State Solution
             uuss = (4*ustar)/(real(nx)**2)*((real(nx)/2)**2-xx0**2)

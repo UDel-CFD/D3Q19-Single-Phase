@@ -203,33 +203,36 @@
       nprocZ = nproc/nprocY !MPI topology height
       if(nprocY > nproc .and. myid == 0)write(*,*)'MPI row count is too large!'
 
+      indy = mod(myid,nprocY)
+      indz = int(myid/nprocY)
+
       !Handling different stream wise direction lengths
-      if(ny-nprocY*int(ny/nprocY) > nprocY/2)then
-        if((mod(myid,nprocY)+1).eq.nprocY) then
-            ly = int((ny+(nprocY-mod(ny,nprocY)))/nprocY) - (nprocY-mod(ny,nprocY))
+      if(ny-nprocY*int(ny/nprocY) .ge. nprocY/2)then
+        if(indy .ge. ny-nprocY*int(ny/nprocY)) then
+            ly = int((ny+(nprocY-mod(ny,nprocY)))/nprocY) - 1
         else
            ly = int((ny+(nprocY-mod(ny,nprocY)))/nprocY)
         endif
       else
-        if((mod(myid,nprocY)+1).eq.nprocY) then
-            ly = int((ny+mod(ny,nprocY))/nprocY) + mod(ny,nprocY)
+        if(indy .ge. ny-nprocY*int(ny/nprocY)) then
+            ly = int((ny-mod(ny,nprocY))/nprocY) + 1
         else
-           ly = int((ny+mod(ny,nprocY))/nprocY)
+           ly = int((ny-mod(ny,nprocY))/nprocY)
         endif
       endif
       
       !Handling different Z direction lengths
-      if(nz-nprocZ*int(nz/nprocZ) > nprocZ/2)then
-        if((mod(int(myid/nprocY),nprocZ)+1).eq.nprocZ) then
-            lz= int((nz+(nprocZ-mod(nz,nprocZ)))/nprocZ) - (nprocZ-mod(nz,nprocZ))
+      if(nz-nprocZ*int(nz/nprocZ) .ge. nprocZ/2)then
+        if(indz .ge. nz-nprocZ*int(nz/nprocZ)) then
+            lz= int((nz+(nprocZ-mod(nz,nprocZ)))/nprocZ) - 1
         else
            lz = int((nz+(nprocZ-mod(nz,nprocZ)))/nprocZ)
         endif
       else
-        if((mod(int(myid/nprocY),nprocZ)+1).eq.nprocZ) then
-           lz = int((nz+mod(nz,nprocZ))/nprocZ) + mod(nz,nprocZ)
+        if(indz .ge. nz-nprocZ*int(nz/nprocZ)) then
+           lz = int((nz-mod(nz,nprocZ))/nprocZ) + 1
         else
-           lz = int((nz+mod(nz,nprocZ))/nprocZ)
+           lz = int((nz-mod(nz,nprocZ))/nprocZ)
         endif
       endif
 
@@ -248,9 +251,6 @@
       endif
 
       !Determine MPI neighbor Ids
-      indy = mod(myid,nprocY)
-      indz = int(myid/nprocY)
-
       mzp = mod(indz+1,nprocZ) * nprocY + indy  !top
       mzm = mod(indz + nprocZ - 1,nprocZ) * nprocY + indy !bottom
 
