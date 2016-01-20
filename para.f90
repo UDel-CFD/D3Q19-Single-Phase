@@ -201,39 +201,30 @@
 !=======================================================
       nprocY = 4 !MPI topology width
       nprocZ = nproc/nprocY !MPI topology height
-      if(nprocY > nproc .and. myid == 0)write(*,*)'MPI row count is too large!'
-
+      if(nprocY > nproc)then
+        if(myid == 0)write(*,*)'MPI row count is too large! Stopping'
+        stop
+      endif
+      if(mod(nproc,nprocY) .ne. 0)then
+        if(myid == 0)write(*,*)'Uniform MPI grid cannot be created, stopping'
+        stop
+      endif
+      
       indy = mod(myid,nprocY)
       indz = int(myid/nprocY)
 
       !Handling different stream wise direction lengths
-      if(ny-nprocY*int(ny/nprocY) .ge. nprocY/2)then
-        if(indy .ge. ny-nprocY*int(ny/nprocY)) then
-            ly = int((ny+(nprocY-mod(ny,nprocY)))/nprocY) - 1
-        else
-           ly = int((ny+(nprocY-mod(ny,nprocY)))/nprocY)
-        endif
+      if(indy .lt. ny-nprocY*int(ny/nprocY)) then
+        ly = int((ny-mod(ny,nprocY))/nprocY) + 1
       else
-        if(indy .ge. ny-nprocY*int(ny/nprocY)) then
-            ly = int((ny-mod(ny,nprocY))/nprocY) + 1
-        else
-           ly = int((ny-mod(ny,nprocY))/nprocY)
-        endif
+        ly = int((ny-mod(ny,nprocY))/nprocY)
       endif
       
       !Handling different Z direction lengths
-      if(nz-nprocZ*int(nz/nprocZ) .ge. nprocZ/2)then
-        if(indz .ge. nz-nprocZ*int(nz/nprocZ)) then
-            lz= int((nz+(nprocZ-mod(nz,nprocZ)))/nprocZ) - 1
-        else
-           lz = int((nz+(nprocZ-mod(nz,nprocZ)))/nprocZ)
-        endif
+      if(indz .lt. nz-nprocZ*int(nz/nprocZ)) then
+        lz = int((nz-mod(nz,nprocZ))/nprocZ) + 1
       else
-        if(indz .ge. nz-nprocZ*int(nz/nprocZ)) then
-           lz = int((nz-mod(nz,nprocZ))/nprocZ) + 1
-        else
-           lz = int((nz-mod(nz,nprocZ))/nprocZ)
-        endif
+        lz = int((nz-mod(nz,nprocZ))/nprocZ)
       endif
 
       allocate(mpily(0:nproc-1))
