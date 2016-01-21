@@ -24,7 +24,7 @@
       ! It can be any step # at which the "endrunflow" & "endrunpart" data are saved
       istpload = 0
       ! Number of time steps in main loop
-      nsteps = 10000
+      nsteps = 1000
 
       istep0 = 0
       istep00 = 1 
@@ -49,8 +49,7 @@
       ! specify the force magnitude
 !     visc = 0.0032
 !     Rstar = 200.0
-!     visc = 0.0036
-      visc = 0.004
+      visc = 0.0036
       Rstar = 180.0
       ustar = 2.0*Rstar*visc/real(nx)
       force_in_y = 2.*rho0*ustar*ustar/real(nx)
@@ -63,10 +62,10 @@
 !==================================== 
      !Laminar channel flow
 !==================================== 
-      Rstar = 20
-      ustar = 0.05
-      visc =  2.d0*ustar*real(nx)/Rstar
-      force_in_y = 8.d0*visc*ustar/real(nx)**2
+      !Rstar = 20
+      !ustar = 0.05
+      !visc =  2.d0*ustar*real(nx)/Rstar
+      !force_in_y = 8.d0*visc*ustar/real(nx)**2
       
       ! not used
       kpeak = 4         ! It does not matter. Starting from stagnant flow
@@ -199,7 +198,7 @@
 !=======================================================
 ! Create MPI topology
 !=======================================================
-      nprocY = 4 !MPI topology width
+      nprocY = 20 !MPI topology width
       nprocZ = nproc/nprocY !MPI topology height
       if(nprocY > nproc)then
         if(myid == 0)write(*,*)'MPI row count is too large! Stopping'
@@ -240,6 +239,18 @@
            write(*,*) i,mpily(i),mpilz(i)
         enddo
       endif
+      
+      !Define global position of local domain
+      globaly = 0.0
+      globalz = 0.0
+      do i = 0, indy-1
+          globaly = globaly + mpily(indz*nprocY + i)
+      enddo
+      do i = 0, indz-1
+          globalz = globalz + mpilz(i*nprocY + indy)
+      enddo
+      globalyp1 = globaly + ly
+      globalzp1 = globalz + lz
 
       !Determine MPI neighbor Ids
       mzp = mod(indz+1,nprocZ) * nprocY + indy  !top
@@ -264,10 +275,10 @@
 !=======================================================
 ! Declare reading and writing directories
 !=======================================================
-      dircntdflow0 = trim('/glade/scratch/ngeneva/D3Q19_Laminar/')
-      dircntdpart0 = trim('/glade/scratch/ngeneva/D3Q19_Laminar/')
+      dircntdflow0 = trim('/glade/scratch/ngeneva/D3Q19_Channel/')
+      dircntdpart0 = trim('/glade/scratch/ngeneva/D3Q19_Channel/')
 
-      dirgenr = '/glade/scratch/ngeneva/D3Q19_Laminar/'
+      dirgenr = '/glade/scratch/ngeneva/D3Q19_Channel/'
       dirdiag = trim(dirgenr)//'diag/'
       dirstat = trim(dirgenr)//'stat/'
       dirprobe = trim(dirgenr)//'probe/'
@@ -307,7 +318,7 @@
 !=======================================================
 ! Particle related parameters
 !=======================================================
-      ipart = .false.
+      ipart = .true.
       released = .false.
 
       !Flag indicating node is inside solid particle

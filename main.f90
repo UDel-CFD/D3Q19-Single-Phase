@@ -250,20 +250,20 @@
         !diag calculates and outputs respective data/diagnostics
         if(mod(istep,ndiag) == 0)  call diag !@file saveload.f90
         !partstatis is to output the position, velocity and force of each particle
-        if(ipart .and. mod(istep,200) == 0) call partstatis
+        !if(ipart .and. mod(istep,200) == 0) call partstatis
         ! statistc4 outputs the mean, rms velocity&vorticity of particle phase, the vorticity calculation is called here
         !if(mod(istep,200) == 0)  call statistc4
         !  moviedata2 generates 2D vorticity contours for 2D visualization (only use when necessary)
         ! if(mod(istep,200) == 0) call moviedata2
 
         ! statistc2 calculates the mean and rms velocity profiles of fluid phase
-        if(mod(istep,nstat) == 0)  call statistc2 !@file saveload.f90
+        !if(mod(istep,nstat) == 0)  call statistc2 !@file saveload.f90
         ! statistc3 calculates the mean and rms vorticity profiles of fluid phase
-        if(mod(istep,nstat) == 0) call statistc3
+        !if(mod(istep,nstat) == 0) call statistc3
 
         if(mod(istep,nflowout) == 0) call outputflow !@file saveload.f90
 
-        !if(ipart .and. istep >= irelease .and. mod(istep,npartout) == 0)call outputpart !@file saveload.f90
+        if(ipart .and. istep >= irelease .and. mod(istep,npartout) == 0)call outputpart !@file saveload.f90
 
 !       if(ipart .and. istep >= irelease .and. mod(istep,nmovieout) == 0) then
 !          call moviedata

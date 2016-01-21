@@ -9,7 +9,7 @@
       use var_inc
       implicit none
 
-      integer ip,cnt, idf,idfy,idfz, i, j, k
+      integer ip,cnt
       integer npsflag, npsflagt, npst, ovlpcnt
       real ranpp
       real radpgap
@@ -43,10 +43,8 @@
 
         !Determine which solid particle centers reside within the MPI tasks local domain
         do ip = 1,npart
-          idfy = floor(ypglb(2,ip)/real(ny)*real(nprocY))
-          idfz = floor(ypglb(3,ip)/real(nz)*real(nprocZ))
-          idf =  idfz * nprocY + idfy 
-          if(idf == myid)then
+          if(ypglb(2,ip) <= globalyp1 .and. ypglb(2,ip) > globaly .and. &
+                     ypglb(3,ip) > globalz .and. ypglb(3,ip) <= globalzp1)then
             nps = nps + 1
             yp(1,nps) = ypglb(1,ip)
             yp(2,nps) = ypglb(2,ip)
@@ -77,7 +75,7 @@
           if(myid==0)write(*,*) 'Particle position initialization done.'
           call MPI_ALLREDUCE(nps,npst,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
           if(npst .ne. npart)then
-            write(*,*) 'fault: npst != npart'
+            write(*,*) 'fault: npst != npart', npst, npart
             stop
           end if
           exit !Break out of loop
@@ -425,23 +423,13 @@
       implicit none
 
       integer idir, iflag, i, j, k, n, it, jt, kt
-      real xc, yc, zc, dx, dy, dz, v0, alphay, alphaz
+      real xc, yc, zc, dx, dy, dz, v0
       real tx, ty, tz, tx0,  ty0, tz0
 
       real, dimension(lx,ly):: tmpZm,tmpZp   
       real, dimension(lx,0:lz+1):: tmpYm, tmpYp 
       integer, dimension(8):: trix, triy, triz
       real, dimension(8):: v
-
-      !Get global position of local fluid domain
-      alphay = 0
-      alphaz = 0
-      do i = 0, indy-1
-         alphay = alphay + mpily(indz*nprocY + i)
-      enddo
-      do i = 0, indz-1
-        alphaz = alphaz + mpilz(i*nprocY + indy)
-      enddo
 
       !Hold indices used to get interpolation points
       trix = (/0,1,1,0,0,1,1,0/)
@@ -454,13 +442,13 @@
 
       !Get the corner position of the box used to interpolate
       i = int((xc + 0.5) / dx)
-      j = int((yc - alphay + 0.5) / dy)
-      k = int((zc - real(indz*lz) + 0.5) / dz)
+      j = int((yc - globaly + 0.5) / dy)
+      k = int((zc - globalz + 0.5) / dz)
 
       !Calculate constants used for interpolation
       tx = (xc + 0.5 - real(i)) / dx
-      ty = (yc - alphay + 0.5 - real(j)) / dy
-      tz = (zc - alphaz + 0.5 - real(k)) / dz
+      ty = (yc - globaly + 0.5 - real(j)) / dy
+      tz = (zc - globalz + 0.5 - real(k)) / dz
 
       tx0 = 1.0 - tx
       ty0 = 1.0 - ty
@@ -543,7 +531,6 @@
 
       integer nfbeads
       logical bfilled
-      real alphay, alphaz
       real,dimension(4*msize):: idfbeads, xfbeads, yfbeads, zfbeads
 
       !Reset indexers and flag array for interpolation bounce back requests
@@ -556,17 +543,6 @@
       nfbeads = 0
       nlink = 0
       nbfill = 0
-      !Get global position of local fluid domain
-      alphay = 0
-      alphaz = 0
-      do i = 0, indy-1
-         alphay = alphay + mpily(indz*nprocY + i)
-      enddo
-      do i = 0, indz-1
-        alphaz = alphaz + mpilz(i*nprocY + indy)
-      enddo
-      alphay = alphay + 0.5
-      alphaz = alphaz + 0.5
       
       !Execute a global search for particles that are touching our local domain (course search)
       do id=1,npart
@@ -574,14 +550,14 @@
         zc = ypglb(3,id)
 
         !Use the nearest particle center instead of the real center
-        if((yc - alphay) > dfloat(nyh)) yc = yc - dfloat(ny)
-        if((yc - alphay) < -dfloat(nyh)) yc = yc + dfloat(ny)
-        if((zc - alphaz) > dfloat(nzh)) zc = zc - dfloat(nz)
-        if((zc - alphaz) < -dfloat(nzh)) zc = zc + dfloat(nz)
+        if((yc - globaly) > dfloat(nyh)) yc = yc - dfloat(ny)
+        if((yc - globaly) < -dfloat(nyh)) yc = yc + dfloat(ny)
+        if((zc - globalz) > dfloat(nzh)) zc = zc - dfloat(nz)
+        if((zc - globalz) < -dfloat(nzh)) zc = zc + dfloat(nz)
 
         !If a solid particle is touching our local domain save its data
-        if((alphay+ly+radp2)-yc > 0 .AND. (alphay-radp2)-yc < 0 &
-            .AND. (alphaz+lz+radp2)-zc > 0 .AND. (alphaz-radp2)-zc < 0)then
+        if((globaly+ly+radp2)-yc > 0 .AND. (globaly-radp2)-yc < 0 &
+            .AND. (globalz+lz+radp2)-zc > 0 .AND. (globalz-radp2)-zc < 0)then
           nfbeads = nfbeads + 1
           idfbeads(nfbeads) = id
           xfbeads(nfbeads) = ypglb(1,id)
@@ -595,8 +571,8 @@
         do j=1, ly
           do k=1, lz
             xpnt = dfloat(i) - 0.5d0
-            ypnt = dfloat(j) - 1.d0 + alphay
-            zpnt = dfloat(k) - 1.d0 + alphaz
+            ypnt = dfloat(j) - 0.5d0 + globaly
+            zpnt = dfloat(k) - 0.5d0 + globalz
             bfilled = .FALSE.
 
             !Loop through particles saved from the course search
@@ -634,8 +610,8 @@
                     kmove = k + ciz(ip)
 
                     xx1 = dfloat(imove) - 0.5d0 - xc
-                    yy1 = dfloat(jmove) - yc - 1.d0 + alphay
-                    zz1 = dfloat(kmove) - zc - 1.d0 + alphaz
+                    yy1 = dfloat(jmove) - 0.5d0 - yc + globaly
+                    zz1 = dfloat(kmove) - 0.5d0 - zc + globalz
 
                     rr1 = xx1**2 + yy1**2 + zz1**2  
                     rr11 = rr1 - (rad*1.d0)**2  
@@ -725,8 +701,8 @@
         do i = 1, lx
           do j = 0, ly+1
             xpnt = dfloat(i) - 0.5d0
-            ypnt = dfloat(j) - 1.d0 + alphay
-            zpnt = dfloat(k) - 1.d0 + alphaz
+            ypnt = dfloat(j) - 0.5d0 + globaly
+            zpnt = dfloat(k) - 0.5d0 + globalz
 
             do 114 id=1, nfbeads
               xc = xfbeads(id)
@@ -760,8 +736,8 @@
         do i = 1, lx
           do k = 1, lz
             xpnt = dfloat(i) - 0.5d0
-            ypnt = dfloat(j) - 1.d0 + alphay
-            zpnt = dfloat(k) - 1.d0 + alphaz
+            ypnt = dfloat(j) - 0.5d0 + globaly
+            zpnt = dfloat(k) - 0.5d0 + globalz
 
             do 115 id=1, nfbeads
               xc = xfbeads(id)
@@ -1003,7 +979,7 @@
       real uwx, uwy, uwz, uwpro, ff1, ff2, ff3
       real w1, w2, w3, omg1, omg2, omg3 
       real c1, c2, c3, dff, dff2, dxmom, dymom, dzmom
-      real xpnt, ypnt, zpnt, alphay, alphaz
+      real xpnt, ypnt, zpnt
 
       real,dimension(lx,ly,lz):: f9print,alphaprint,ff1print
       real, dimension(3,npart):: fHIp0, torqp0
@@ -1014,16 +990,6 @@
 
       !First get data needed from neighboring MPI tasks
       call exchng2direct(mymIpfRecv,mypIpfRecv,mzmIpfRecv,mzpIpfRecv)
-
-      !Get global position of local fluid domain
-      alphay = 0
-      alphaz = 0
-      do i = 0, indy-1
-         alphay = alphay + mpily(indz*nprocY + i)
-      enddo
-      do i = 0, indz-1
-        alphaz = alphaz + mpilz(i*nprocY + indy)
-      enddo
 
       !Parse through all boundary links found in beads_links
       do n = 1,nlink
@@ -1045,8 +1011,8 @@
         zc = ypglb(3,id) 
 
         xpnt = real(i) - 0.5
-        ypnt = real(j) - 0.5 + alphay
-        zpnt = real(k) - 0.5 + alphaz
+        ypnt = real(j) - 0.5 + globaly
+        zpnt = real(k) - 0.5 + globalz
 
         !Use the nearest particle center instead of the real center
         !if((xc - xpnt) > real(nxh)) xc = xc - real(nx) !Removed periodicity in x
@@ -1649,7 +1615,7 @@
       integer, dimension(msize):: tmp2li, tmp2ri, tmp2ui, tmp2di, tmpsi, tmp0i
       integer, dimension(msize):: tmp2dli, tmp2dri, tmp2uli, tmp2uri
 
-      real xc, yc, zc, i, alphay, alphayp1, alphaz, alphazp1
+      real xc, yc, zc
       real, dimension(3,npart):: yp0 
       real, dimension(21,msize):: tmp2l, tmp2r, tmp2d, tmp2u, tmps, tmp0
       real, dimension(21,msize):: tmp2dl, tmp2dr, tmp2ul, tmp2ur
@@ -1685,37 +1651,18 @@
       tmp2ul = 0.0
       tmp2ur = 0.0
       tmps = 0.0
-      
-      !Get global position of local fluid domain
-      alphay = 0
-      alphaz = 0
-      do i = 0, indy-1
-         alphay = alphay + mpily(indz*nprocY + i)
-      enddo
-      do i = 0, indz-1
-        alphaz = alphaz + mpilz(i*nprocY + indy)
-      enddo
-      
-      alphayp1 = 0
-      alphazp1 = 0
-      do i = 0, indy
-         alphayp1 = alphayp1 + mpily(indz*nprocY + i)
-      enddo
-      do i = 0, indz
-        alphazp1 = alphazp1 + mpilz(i*nprocY + indy)
-      enddo
 
       do ip = 1,nps
         yc = yp(2,ip)
         zc = yp(3,ip)
        
  
-        if(zc < alphaz)then
+        if(zc < globalz)then
 
-          if(yc < alphay)then             !1
+          if(yc < globaly)then             !1
            n2dl = n2dl + 1
            id2dl(n2dl) = ip
-          else if(yc >= alphayp1)then   !7
+          else if(yc >= globalyp1)then   !7
            n2ul = n2ul + 1
            id2ul(n2ul) = ip
           else                                   !8
@@ -1723,12 +1670,12 @@
            id2l(n2l) = ip
           endif
 
-        else if(zc >= alphazp1)then
+        else if(zc >= globalzp1)then
 
-          if(yc < alphay)then             !3
+          if(yc < globaly)then             !3
            n2dr = n2dr + 1
            id2dr(n2dr) = ip
-          else if(yc >= alphayp1)then   !5
+          else if(yc >= globalyp1)then   !5
            n2ur = n2ur + 1
            id2ur(n2ur) = ip
           else                                   !4
@@ -1738,10 +1685,10 @@
 
         else
 
-          if(yc < alphay)then             !2
+          if(yc < globaly)then             !2
            n2d = n2d + 1
            id2d(n2d) = ip
-          else if(yc >= alphayp1)then   !6
+          else if(yc >= globalyp1)then   !6
            n2u = n2u + 1
            id2u(n2u) = ip
           else                                   !stay
@@ -1852,7 +1799,7 @@
       call MPI_ALLREDUCE(nps,npst,1,MPI_INTEGER,MPI_SUM,               &
                          MPI_COMM_WORLD,ierr)
       if(npst /= npart)then
-        if(myid == 0) write(*,*) 'fault: npst != npart'
+        if(myid == 0) write(*,*) 'beads_redistribute fault: npst != npart',npst, npart
         stop
       end if
         
@@ -1863,7 +1810,6 @@
         zc = yp(3,ip)        
 
         if( (xc+rad) > real(nx)) ckpw2 = ckpw2 + 1
-               
         if( (xc-rad) < 0.0) ckpw1 = ckpw1 + 1
 
         if(yc >= real(ny)) yp(2,ip) = yp(2,ip) - real(ny)
@@ -2073,7 +2019,7 @@
       real aa, bb, cc, ddt, ddt0, ddt1  
       real xp1, yp1, zp1, xp2, yp2, zp2
       real xx0, yy0, zz0, prod0, prod
-      real rho9, u9, v9, w9, alphay, alphaz
+      real rho9, u9, v9, w9
       !Temporary array for sending filling request data      
       logical, dimension(nproc*8):: tempFlags
       real, dimension(0:npop-1):: f9, f8, f7
@@ -2087,16 +2033,6 @@
 
       ! Send and recieve data for filling
       call exchngFill
-      
-      !Get global position of local fluid domain
-      alphay = 0
-      alphaz = 0
-      do i = 0, indy-1
-         alphay = alphay + mpily(indz*nprocY + i)
-      enddo
-      do i = 0, indz-1
-        alphaz = alphaz + mpilz(i*nprocY + indy)
-      enddo
 
       !Parse through fill nodes
       do n=1, nbfill
@@ -2115,8 +2051,8 @@
         k = zbfill(n)
 
         xpnt = dfloat(i) - 0.5d0 
-        ypnt = dfloat(j) - 0.5d0 + alphay   
-        zpnt = dfloat(k) - 0.5d0 + alphaz
+        ypnt = dfloat(j) - 0.5d0 + globaly   
+        zpnt = dfloat(k) - 0.5d0 + globalz
 
         !Use the nearest particle center instead of the real center
         !if((xc - xpnt) > dfloat(nxh)) xc = xc - dfloat(nx)

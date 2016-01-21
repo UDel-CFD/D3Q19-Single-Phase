@@ -694,7 +694,7 @@
 
       !call outputuz
 
-      !call outputpress
+      call outputpress
 
       !call outputvort
 
@@ -1023,9 +1023,10 @@
       integer status(MPI_STATUS_SIZE)
       integer istp1, istp2, istp3, istp4, istp5, istp6, istp7
       
+      real xx0, yy0, zz0
       real,allocatable, dimension(:,:,:):: rho9    
       real,allocatable, dimension(:,:,:):: rho1    
-      character (len = 120):: fnm
+      character (len = 120):: fnm, fnm2
 
       !Collect pressure data from all MPI tasks
       if(myid == 0)then
@@ -1073,17 +1074,35 @@
             //char(istp1 + 48)//char(istp2 + 48)//char(istp3 + 48)     &
             //char(istp4 + 48)//char(istp5 + 48)//char(istp6 + 48)     &
             //char(istp7 + 48)//'.dat' 
+       fnm2 = trim(dirflowout)//'pressCut'                                &
+            //char(istp1 + 48)//char(istp2 + 48)//char(istp3 + 48)     &
+            //char(istp4 + 48)//char(istp5 + 48)//char(istp6 + 48)     &
+            //char(istp7 + 48)//'.dat' 
 
-        open(19, file = trim(fnm), status = 'unknown',                 &
+        !open(19, file = trim(fnm), status = 'unknown',                 &
+        !         form = 'formatted')
+        open(20, file = trim(fnm2), status = 'unknown',                 &
                  form = 'formatted')
 
-        write(19,190) rho9/3.0 
+        !write(19,190) rho9/3.0 
 
-        close(19)
+        !close(19)
+        
+        i = nx/2
+         xx0 = dfloat(i) - 0.5d0
+         do k = 1,nz
+           zz0 = dfloat(k) - 0.5d0
+           do j = 1,ny
+              yy0 = dfloat(j) - 0.5d0
+              write(20,120) yy0,zz0,rho9(i,j,k)/3.0
+           end do!y
+        end do!z
+        close(20)
         deallocate(rho9)
 
       end if
 
+120   format(2x,3(1pe16.6))
 190   format(2x,8(1pe16.6))
       end subroutine outputpress      
 !===========================================================================

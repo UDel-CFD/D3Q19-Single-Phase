@@ -27,7 +27,7 @@
       integer(kind = 8):: plan_RC, plan_CR, plan_F, plan_B  
       
       !Domain size paramters
-      integer,parameter:: nx7=100,nx = nx7-1, ny = nx7-3, nz = nx7
+      integer,parameter:: nx7=200,nx = nx7-1, ny = nx7*2-1, nz = nx7
       integer,parameter:: lx = nx
       integer,parameter:: lxh = lx/2, lyh = ny/2
       integer,parameter:: nxh = nx7/2, nyh = ny/2, nzh = nz/2
@@ -35,14 +35,14 @@
 
       !Diagnostic and data output paramters
       integer,parameter:: ndiag = 250, nstat = 1000  , nspec=1000
-      integer,parameter:: nflowout = 1000, npartout = 5000, ntime = 100
+      integer,parameter:: nflowout = 1000, npartout = nflowout, ntime = 10000
       integer,parameter:: nmovieout = 20000000, nsij = 100    
 
       !Other fluid/ particle related parameters
       integer,parameter:: iflowseed = 54321
       integer,parameter:: NTAB = 32
       real,parameter:: rho0 = 1.0, rhopart = 1.0
-      integer,parameter:: npart = 200 
+      integer,parameter:: npart = 100 
       real,parameter:: rad = 15.0, mingap = 3.0, mingap_w =3.0
       integer,parameter:: irelease = 10
       integer,parameter:: iprocrate = 2  
@@ -50,7 +50,7 @@
 
       !MPI, input/output, and runtime related variables
       integer ierr, myid, nproc
-      integer nprocY, nprocZ
+      integer nprocY, nprocZ, globaly, globalz, globalyp1, globalzp1
       integer istep, istep0, istep00, nsteps, npforcing, istpload, imovie   
       integer lz, ly, lyext, lly, nek, MRTtype, mzp, mzm, istat, iseedf, iyf
       integer indy, indz, myp, mym, mypzp, mypzm, mymzp, mymzm
