@@ -542,8 +542,6 @@
       fill_mymc = 0; fill_mypc = 0; fill_mzmc = 0; fill_mzpc = 0
       ifill(:,:,:) = 0
 
-      !Reset fill request data
-      localReqData = .FALSE.
       radp2 = rad + 4.d0
       nfbeads = 0
       nlink = 0
@@ -750,26 +748,12 @@
                 end do
                 
                 ipbfill(nbfill) = ipmx
-                
+           
                 call parse_Fill_nodes(ipopp(ipmx),i,j,k,nbfill)
+                
                 !Correct ibnodes and isnodes
                 ibnodes(i,j,k) = -1
                 isnodes(i,j,k) = -1
-
-                !We need to apply 3 point extrapolation for the filling scheme
-                !Determine if we need to request any data for filling
-                if(k < 4) then 
-                  localReqData(2) = .TRUE.
-                  if(j < 4) localReqData(7) = .TRUE.
-                  if(j > ly-3) localReqData(8) = .TRUE.
-                else if(k > lz-3) then
-                  localReqData(1) = .TRUE.
-                  if(j < 4) localReqData(5) = .TRUE.
-                  if(j > ly-3) localReqData(6) = .TRUE.
-                end if
-                if(j < 4) localReqData(3) = .TRUE.
-                if(j > ly-3) localReqData(4) = .TRUE.
-         
                endif !If needs filling
           enddo !z
         enddo !y
@@ -1045,11 +1029,9 @@
 !=============================================================================
 !@subroutine parse_Fill_nodes
 !@desc Checks to see if we require any data from neighboring MPI tasks for 
-!      interpolation bounce back for a given node link that crosses a 
-!      solid boundary. If so add data to appropriate request arrays.
-!@param ipi = integer; direction of the link under consideration
+!      three point extrapolation and density averaging
+!@param ipi = integer; inward normal towards the particle
 !@param i,j,k = integer; position node with the link under consideration
-!@param alpha = real; distance solid boundary is from the node 0>alpha>1
 !@param n = integer; unique index of given link
 !=============================================================================
       subroutine parse_Fill_nodes(ipi,i,j,k,n)
@@ -2258,25 +2240,11 @@
 
       real xc, yc, zc, xpnt, ypnt, zpnt
       real w1, w2, w3, omg1, omg2, omg3
-      real aa, bb, cc, ddt, ddt0, ddt1  
-      real xp1, yp1, zp1, xp2, yp2, zp2
-      real xx0, yy0, zz0, prod0, prod
-      real rho9, u9, v9, w9
-      !Temporary array for sending filling request data      
-      logical, dimension(nproc*8):: tempFlags
+      real xx0, yy0, zz0, rho9, u9, v9, w9
+      
       real, dimension(0:npop-1):: f9, f8, f7
       real mymFillRecv(0:npop-1,fill_mymc), mypFillRecv(0:npop-1,fill_mypc)
       real mzmFillRecv(0:npop-1,fill_mzmc), mzpFillRecv(0:npop-1,fill_mzpc)
-
-      !Gather all fill flags for all MPI tasks
-      call MPI_ALLGATHER(localReqData, 8, MPI_LOGICAL, tempFlags, 8, MPI_LOGICAL, MPI_COMM_WORLD, ierr)
-      !Gather dumps into 1d array, lets convert it to a 2d for better intuition
-      do n=0, nproc-1
-        fillMPIrequest(n,:) = tempFlags(n*8+1:n*8+8)
-      enddo
-
-      ! Send and recieve data for filling
-      call exchngFill
 
       call exchngFilldirect(mymFillRecv, mypFillRecv, mzmFillRecv, mzpFillRecv)
       !Parse through fill nodes
@@ -2299,7 +2267,7 @@
         ypnt = dfloat(j) - 0.5d0 + globaly   
         zpnt = dfloat(k) - 0.5d0 + globalz
 
-        ipmx = ipbfill(n)
+        ipmx = ipbfill(n) !Give outward normal
 
         ix = cix(ipmx)
         iy = ciy(ipmx)
@@ -2337,14 +2305,14 @@
             ib0p1 = ibnodes0(ip1,jp1,kp1)
             f9 = f(:,ip1,jp1,kp1)
           elseif(ifill(-1,1,n) .eq. 1) then
-            f9 = fillRecvYm(:,ip1,jp1,kp1)
+            f9 = mymFillRecv(:,ifill(-1,2,n))
           elseif(ifill(-1,1,n) .eq. 2) then
-            f9 = fillRecvYp(:,ip1,jp1,kp1)
+            f9 = mypFillRecv(:,ifill(-1,2,n))
           else
             if(ifill(-1,1,n) .eq. 3) then
-            f9 = fillRecvZm(:,ip1,jp1,kp1)
+            f9 = mzmFillRecv(:,ifill(-1,2,n))
             else
-            f9 = fillRecvZp(:,ip1,jp1,kp1)
+            f9 = mzpFillRecv(:,ifill(-1,2,n))
             end if
           end if
         !Get extrapolation point 2
@@ -2354,14 +2322,14 @@
             ib0p2 = ibnodes0(ip2,jp2,kp2)
             f8 = f(:,ip2,jp2,kp2)          
           elseif(ifill(-2,1,n) .eq. 1) then
-            f8 = fillRecvYm(:,ip2,jp2,kp2)
+            f8 = mymFillRecv(:,ifill(-2,2,n))
           elseif(ifill(-2,1,n) .eq. 2) then
-            f8 = fillRecvYp(:,ip2,jp2,kp2)
+            f8 = mypFillRecv(:,ifill(-2,2,n))
           else
             if(ifill(-2,1,n) .eq. 3) then
-              f8 = fillRecvZm(:,ip2,jp2,kp2)
+              f8 = mzmFillRecv(:,ifill(-2,2,n))
             else
-              f8 = fillRecvZp(:,ip2,jp2,kp2)
+              f8 = mzpFillRecv(:,ifill(-2,2,n))
             end if
           end if
         !Get extrapolation point 3
@@ -2371,14 +2339,14 @@
             ib0p3 = ibnodes0(ip3,jp3,kp3)
             f7 = f(:,ip3,jp3,kp3)
           elseif(ifill(-3,1,n) .eq. 1) then
-            f7 = fillRecvYm(:,ip3,jp3,kp3)
+            f7 = mymFillRecv(:,ifill(-3,2,n))
           elseif(ifill(-3,1,n) .eq. 2) then
-            f7 = fillRecvYp(:,ip3,jp3,kp3)
+            f7 = mypFillRecv(:,ifill(-3,2,n))
           else
             if(ifill(-3,1,n) .eq. 3) then
-              f7 = fillRecvZm(:,ip3,jp3,kp3)
+              f7 = mzmFillRecv(:,ifill(-3,2,n))
             else
-              f7 = fillRecvZp(:,ip3,jp3,kp3)
+              f7 = mzpFillRecv(:,ifill(-3,2,n))
             end if
           end if
         endif !p3
@@ -2474,14 +2442,14 @@
             if(ifill(ipop,1,n) .eq. 0)then
                 f9 = f(:,ip1,jp1,kp1)
             elseif(ifill(ipop,1,n) .eq. 1) then
-                f9 = fillRecvYm(:,ip1,jp1,kp1)
+                f9 = mymFillRecv(:,ifill(ipop,2,n))
             elseif(ifill(ipop,1,n) .eq. 2) then
-                f9 = fillRecvYp(:,ip1,jp1,kp1)
+                f9 = mypFillRecv(:,ifill(ipop,2,n))
             else
               if(ifill(ipop,1,n) .eq. 3) then
-                f9 = fillRecvZm(:,ip1,jp1,kp1)
+                f9 = mzmFillRecv(:,ifill(ipop,2,n))
               else
-                f9 = fillRecvZp(:,ip1,jp1,kp1)
+                f9 = mzpFillRecv(:,ifill(ipop,2,n))
               end if
             end if
 
@@ -2526,149 +2494,10 @@
 
       end subroutine beads_filling
 !=============================================================================
-!@subroutine exchngFill
-!@desc Exchanges 3 layers of information for velocity constrained beads_filling
-!=============================================================================
-     subroutine exchngFill
-      use mpi
-      use var_inc
-      implicit none
-
-      integer ileny, ilenz, nreq
-      integer ip, i, j, k
-      logical utempinit, dtempinit
-!      real, dimension(0:npop-1,lx,3,-2:lz+3):: tmpYp, tmpYm 
-      real,dimension(0:npop-1,lx,3,-2:lz+3):: tmpYmS,tmpYmR,tmpYpS,tmpYpR
-      real,dimension(0:npop-1,lx,ly,3):: tmpZmS,tmpZmR,tmpZpR,tmpZpS
-      integer status_array(MPI_STATUS_SIZE,4), req(4)
-
-      tmpZpS(:,:,:,:) = IBNODES_TRUE
-      tmpZmS(:,:,:,:) = IBNODES_TRUE
-      tmpYpS(:,:,:,:) = IBNODES_TRUE
-      tmpYmS(:,:,:,:) = IBNODES_TRUE
-
-      utempinit = .FALSE.
-      dtempinit = .FALSE.
-      ilenz = npop*lx*ly*3
-      ileny = npop*lx*(lz+6)*3
-      nreq = 0
-      !Recieving Z+
-      if(fillMPIrequest(myid,1) .or. fillMPIrequest(mym,6) .or. fillMPIrequest(myp,5))then
-        nreq = nreq + 1
-        utempinit = .TRUE.
-        call MPI_IRECV(tmpZpR,ilenz,MPI_REAL8,mzp,0,MPI_COMM_WORLD,req(nreq),ierr)
-      endif
-      !Recieving Z-
-      if(fillMPIrequest(myid,2) .or. fillMPIrequest(mym,8) .or. fillMPIrequest(myp,7))then
-        nreq = nreq + 1
-        dtempinit = .TRUE.
-        call MPI_IRECV(tmpZmR,ilenz,MPI_REAL8,mzm,1,MPI_COMM_WORLD,req(nreq),ierr)
-      endif
-      !Sending Z+
-      if(fillMPIrequest(mzp,2) .or. fillMPIrequest(mymzp,8) .or. fillMPIrequest(mypzp,7))then
-        nreq = nreq + 1
-        !Merge distribution array and send buffer using ibnodes and ibnodes0 as a mask
-        !Intrinsic fortran90 function merge(truearray, falsearray, logicalarray)
-        do ip = 0, npop-1
-          tmpZpS(ip,:,:,1:3) = merge(f(ip,:,:,lz-2:lz), tmpZpS(ip,:,:,1:3), (ibnodes(1:lx,1:ly,lz-2:lz) < 0 .and. ibnodes0(1:lx,1:ly,lz-2:lz) < 0))
-        enddo
-
-        call MPI_ISEND(tmpZpS,ilenz,MPI_REAL8,mzp,1,MPI_COMM_WORLD,req(nreq),ierr)
-      endif
-      !Sending Z-
-      if(fillMPIrequest(mzm,1) .or. fillMPIrequest(mymzm,6) .or. fillMPIrequest(mypzm,5))then
-        nreq = nreq + 1
-        !Merge distribution array and send buffer using ibnodes and ibnodes0 as a mask
-        !Intrinsic fortran90 function merge(truearray, falsearray, logicalarray)
-        do ip = 0, npop-1
-          tmpZmS(ip,:,:,1:3) = merge(f(ip,:,:,1:3), tmpZmS(ip,:,:,1:3), (ibnodes(1:lx,1:ly,1:3) < 0 .and. ibnodes0(1:lx,1:ly,1:3) < 0))
-        enddo
-
-        call MPI_ISEND(tmpZmS,ilenz,MPI_REAL8,mzm,0,MPI_COMM_WORLD,req(nreq),ierr)
-      endif
-      
-      if(nreq > 0)then
-        call MPI_WAITALL(nreq,req,status_array,ierr)
-      endif
-
-      fillRecvZp(:,:,:,lz+1:lz+3) = tmpZpR(:,:,:,1:3)
-      fillRecvZm(:,:,:,-2:0) = tmpZmR(:,:,:,1:3)
-      nreq = 0
-
-      !Receiving Y-
-      if(fillMPIrequest(myid,3))then
-        nreq = nreq + 1
-        call MPI_IRECV(tmpYmR,ileny,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(nreq),ierr)
-      endif
-      !Recieving Y+
-      if(fillMPIrequest(myid,4))then
-        nreq = nreq + 1
-        call MPI_IRECV(tmpYpR,ileny,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(nreq),ierr)
-      endif
-      !Sending Y-
-      if(fillMPIrequest(mym,4))then
-        nreq = nreq + 1
-        !If we have corner data from the z neighbors that needs to be sent add it
-
-        if(dtempinit) then 
-          tmpYmS(:,:,1,-2:0) = tmpZmR(:,:,1,1:3)
-          tmpYmS(:,:,2,-2:0) = tmpZmR(:,:,2,1:3)
-          tmpYmS(:,:,3,-2:0) = tmpZmR(:,:,3,1:3)
-        end if
-
-        !Merge distribution array and send buffer using ibnodes and ibnodes0 as a mask
-        !Intrinsic fortran90 function merge(truearray, falsearray, logicalarray)
-        do ip = 0, npop-1
-          tmpYmS(ip,:,1:3,1:lz) = merge(f(ip,:,1:3,:), tmpYmS(ip,:,1:3,1:lz), (ibnodes(1:lx,1:3,1:lz) < 0 .and. ibnodes0(1:lx,1:3,1:lz) < 0))
-        enddo
-
-        if(utempinit) then
-          tmpYmS(:,:,1,lz+1:lz+3) = tmpZpR(:,:,1,1:3)
-          tmpYmS(:,:,2,lz+1:lz+3) = tmpZpR(:,:,2,1:3)
-          tmpYmS(:,:,3,lz+1:lz+3) = tmpZpR(:,:,3,1:3)
-        end if
-
-        call MPI_ISEND(tmpYmS,ileny,MPI_REAL8,mym,0,MPI_COMM_WORLD,req(nreq),ierr)
-      endif
-      !Sending Y+
-      if(fillMPIrequest(myp,3))then
-        nreq = nreq + 1
-        !If we have corner data from the z neighbors that needs to be sent add it
-        if(dtempinit) then
-          tmpYpS(:,:,1,-2:0) = tmpZmR(:,:,ly-2,1:3)
-          tmpYpS(:,:,2,-2:0) = tmpZmR(:,:,ly-1,1:3)
-          tmpYpS(:,:,3,-2:0) = tmpZmR(:,:,ly,1:3)
-        end if
-
-        !Merge distribution array and send buffer using ibnodes and ibnodes0 as a mask
-        !Intrinsic fortran90 function merge(truearray, falsearray, logicalarray)
-        do ip = 0, npop-1
-          tmpYpS(ip,:,1:3,1:lz) = merge(f(ip,:,ly-2:ly,:), tmpYpS(ip,:,1:3,1:lz), (ibnodes(1:lx,ly-2:ly,1:lz) < 0 .and. ibnodes0(1:lx,ly-2:ly,1:lz) < 0))
-        enddo
-
-        if(utempinit) then
-          tmpYpS(:,:,1,lz+1:lz+3) = tmpZpR(:,:,ly-2,1:3)
-          tmpYpS(:,:,2,lz+1:lz+3) = tmpZpR(:,:,ly-1,1:3)
-          tmpYpS(:,:,3,lz+1:lz+3) = tmpZpR(:,:,ly,1:3)
-        end if
-
-        call MPI_ISEND(tmpYpS,ileny,MPI_REAL8,myp,1,MPI_COMM_WORLD,req(nreq),ierr)
-      endif
-
-      if(nreq > 0)then
-        call MPI_WAITALL(nreq,req,status_array,ierr)
-      endif
-
-      fillRecvYm(:,:,-2:0,:) = tmpYmR(:,:,1:3,:)
-      fillRecvYp(:,:,ly+1:ly+3,:) = tmpYpR(:,:,1:3,:)
-
-      end subroutine exchngFill
-!=============================================================================
-!@subroutine exchng2direct
-!@desc Handles the exchange of distribution data between MPI tasks needed for
-!      interpolation bounce back with the solid particles. Consult Nicholas
-!      Geneva for further algorithm details.
-!@param mymIpfRecv, mypIpfRecv, mzmIpfRecv, mzpIpfRecv = real array; stores
+!@subroutine exchngFilldirect
+!@desc Handles the exchange of node data between MPI tasks needed for
+!      refilling of fluid nodes
+!@param mymFillRecv, mypFillRecv, mzmFillRecv, mzpFillRecv = real array; stores
 !       distributions requested from neighboring MPI tasks.
 !=============================================================================
       subroutine exchngFilldirect(mymFillRecv, mypFillRecv, mzmFillRecv, mzpFillRecv)
@@ -2684,8 +2513,8 @@
       real mzmFillRecv(0:npop-1,fill_mzmc), mzpFillRecv(0:npop-1,fill_mzpc)
       real,allocatable,dimension(:,:):: mymFillSend, mypFillSend, mzmFillSend, mzpFillSend, fillRecv
       integer fill_mzmtc, fill_mzptc, count, ymcount, ypcount, zmcount, zpcount
+      integer i, j, dir
       integer status(MPI_STATUS_SIZE), status_array(MPI_STATUS_SIZE,10), req(10)
-      integer ip, i, j, dir, xm1, ym1, zm1
 
       type(cornerNode), dimension(2*19*lx):: mzmt_index, mzpt_index
       type(fill_node),allocatable,dimension(:):: fillReq

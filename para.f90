@@ -487,12 +487,6 @@
       allocate (fill_myp(3*maxbfill))
       allocate (fill_mzm(3*maxbfill))
       allocate (fill_mzp(3*maxbfill))
-      allocate (fillMPIrequest(0:nproc,8))
-      allocate (localReqData(8))
-      allocate(fillRecvYm(0:npop-1,lx,-2:0,-2:lz+3))
-      allocate(fillRecvYp(0:npop-1,lx,ly+1:ly+3,-2:lz+3))
-      allocate(fillRecvZm(0:npop-1,lx,ly,-2:0))
-      allocate(fillRecvZp(0:npop-1,lx,ly,lz+1:lz+3))
 
       isnodes = -1
 

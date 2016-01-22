@@ -113,10 +113,6 @@
 
       integer,allocatable,dimension(:):: xbfill, ybfill, zbfill
       integer,allocatable,dimension(:):: idbfill, ipbfill
-      logical,allocatable,dimension(:,:):: fillMPIrequest
-      logical,allocatable,dimension(:):: localReqData
-      real,allocatable,dimension(:,:,:,:):: fillRecvYm, fillRecvYp    
-      real,allocatable,dimension(:,:,:,:):: fillRecvZm, fillRecvZp
       integer,allocatable,dimension(:,:,:):: ifill
       type(fill_node), allocatable,dimension(:):: fill_mym, fill_myp, fill_mzm, fill_mzp
 
