@@ -2318,87 +2318,68 @@
         jp3 = j + 3*iy
         kp3 = k + 3*iz
 
-        if(ip1 < 1 .or. ip1 > lx) then
-          if(ifill(-1,1,n) .ne. 5)write(*,*)myid,'ip1 ne 5'
+        if(ifill(-1,1,n) .eq. 5) then
           ibp1 = 1
           ib0p1 = 1
         end if
-        if(ip2 < 1 .or. ip2>lx) then
-          if(ifill(-2,1,n) .ne. 5)write(*,*)myid,'ip2 ne 5'  
+        if(ifill(-2,1,n) .eq. 5) then
           ibp2 = 1
           ib0p2 = 1
         end if
-        if(ip3 < 1 .or. ip3>lx) then
-          if(ifill(-3,1,n) .ne. 5)write(*,*)myid,'ip3 ne 5'
+        if(ifill(-3,1,n) .eq. 5) then
           ibp3 = 1
           ib0p3 = 1
         end if
         !Get extrapolation point 1
         if(ibp1 < 0 .and. ib0p1 < 0)THEN
-          if(jp1 > ly) then
-            f9 = fillRecvYp(:,ip1,jp1,kp1)
-            if(f9(0) .ne. mypFillRecv(0,ifill(-1,2,n)))write(*,*)myid,'ip1 ne 2'
-          else if (jp1 < 1) then
+          if(ifill(-1,1,n) .eq. 0)then
+            ibp1 = ibnodes(ip1,jp1,kp1)
+            ib0p1 = ibnodes0(ip1,jp1,kp1)
+            f9 = f(:,ip1,jp1,kp1)
+          elseif(ifill(-1,1,n) .eq. 1) then
             f9 = fillRecvYm(:,ip1,jp1,kp1)
-            if(f9(2) .ne. mymFillRecv(2,ifill(-1,2,n)))write(*,*)myid,'ip1 ne 3'
+          elseif(ifill(-1,1,n) .eq. 2) then
+            f9 = fillRecvYp(:,ip1,jp1,kp1)
           else
-            if(kp1 > lz) then
-            f9 = fillRecvZp(:,ip1,jp1,kp1)
-            if(f9(4) .ne. mzpFillRecv(4,ifill(-1,2,n)))write(*,*)myid,'ip1 ne 4'
-            else if(kp1 < 1 ) then
+            if(ifill(-1,1,n) .eq. 3) then
             f9 = fillRecvZm(:,ip1,jp1,kp1)
-            if(f9(7) .ne. mzmFillRecv(7,ifill(-1,2,n)))write(*,*)myid,'ip1 ne 3'
             else
-              if(ifill(-1,1,n) .ne. 0)write(*,*)myid,'ip1 ne 0'
-              ibp1 = ibnodes(ip1,jp1,kp1)
-              ib0p1 = ibnodes0(ip1,jp1,kp1)
-              f9 = f(:,ip1,jp1,kp1)
+            f9 = fillRecvZp(:,ip1,jp1,kp1)
             end if
           end if
         !Get extrapolation point 2
         if(ibp2 < 0 .and. ib0p2 < 0) THEN
-          if(jp2 > ly) then
-            f8 = fillRecvYp(:,ip2,jp2,kp2)
-            if(f8(7) .ne. mypFillRecv(7,ifill(-2,2,n)))write(*,*)myid,'ip2 ne 2'
-          else if (jp2 < 1) then
-            if(ifill(-2,1,n) .ne. 1)write(*,*)myid,'ip2 ne 1'
+          if(ifill(-2,1,n) .eq. 0)then
+            ibp2 = ibnodes(ip2,jp2,kp2)
+            ib0p2 = ibnodes0(ip2,jp2,kp2)
+            f8 = f(:,ip2,jp2,kp2)          
+          elseif(ifill(-2,1,n) .eq. 1) then
             f8 = fillRecvYm(:,ip2,jp2,kp2)
-            if(f8(8) .ne. mymFillRecv(8,ifill(-2,2,n)))write(*,*)myid,'ip2 ne 1'
+          elseif(ifill(-2,1,n) .eq. 2) then
+            f8 = fillRecvYp(:,ip2,jp2,kp2)
           else
-            if(kp2 > lz) then
-              f8 = fillRecvZp(:,ip2,jp2,kp2)
-              if(f8(7) .ne. mzpFillRecv(7,ifill(-2,2,n)))write(*,*)myid,'ip2 ne 4'
-            else if(kp2 < 1 ) then
+            if(ifill(-2,1,n) .eq. 3) then
               f8 = fillRecvZm(:,ip2,jp2,kp2)
-              if(f8(10) .ne. mzmFillRecv(10,ifill(-2,2,n)))write(*,*)myid,'ip2 ne 3'
             else
-                if(ifill(-2,1,n) .ne. 0)write(*,*)myid,'ip2 ne 0'
-              ibp2 = ibnodes(ip2,jp2,kp2)
-              ib0p2 = ibnodes0(ip2,jp2,kp2)
-              f8 = f(:,ip2,jp2,kp2)
-           end if
+              f8 = fillRecvZp(:,ip2,jp2,kp2)
+            end if
           end if
         !Get extrapolation point 3
         if(ibp3 < 0 .and. ib0p3 < 0) THEN
-          if(jp3 > ly) then
-            f7 = fillRecvYp(:,ip3,jp3,kp3)
-            if(f7(10) .ne. mypFillRecv(10,ifill(-3,2,n)))write(*,*)myid,'ip3 ne 2'
-          else if (jp3 < 1) then
+          if(ifill(-3,1,n) .eq. 0)then
+            ibp3 = ibnodes(ip3,jp3,kp3)
+            ib0p3 = ibnodes0(ip3,jp3,kp3)
+            f7 = f(:,ip3,jp3,kp3)
+          elseif(ifill(-3,1,n) .eq. 1) then
             f7 = fillRecvYm(:,ip3,jp3,kp3)
-            if(f7(12) .ne. mymFillRecv(12,ifill(-3,2,n)))write(*,*)myid,'ip3 ne 1'
+          elseif(ifill(-3,1,n) .eq. 2) then
+            f7 = fillRecvYp(:,ip3,jp3,kp3)
           else
-            if(kp3 > lz) then
-              f7 = fillRecvZp(:,ip3,jp3,kp3)
-              if(f7(13) .ne. mzpFillRecv(13,ifill(-3,2,n)))write(*,*)myid,'ip3 ne 4'
-            else if(kp3 < 1 ) then
+            if(ifill(-3,1,n) .eq. 3) then
               f7 = fillRecvZm(:,ip3,jp3,kp3)
-              if(f7(14) .ne. mzmFillRecv(14,ifill(-3,2,n)))write(*,*)myid,'ip3 ne 3'
             else
-              if(ifill(-3,1,n) .ne. 0)write(*,*)myid,'ip3 ne 0'
-              ibp3 = ibnodes(ip3,jp3,kp3)
-              ib0p3 = ibnodes0(ip3,jp3,kp3)
-              f7 = f(:,ip3,jp3,kp3)
-           end if
+              f7 = fillRecvZp(:,ip3,jp3,kp3)
+            end if
           end if
         endif !p3
         endif !p2
@@ -2490,23 +2471,17 @@
           
           IF(ibp1 < 0 .and. ib0p1 < 0)THEN
             nghb = nghb + 1
-
-            if(jp1 > ly) then
-                f9 = fillRecvYp(:,ip1,jp1,kp1)
-                if(f9(14) .ne. mypFillRecv(14,ifill(ipop,2,n)))write(*,*)myid,ipop,' ne 2'
-            else if (jp1 < 1) then
+            if(ifill(ipop,1,n) .eq. 0)then
+                f9 = f(:,ip1,jp1,kp1)
+            elseif(ifill(ipop,1,n) .eq. 1) then
                 f9 = fillRecvYm(:,ip1,jp1,kp1)
-                if(f9(14) .ne. mymFillRecv(14,ifill(ipop,2,n)))write(*,*)myid,ipop,' ne 1'
+            elseif(ifill(ipop,1,n) .eq. 2) then
+                f9 = fillRecvYp(:,ip1,jp1,kp1)
             else
-              if(kp1 > lz) then
-              f9 = fillRecvZp(:,ip1,jp1,kp1)
-              if(f9(10) .ne. mzpFillRecv(10,ifill(ipop,2,n)))write(*,*)myid,ipop,' ne 4'
-              else if(kp1 < 1 ) then
-              f9 = fillRecvZm(:,ip1,jp1,kp1)
-              if(f9(3) .ne. mzmFillRecv(3,ifill(ipop,2,n)))write(*,*)myid,ipop,' ne 3'
+              if(ifill(ipop,1,n) .eq. 3) then
+                f9 = fillRecvZm(:,ip1,jp1,kp1)
               else
-              if(ifill(ipop,1,n) .ne. 0)write(*,*)myid,ipop,' ne 0'
-              f9 = f(:,ip1,jp1,kp1)
+                f9 = fillRecvZp(:,ip1,jp1,kp1)
               end if
             end if
 
