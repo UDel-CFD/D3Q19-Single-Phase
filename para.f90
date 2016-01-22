@@ -481,6 +481,12 @@
       allocate (ybfill(maxbfill))
       allocate (zbfill(maxbfill))
       allocate (idbfill(maxbfill))
+      allocate (ipbfill(maxbfill))
+      allocate (ifill(-3:npop-1,2,maxbfill))
+      allocate (fill_mym(3*maxbfill))
+      allocate (fill_myp(3*maxbfill))
+      allocate (fill_mzm(3*maxbfill))
+      allocate (fill_mzp(3*maxbfill))
       allocate (fillMPIrequest(0:nproc,8))
       allocate (localReqData(8))
       allocate(fillRecvYm(0:npop-1,lx,-2:0,-2:lz+3))
@@ -516,6 +522,9 @@
 
       call MPI_TYPE_CONTIGUOUS(4, MPI_INTEGER, MPI_IPF_NODE, ierr)
       call MPI_TYPE_COMMIT(MPI_IPF_NODE, ierr)
+      
+      call MPI_TYPE_CONTIGUOUS(3, MPI_INTEGER, MPI_FILL_NODE, ierr)
+      call MPI_TYPE_COMMIT(MPI_FILL_NODE, ierr)
 
       end subroutine constructMPItypes
 !=============================================================================

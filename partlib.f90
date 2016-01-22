@@ -522,20 +522,25 @@
       use var_inc
       implicit none
 
-      integer ip,ippp, i, j, k, id, imove, jmove, kmove
+      integer ip, ipmx, i, j, k, id, imove, jmove, kmove
       real xc, yc, zc, aa, bb, cc    
       real alpha0, alpha1, alpha     
       real xx0, yy0, zz0, rr0, rr01      
       real xx1, yy1, zz1, rr1, rr11,xxtt   
       real xpnt, ypnt, zpnt, radp2
+      real xp1, yp1, zp1, xp2, yp2, zp2, ix, iy, iz, prod, prod0
+      real w1, w2, w3, omg1, omg2, omg3
+      real ddt, ddt0, ddt1  
 
       integer nfbeads
       logical bfilled
       real,dimension(4*msize):: idfbeads, xfbeads, yfbeads, zfbeads
 
-      !Reset indexers and flag array for interpolation bounce back requests
+      !Reset indexers and flag array for interpolation bounce back and fill requests
       ipf_mymc = 0; ipf_mypc = 0; ipf_mzmc = 0; ipf_mzpc = 0
       iblinks(:,:,:) = 0
+      fill_mymc = 0; fill_mypc = 0; fill_mzmc = 0; fill_mzpc = 0
+      ifill(:,:,:) = 0
 
       !Reset fill request data
       localReqData = .FALSE.
@@ -670,6 +675,83 @@
                 ybfill(nbfill) = j
                 zbfill(nbfill) = k
                 idbfill(nbfill) = isnodes(i,j,k)
+                
+                id = isnodes(i,j,k)
+                xc = ypglbp(1,id)      
+                yc = ypglbp(2,id)    
+                zc = ypglbp(3,id)  
+
+                if((yc - ypnt) > dfloat(nyh)) yc = yc - dfloat(ny)
+                if((yc - ypnt) < -dfloat(nyh)) yc = yc + dfloat(ny)
+
+                if((zc - zpnt) > dfloat(nzh)) zc = zc - dfloat(nz)
+                if((zc - zpnt) < -dfloat(nzh)) zc = zc + dfloat(nz)
+
+                ! The following lines if to find the normal direction of the particle
+                ! surface at which the new fluid node is exactly recovered. After finding
+                ! such direction, we can decide along which directly the extrapolation 
+                ! should be carried out. Since the lattice velocity directions are quite
+                ! sparse. It is very unlikely that the direction of extrapolation will
+                ! change within half time step. As long as the particles do not move 
+                ! too fast, the following part is not necessary.
+
+                w1 = -0.5d0*(wp(1,id) + wpp(1,id))
+                w2 = -0.5d0*(wp(2,id) + wpp(2,id))
+                w3 = -0.5d0*(wp(3,id) + wpp(3,id))
+                omg1 = -0.5d0*(omgp(1,id) + omgpp(1,id))
+                omg2 = -0.5d0*(omgp(2,id) + omgpp(2,id))
+                omg3 = -0.5d0*(omgp(3,id) + omgpp(3,id))
+
+                aa = w1*w1 + w2*w2 + w3*w3
+                bb = (xpnt - xc)*w1 + (ypnt - yc)*w2 + (zpnt -zc)*w3 
+                cc = (xpnt - xc)**2 + (ypnt - yc)**2 + (zpnt -zc)**2 - (rad)**2 
+
+                ddt0 = bb/aa 
+                ddt1 = sqrt(ddt0**2 - cc/aa) 
+                ddt = -ddt0 + ddt1  
+            
+                if(ddt < 0.d0) ddt = 0.d0
+                if(ddt > 1.d0) ddt = 1.d0
+
+                xp1 = xpnt + w1*ddt
+                yp1 = ypnt + w2*ddt
+                zp1 = zpnt + w3*ddt
+
+                ! (xp2, yp2, zp2) is the point on the particle surface. It is THROUGH this
+                ! point the previous solid node (xpnt, ypnt, zpnt) moves to fluid region.
+                xp2 = xp1 + (omg2*(zp1-zc) - omg3*(yp1-yc))*ddt
+                yp2 = yp1 + (omg3*(xp1-xc) - omg1*(zp1-zc))*ddt
+                zp2 = zp1 + (omg1*(yp1-yc) - omg2*(xp1-xc))*ddt
+
+                ! Change xp2, yp2, zp2 to xpnt, ypnt and zpnt
+
+                xx0 = xp2 - xc
+                yy0 = yp2 - yc
+                zz0 = zp2 - zc
+
+                ! Lallemand and Luo, JCP 184, 2003, pp.414
+                ! identify ipmx, the discrete velocity direction which maximizes the
+                ! quantity n^(hat) dot e_alpha, where n^(hat) is the out-normal vector
+                ! of the wall at the point (xp2, yp2, zp2).
+
+                ! As mentioned before, the point (xp2, yp2, zp2) can be approximated by
+                ! the point (xpnt, ypnt, zpnt)
+                prod0 = -100.0
+                do ip = 1,npop-1
+                ix = cix(ip)
+                iy = ciy(ip)
+                iz = ciz(ip)
+                prod = real(ix)*xx0 + real(iy)*yy0 + real(iz)*zz0
+                if(ip <= 6) prod = prod*sqrt(2.0)
+                if(prod > prod0)then
+                    ipmx = ip
+                    prod0 = prod
+                end if
+                end do
+                
+                ipbfill(nbfill) = ipmx
+                
+                call parse_Fill_nodes(ipopp(ipmx),i,j,k,nbfill)
                 !Correct ibnodes and isnodes
                 ibnodes(i,j,k) = -1
                 isnodes(i,j,k) = -1
@@ -960,6 +1042,166 @@
 116   continue
 
       end subroutine parse_MPI_links
+!=============================================================================
+!@subroutine parse_Fill_nodes
+!@desc Checks to see if we require any data from neighboring MPI tasks for 
+!      interpolation bounce back for a given node link that crosses a 
+!      solid boundary. If so add data to appropriate request arrays.
+!@param ipi = integer; direction of the link under consideration
+!@param i,j,k = integer; position node with the link under consideration
+!@param alpha = real; distance solid boundary is from the node 0>alpha>1
+!@param n = integer; unique index of given link
+!=============================================================================
+      subroutine parse_Fill_nodes(ipi,i,j,k,n)
+      use var_inc
+
+      integer ipi, ip, i, j, k, ix, iy, iz, imove, jmpve, kmove, n
+      integer im1, jm1, km1, im2, jm2, km2, im3, jm3, km3
+
+      ix = cix(ipi)
+      iy = ciy(ipi)
+      iz = ciz(ipi)
+
+      im1 = i - ix
+      jm1 = j - iy
+      km1 = k - iz
+
+      im2 = i - 2*ix
+      jm2 = j - 2*iy
+      km2 = k - 2*iz
+      
+      im3 = i - 3*ix
+      jm3 = j - 3*iy
+      km3 = k - 3*iz
+
+      !Determine if we need to request data from neighboring tasks
+      !Follows similar scheme to parse_MPI_links
+      !(1 = mym, 2 = myp, 3 = mzm, 4 = mzp, 5 = wall)
+      if(im1 < 1 .or. im1 > lx)then
+        ifill(-1,1,n) = 5
+        ifill(-2,1,n) = 5
+        ifill(-3,1,n) = 5
+        goto 117
+      endif
+      
+      if(jm1 < 1)then
+        fill_mymc = fill_mymc + 1
+        fill_mym(fill_mymc) = fill_node(im1, jm1, km1)
+        ifill(-1,1,n) = 1
+        ifill(-1,2,n) = fill_mymc
+      elseif(jm1 > ly)then
+        fill_mypc = fill_mypc + 1
+        fill_myp(fill_mypc) = fill_node(im1, jm1-ly, km1)
+        ifill(-1,1,n) = 2
+        ifill(-1,2,n) = fill_mypc
+      elseif(km1 < 1)then
+        fill_mzmc = fill_mzmc + 1
+        fill_mzm(fill_mzmc) = fill_node(im1, jm1, km1)
+        ifill(-1,1,n) = 3
+        ifill(-1,2,n) = fill_mzmc
+      elseif(km1 > lz)then
+        fill_mzpc = fill_mzpc + 1
+        fill_mzp(fill_mzpc) = fill_node(im1, jm1, km1-lz)
+        ifill(-1,1,n) = 4
+        ifill(-1,2,n) = fill_mzpc
+      endif
+          
+      do 118 ip = 1, npop-1
+        imove = i + cix(ip)
+        jmove = j + ciy(ip)
+        kmove = k + ciz(ip)
+        if(ibnodes(imove,jmove,kmove) .lt. 0)then
+            if(im1 < 1 .or. im1 > lx)then
+                ifill(ip,1,n) = 5
+                goto 118
+            endif
+            if(ip == ipi)then
+                ifill(ip,1,n) = ifill(-1,1,n)
+                ifill(ip,2,n) = ifill(-1,1,n)
+            endif
+            if(jmove < 1)then
+                fill_mymc = fill_mymc + 1
+                fill_mym(fill_mymc) = fill_node(imove, jmove, kmove)
+                ifill(ip,1,n) = 1
+                ifill(ip,2,n) = fill_mymc
+            elseif(jmove > ly)then
+                fill_mypc = fill_mypc + 1
+                fill_myp(fill_mypc) = fill_node(imove, jmove-ly, kmove)
+                ifill(ip,1,n) = 2
+                ifill(ip,2,n) = fill_mypc
+            elseif(kmove < 1)then
+                fill_mzmc = fill_mzmc + 1
+                fill_mzm(fill_mzmc) = fill_node(imove, jmove, kmove)
+                ifill(ip,1,n) = 3
+                ifill(ip,2,n) = fill_mzmc
+            elseif(kmove > lz)then
+                fill_mzpc = fill_mzpc + 1
+                fill_mzp(fill_mzpc) = fill_node(imove, jmove, kmove-lz)
+                ifill(ip,1,n) = 4
+                ifill(ip,2,n) = fill_mzpc
+            endif
+        
+        endif
+118     continue
+      
+      if(im2 < 1 .or. im2 > lx)then
+        ifill(-2,1,n) = 5
+        ifill(-3,1,n) = 5
+        goto 117
+      endif
+      
+      if(jm2 < 1)then
+        fill_mymc = fill_mymc + 1
+        fill_mym(fill_mymc) = fill_node(im2, jm2, km2)
+        ifill(-2,1,n) = 1
+        ifill(-2,2,n) = fill_mymc
+      elseif(jm2 > ly)then
+        fill_mypc = fill_mypc + 1
+        fill_myp(fill_mypc) = fill_node(im2, jm2-ly, km2)
+        ifill(-2,1,n) = 2
+        ifill(-2,2,n) = fill_mypc
+      elseif(km2 < 1)then
+        fill_mzmc = fill_mzmc + 1
+        fill_mzm(fill_mzmc) = fill_node(im2, jm2, km2)
+        ifill(-2,1,n) = 3
+        ifill(-2,2,n) = fill_mzmc
+      elseif(km2 > lz)then
+        fill_mzpc = fill_mzpc + 1
+        fill_mzp(fill_mzpc) = fill_node(im2, jm2, km2-lz)
+        ifill(-2,1,n) = 4
+        ifill(-2,2,n) = fill_mzpc
+      endif
+      
+      if(im3 < 1 .or. im3 > lx)then
+        ifill(-3,1,n) = 5
+        goto 117
+      endif
+      
+      if(jm3 < 1)then
+        fill_mymc = fill_mymc + 1
+        fill_mym(fill_mymc) = fill_node(im3, jm3, km3)
+        ifill(-3,1,n) = 1
+        ifill(-3,2,n) = fill_mymc
+      elseif(jm3 > ly)then
+        fill_mypc = fill_mypc + 1
+        fill_myp(fill_mypc) = fill_node(im3, jm3-ly, km3)
+        ifill(-3,1,n) = 2
+        ifill(-3,2,n) = fill_mypc
+      elseif(km3 < 1)then
+        fill_mzmc = fill_mzmc + 1
+        fill_mzm(fill_mzmc) = fill_node(im3, jm3, km3)
+        ifill(-3,1,n) = 3
+        ifill(-3,2,n) = fill_mzmc
+      elseif(km3 > lz)then
+        fill_mzpc = fill_mzpc + 1
+        fill_mzp(fill_mzpc) = fill_node(im3, jm3, km3-lz)
+        ifill(-3,1,n) = 4
+        ifill(-3,2,n) = fill_mzpc
+      endif
+
+117   continue
+
+      end subroutine parse_Fill_nodes
 !=============================================================================
 !@subroutine beads_collision
 !@desc Executes interpolated bounce back to represent the fluid bouncing off 
@@ -2023,6 +2265,8 @@
       !Temporary array for sending filling request data      
       logical, dimension(nproc*8):: tempFlags
       real, dimension(0:npop-1):: f9, f8, f7
+      real mymFillRecv(0:npop-1,fill_mymc), mypFillRecv(0:npop-1,fill_mypc)
+      real mzmFillRecv(0:npop-1,fill_mzmc), mzpFillRecv(0:npop-1,fill_mzpc)
 
       !Gather all fill flags for all MPI tasks
       call MPI_ALLGATHER(localReqData, 8, MPI_LOGICAL, tempFlags, 8, MPI_LOGICAL, MPI_COMM_WORLD, ierr)
@@ -2034,6 +2278,7 @@
       ! Send and recieve data for filling
       call exchngFill
 
+      call exchngFilldirect(mymFillRecv, mypFillRecv, mzmFillRecv, mzpFillRecv)
       !Parse through fill nodes
       do n=1, nbfill
 
@@ -2049,82 +2294,12 @@
         i = xbfill(n)
         j = ybfill(n)
         k = zbfill(n)
-
+        
         xpnt = dfloat(i) - 0.5d0 
         ypnt = dfloat(j) - 0.5d0 + globaly   
         zpnt = dfloat(k) - 0.5d0 + globalz
 
-        !Use the nearest particle center instead of the real center
-        !if((xc - xpnt) > dfloat(nxh)) xc = xc - dfloat(nx)
-        !if((xc - xpnt) < -dfloat(nxh)) xc = xc + dfloat(nx)
-
-        if((yc - ypnt) > dfloat(nyh)) yc = yc - dfloat(ny)
-        if((yc - ypnt) < -dfloat(nyh)) yc = yc + dfloat(ny)
-
-        if((zc - zpnt) > dfloat(nzh)) zc = zc - dfloat(nz)
-        if((zc - zpnt) < -dfloat(nzh)) zc = zc + dfloat(nz)
-
-        ! The following lines if to find the normal direction of the particle
-        ! surface at which the new fluid node is exactly recovered. After finding
-        ! such direction, we can decide along which directly the extrapolation 
-        ! should be carried out. Since the lattice velocity directions are quite
-        ! sparse. It is very unlikely that the direction of extrapolation will
-        ! change within half time step. As long as the particles do not move 
-        ! too fast, the following part is not necessary.
-
-        w1 = -0.5d0*(wp(1,id) + wpp(1,id))
-        w2 = -0.5d0*(wp(2,id) + wpp(2,id))
-        w3 = -0.5d0*(wp(3,id) + wpp(3,id))
-        omg1 = -0.5d0*(omgp(1,id) + omgpp(1,id))
-        omg2 = -0.5d0*(omgp(2,id) + omgpp(2,id))
-        omg3 = -0.5d0*(omgp(3,id) + omgpp(3,id))
-
-        aa = w1*w1 + w2*w2 + w3*w3
-        bb = (xpnt - xc)*w1 + (ypnt - yc)*w2 + (zpnt -zc)*w3 
-        cc = (xpnt - xc)**2 + (ypnt - yc)**2 + (zpnt -zc)**2 - (rad)**2 
-
-        ddt0 = bb/aa 
-        ddt1 = sqrt(ddt0**2 - cc/aa) 
-        ddt = -ddt0 + ddt1  
-    
-        if(ddt < 0.d0) ddt = 0.d0
-        if(ddt > 1.d0) ddt = 1.d0
-
-        xp1 = xpnt + w1*ddt
-        yp1 = ypnt + w2*ddt
-        zp1 = zpnt + w3*ddt
-
-        ! (xp2, yp2, zp2) is the point on the particle surface. It is THROUGH this
-        ! point the previous solid node (xpnt, ypnt, zpnt) moves to fluid region.
-        xp2 = xp1 + (omg2*(zp1-zc) - omg3*(yp1-yc))*ddt
-        yp2 = yp1 + (omg3*(xp1-xc) - omg1*(zp1-zc))*ddt
-        zp2 = zp1 + (omg1*(yp1-yc) - omg2*(xp1-xc))*ddt
-
-        ! Change xp2, yp2, zp2 to xpnt, ypnt and zpnt
-
-        xx0 = xp2 - xc
-        yy0 = yp2 - yc
-        zz0 = zp2 - zc
-
-        ! Lallemand and Luo, JCP 184, 2003, pp.414
-        ! identify ipmx, the discrete velocity direction which maximizes the
-        ! quantity n^(hat) dot e_alpha, where n^(hat) is the out-normal vector
-        ! of the wall at the point (xp2, yp2, zp2).
-
-        ! As mentioned before, the point (xp2, yp2, zp2) can be approximated by
-        ! the point (xpnt, ypnt, zpnt)
-        prod0 = -100.0
-        do ipop = 1,npop-1
-          ix = cix(ipop)
-          iy = ciy(ipop)
-          iz = ciz(ipop)
-          prod = real(ix)*xx0 + real(iy)*yy0 + real(iz)*zz0
-          if(ipop <= 6) prod = prod*sqrt(2.0)
-          if(prod > prod0)then
-            ipmx = ipop
-            prod0 = prod
-          end if
-        end do
+        ipmx = ipbfill(n)
 
         ix = cix(ipmx)
         iy = ciy(ipmx)
@@ -2144,14 +2319,17 @@
         kp3 = k + 3*iz
 
         if(ip1 < 1 .or. ip1 > lx) then
+          if(ifill(-1,1,n) .ne. 5)write(*,*)myid,'ip1 ne 5'
           ibp1 = 1
           ib0p1 = 1
         end if
         if(ip2 < 1 .or. ip2>lx) then
+          if(ifill(-2,1,n) .ne. 5)write(*,*)myid,'ip2 ne 5'  
           ibp2 = 1
           ib0p2 = 1
         end if
         if(ip3 < 1 .or. ip3>lx) then
+          if(ifill(-3,1,n) .ne. 5)write(*,*)myid,'ip3 ne 5'
           ibp3 = 1
           ib0p3 = 1
         end if
@@ -2159,14 +2337,19 @@
         if(ibp1 < 0 .and. ib0p1 < 0)THEN
           if(jp1 > ly) then
             f9 = fillRecvYp(:,ip1,jp1,kp1)
+            if(f9(0) .ne. mypFillRecv(0,ifill(-1,2,n)))write(*,*)myid,'ip1 ne 2'
           else if (jp1 < 1) then
             f9 = fillRecvYm(:,ip1,jp1,kp1)
+            if(f9(2) .ne. mymFillRecv(2,ifill(-1,2,n)))write(*,*)myid,'ip1 ne 3'
           else
             if(kp1 > lz) then
             f9 = fillRecvZp(:,ip1,jp1,kp1)
+            if(f9(4) .ne. mzpFillRecv(4,ifill(-1,2,n)))write(*,*)myid,'ip1 ne 4'
             else if(kp1 < 1 ) then
             f9 = fillRecvZm(:,ip1,jp1,kp1)
+            if(f9(7) .ne. mzmFillRecv(7,ifill(-1,2,n)))write(*,*)myid,'ip1 ne 3'
             else
+              if(ifill(-1,1,n) .ne. 0)write(*,*)myid,'ip1 ne 0'
               ibp1 = ibnodes(ip1,jp1,kp1)
               ib0p1 = ibnodes0(ip1,jp1,kp1)
               f9 = f(:,ip1,jp1,kp1)
@@ -2176,14 +2359,20 @@
         if(ibp2 < 0 .and. ib0p2 < 0) THEN
           if(jp2 > ly) then
             f8 = fillRecvYp(:,ip2,jp2,kp2)
+            if(f8(7) .ne. mypFillRecv(7,ifill(-2,2,n)))write(*,*)myid,'ip2 ne 2'
           else if (jp2 < 1) then
+            if(ifill(-2,1,n) .ne. 1)write(*,*)myid,'ip2 ne 1'
             f8 = fillRecvYm(:,ip2,jp2,kp2)
+            if(f8(8) .ne. mymFillRecv(8,ifill(-2,2,n)))write(*,*)myid,'ip2 ne 1'
           else
             if(kp2 > lz) then
               f8 = fillRecvZp(:,ip2,jp2,kp2)
+              if(f8(7) .ne. mzpFillRecv(7,ifill(-2,2,n)))write(*,*)myid,'ip2 ne 4'
             else if(kp2 < 1 ) then
               f8 = fillRecvZm(:,ip2,jp2,kp2)
+              if(f8(10) .ne. mzmFillRecv(10,ifill(-2,2,n)))write(*,*)myid,'ip2 ne 3'
             else
+                if(ifill(-2,1,n) .ne. 0)write(*,*)myid,'ip2 ne 0'
               ibp2 = ibnodes(ip2,jp2,kp2)
               ib0p2 = ibnodes0(ip2,jp2,kp2)
               f8 = f(:,ip2,jp2,kp2)
@@ -2193,14 +2382,19 @@
         if(ibp3 < 0 .and. ib0p3 < 0) THEN
           if(jp3 > ly) then
             f7 = fillRecvYp(:,ip3,jp3,kp3)
+            if(f7(10) .ne. mypFillRecv(10,ifill(-3,2,n)))write(*,*)myid,'ip3 ne 2'
           else if (jp3 < 1) then
             f7 = fillRecvYm(:,ip3,jp3,kp3)
+            if(f7(12) .ne. mymFillRecv(12,ifill(-3,2,n)))write(*,*)myid,'ip3 ne 1'
           else
             if(kp3 > lz) then
               f7 = fillRecvZp(:,ip3,jp3,kp3)
+              if(f7(13) .ne. mzpFillRecv(13,ifill(-3,2,n)))write(*,*)myid,'ip3 ne 4'
             else if(kp3 < 1 ) then
               f7 = fillRecvZm(:,ip3,jp3,kp3)
+              if(f7(14) .ne. mzmFillRecv(14,ifill(-3,2,n)))write(*,*)myid,'ip3 ne 3'
             else
+              if(ifill(-3,1,n) .ne. 0)write(*,*)myid,'ip3 ne 0'
               ibp3 = ibnodes(ip3,jp3,kp3)
               ib0p3 = ibnodes0(ip3,jp3,kp3)
               f7 = f(:,ip3,jp3,kp3)
@@ -2298,15 +2492,20 @@
             nghb = nghb + 1
 
             if(jp1 > ly) then
-            f9 = fillRecvYp(:,ip1,jp1,kp1)
+                f9 = fillRecvYp(:,ip1,jp1,kp1)
+                if(f9(14) .ne. mypFillRecv(14,ifill(ipop,2,n)))write(*,*)myid,ipop,' ne 2'
             else if (jp1 < 1) then
-            f9 = fillRecvYm(:,ip1,jp1,kp1)
+                f9 = fillRecvYm(:,ip1,jp1,kp1)
+                if(f9(14) .ne. mymFillRecv(14,ifill(ipop,2,n)))write(*,*)myid,ipop,' ne 1'
             else
               if(kp1 > lz) then
               f9 = fillRecvZp(:,ip1,jp1,kp1)
+              if(f9(10) .ne. mzpFillRecv(10,ifill(ipop,2,n)))write(*,*)myid,ipop,' ne 4'
               else if(kp1 < 1 ) then
               f9 = fillRecvZm(:,ip1,jp1,kp1)
+              if(f9(3) .ne. mzmFillRecv(3,ifill(ipop,2,n)))write(*,*)myid,ipop,' ne 3'
               else
+              if(ifill(ipop,1,n) .ne. 0)write(*,*)myid,ipop,' ne 0'
               f9 = f(:,ip1,jp1,kp1)
               end if
             end if
@@ -2325,7 +2524,6 @@
           !rho9 = rho0
           rho9 = 0.0d0
         END IF
-
 
         !Then calculate the previous solid node's velocity
         xx0 = xpnt - xc
@@ -2490,6 +2688,185 @@
       fillRecvYp(:,:,ly+1:ly+3,:) = tmpYpR(:,:,1:3,:)
 
       end subroutine exchngFill
+!=============================================================================
+!@subroutine exchng2direct
+!@desc Handles the exchange of distribution data between MPI tasks needed for
+!      interpolation bounce back with the solid particles. Consult Nicholas
+!      Geneva for further algorithm details.
+!@param mymIpfRecv, mypIpfRecv, mzmIpfRecv, mzpIpfRecv = real array; stores
+!       distributions requested from neighboring MPI tasks.
+!=============================================================================
+      subroutine exchngFilldirect(mymFillRecv, mypFillRecv, mzmFillRecv, mzpFillRecv)
+      use mpi
+      use var_inc
+      implicit none
+
+      type cornerNode
+        integer index, mpidir
+      endtype
+
+      real mymFillRecv(0:npop-1,fill_mymc), mypFillRecv(0:npop-1,fill_mypc)
+      real mzmFillRecv(0:npop-1,fill_mzmc), mzpFillRecv(0:npop-1,fill_mzpc)
+      real,allocatable,dimension(:,:):: mymFillSend, mypFillSend, mzmFillSend, mzpFillSend, fillRecv
+      integer fill_mzmtc, fill_mzptc, count, ymcount, ypcount, zmcount, zpcount
+      integer status(MPI_STATUS_SIZE), status_array(MPI_STATUS_SIZE,10), req(10)
+      integer ip, i, j, dir, xm1, ym1, zm1
+
+      type(cornerNode), dimension(2*19*lx):: mzmt_index, mzpt_index
+      type(fill_node),allocatable,dimension(:):: fillReq
+      type(fill_node), dimension(2*19*lx):: fill_mzmt, fill_mzpt
+
+      fill_mzmtc = 0; fill_mzptc = 0;
+
+      !Send request arrays to Y direction neighbors (MPI tag 299)
+      call MPI_ISEND(fill_myp(1:fill_mypc), fill_mypc, MPI_FILL_NODE, myp, 299, MPI_COMM_WORLD, req(1), ierr)
+      call MPI_ISEND(fill_mym(1:fill_mymc), fill_mymc, MPI_FILL_NODE, mym, 299, MPI_COMM_WORLD, req(2), ierr)
+      !Recieve requests from Y neighbors
+      do i = 1, 2
+        !Note, this process allows us to recieve a dynamic amount of data!
+        call MPI_PROBE(MPI_ANY_SOURCE, 299, MPI_COMM_WORLD, status, ierr)
+        call MPI_GET_COUNT(status, MPI_FILL_NODE, count, ierr)
+        allocate(fillReq(count))
+        call MPI_RECV(fillReq, count, MPI_FILL_NODE, status(MPI_SOURCE), status(MPI_TAG), MPI_COMM_WORLD, status, ierr)
+        !Allocate send buffers, and adjust cordinates to local grid
+        if(status(MPI_SOURCE) == myp)then
+          allocate(mypFillSend(0:npop-1,count))
+          mypFillSend = 0
+          ypcount = count
+          fillReq(:)%y = fillReq(:)%y + ly
+          dir = 1
+        else
+          allocate(mymFillSend(0:npop-1,count))
+          mymFillSend = 0
+          ymcount = count
+          fillReq(:)%y = fillReq(:)%y !No adjustment here, minus neighbors adjust cords locally
+          dir = -1
+        endif
+        ! Parse Recieved data
+        do j = 1, count
+          !If requested data is in the z neighbors (corner), add it to temporay array
+          if(fillReq(j)%z > lz)then 
+            fill_mzptc = fill_mzptc + 1
+            fill_mzpt(fill_mzptc) = fill_node(fillReq(j)%x,fillReq(j)%y,fillReq(j)%z-lz) !Adjust z cord locally
+            mzpt_index(fill_mzptc) = cornerNode(j,dir)
+          elseif(fillReq(j)%z < 1)then
+            fill_mzmtc = fill_mzmtc + 1
+            fill_mzmt(fill_mzmtc) = fillReq(j)
+            mzmt_index(fill_mzmtc) = cornerNode(j,dir)
+          else !If distribution is in local domain
+            !Note that this assumes you have correctly handled wall boundary conditions in parseFillNodes!
+            if(status(MPI_SOURCE) == myp)then
+              !Check Pre-Stream location for solid node conflicts (Ignores x wall)
+              if(ibnodes(fillReq(j)%x,fillReq(j)%y,fillReq(j)%z) > 0)then
+                mypFillSend(:,j) = IBNODES_TRUE
+              else
+                mypFillSend(:,j) = f(:, fillReq(j)%x, fillReq(j)%y, fillReq(j)%z)
+              endif
+            else
+              !Check Pre-Stream location for solid node conflicts (Ignores x wall)
+              if(ibnodes(fillReq(j)%x,fillReq(j)%y,fillReq(j)%z) > 0)then
+                mymFillSend(:,j) = IBNODES_TRUE
+              else
+                mymFillSend(:,j) = f(:, fillReq(j)%x, fillReq(j)%y, fillReq(j)%z)
+              endif
+            endif
+          endif         
+        enddo
+        deallocate(fillReq)
+      enddo
+
+      ! If corner data was requested from Y neighbors add it to vertical requests
+      ! Corner requests are always on the end of the array
+      do j=1,fill_mzptc
+        fill_mzp(fill_mzpc+j) = fill_mzpt(j)
+      enddo
+      do j=1,fill_mzmtc
+        fill_mzm(fill_mzmc+j) = fill_mzmt(j)
+      enddo
+
+      !Send request arrays to Z direction neighbors (MPI tag 298)
+      call MPI_ISEND(fill_mzp(1:fill_mzpc+fill_mzptc), fill_mzpc+fill_mzptc, MPI_FILL_NODE, mzp, 298, MPI_COMM_WORLD, req(3), ierr)
+      call MPI_ISEND(fill_mzm(1:fill_mzmc+fill_mzmtc), fill_mzmc+fill_mzmtc, MPI_FILL_NODE, mzm, 298, MPI_COMM_WORLD, req(4), ierr)
+      !Recieve requests from Z neighbors
+      do i = 1, 2
+        call MPI_PROBE(MPI_ANY_SOURCE, 298, MPI_COMM_WORLD, status, ierr)
+        call MPI_GET_COUNT(status, MPI_FILL_NODE, count, ierr)
+        allocate(fillReq(count))
+        call MPI_RECV(fillReq, count, MPI_FILL_NODE, status(MPI_SOURCE), status(MPI_TAG), MPI_COMM_WORLD, status, ierr)
+
+        if(status(MPI_SOURCE) == mzp)then
+          !Allocate send buffers, and adjust cordinates to local grid
+          allocate(mzpfillSend(0:npop-1,count))
+          zpcount = count
+          fillReq(:)%z = fillReq(:)%z + lz
+
+          do j=1, count
+            if(ibnodes(fillReq(j)%x,fillReq(j)%y,fillReq(j)%z) > 0)then
+              mzpFillSend(:,j) = IBNODES_TRUE
+            else
+              mzpFillSend(:,j) = f(:, fillReq(j)%x, fillReq(j)%y, fillReq(j)%z)
+            endif
+          enddo
+          !Send distribution data back
+          call MPI_ISEND(mzpFillSend, npop*zpcount, MPI_REAL8, mzp, 297, MPI_COMM_WORLD, req(5), ierr)
+        else
+          !Allocate send buffers, and adjust cordinates to local grid
+          allocate(mzmFillSend(0:npop-1,count))
+          zmcount = count
+          fillReq(:)%z = fillReq(:)%z !No adjustment here, minus neighbors adjust cords locally
+
+          do j=1, count
+            if(ibnodes(fillReq(j)%x,fillReq(j)%y,fillReq(j)%z) > 0)then
+              mzmFillSend(:,j) = IBNODES_TRUE
+            else
+              mzmFillSend(:,j) = f(:, fillReq(j)%x, fillReq(j)%y, fillReq(j)%z)
+            endif
+          enddo
+          !Send distribution data back
+          call MPI_ISEND(mzmFillSend, npop*zmcount, MPI_REAL8, mzm, 297, MPI_COMM_WORLD, req(6), ierr)
+        endif        
+        deallocate(fillReq)
+      enddo
+      
+      !Recieve z neighbor interpolation fluid node data
+      do i = 1, 2
+        call MPI_PROBE(MPI_ANY_SOURCE, 297, MPI_COMM_WORLD, status, ierr)
+        call MPI_GET_COUNT(status, MPI_REAL8, count, ierr)
+        allocate(fillRecv(0:npop-1,count/npop))
+        call MPI_RECV(fillRecv, count, MPI_REAL8, status(MPI_SOURCE), status(MPI_TAG), MPI_COMM_WORLD, status, ierr)
+
+        if(status(MPI_SOURCE) == mzp)then
+          mzpFillRecv(:,:) = fillRecv(:,1:fill_mzpc)
+          do j=1, fill_mzptc !Move requested corner data into Y send buffs
+            if(mzpt_index(j)%mpidir == 1)then
+              mypFillSend(:,mzpt_index(j)%index) = fillRecv(:,fill_mzpc+j)
+            else
+              mymFillSend(:,mzpt_index(j)%index) = fillRecv(:,fill_mzpc+j)
+            endif
+          enddo
+        else
+          mzmFillRecv(:,:) = fillRecv(:,1:fill_mzmc)
+          do j=1, fill_mzmtc !Move requested corner data into Y send buffs
+            if(mzmt_index(j)%mpidir == 1)then 
+              mypFillSend(:,mzmt_index(j)%index) = fillRecv(:,fill_mzmc+j)
+            else
+              mymFillSend(:,mzmt_index(j)%index) = fillRecv(:,fill_mzmc+j)
+            endif
+          enddo
+        endif        
+        deallocate(fillRecv)
+      enddo
+
+      !Send/receive Y interpolation fluid node data to
+      call MPI_IRECV(mypFillRecv,npop*fill_mypc,MPI_REAL8,myp,0,MPI_COMM_WORLD,req(7),ierr)
+      call MPI_IRECV(mymFillRecv,npop*fill_mymc,MPI_REAL8,mym,1,MPI_COMM_WORLD,req(8),ierr)
+
+      call MPI_ISEND(mypFillSend, npop*ypcount, MPI_REAL8, myp, 1, MPI_COMM_WORLD, req(9), ierr)
+      call MPI_ISEND(mymFillSend, npop*ymcount, MPI_REAL8, mym, 0, MPI_COMM_WORLD, req(10), ierr)
+
+      call MPI_WAITALL(10,req,status_array,ierr)
+
+      end subroutine exchngFilldirect
 !============================================================================
 !@subroutine collis_MRT9
 !@desc Constrain velocity for filling

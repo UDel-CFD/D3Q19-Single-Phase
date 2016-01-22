@@ -15,6 +15,11 @@
       sequence
         integer ip, x, y, z
       endtype
+      
+      type fill_node !Interpolation fluid node
+      sequence
+        integer x, y, z
+      endtype
 
       !Fast Fourier Transfer Paramters (Not used currently)
       integer,parameter:: FFTW_FORWARD = -1, FFTW_BACKWARD = 1
@@ -27,7 +32,7 @@
       integer(kind = 8):: plan_RC, plan_CR, plan_F, plan_B  
       
       !Domain size paramters
-      integer,parameter:: nx7=200,nx = nx7-1, ny = nx7*2-1, nz = nx7
+      integer,parameter:: nx7=200,nx = nx7-1, ny = nx7*2, nz = nx7
       integer,parameter:: lx = nx
       integer,parameter:: lxh = lx/2, lyh = ny/2
       integer,parameter:: nxh = nx7/2, nyh = ny/2, nzh = nz/2
@@ -96,21 +101,24 @@
 
       !Particle Specific Arrays/ Variables
       integer nbfill, maxbfill
+      integer fill_mymc, fill_mypc, fill_mzmc, fill_mzpc
       integer nlink, maxlink
       integer ipf_mymc, ipf_mypc, ipf_mzmc, ipf_mzpc
-      integer MPI_IPF_NODE, IBNODES_TRUE
+      integer MPI_FILL_NODE, MPI_IPF_NODE, IBNODES_TRUE
 
-      real,allocatable,dimension(:):: xlink, ylink, zlink
-      real,allocatable,dimension(:):: iplink, alink, mlink
+      integer,allocatable,dimension(:):: xlink, ylink, zlink, iplink, mlink
+      real,allocatable,dimension(:):: alink
       integer,allocatable,dimension(:,:,:):: iblinks
       type(ipf_node), allocatable,dimension(:):: ipf_mym, ipf_myp, ipf_mzm, ipf_mzp
 
       integer,allocatable,dimension(:):: xbfill, ybfill, zbfill
-      integer,allocatable,dimension(:):: idbfill
+      integer,allocatable,dimension(:):: idbfill, ipbfill
       logical,allocatable,dimension(:,:):: fillMPIrequest
       logical,allocatable,dimension(:):: localReqData
       real,allocatable,dimension(:,:,:,:):: fillRecvYm, fillRecvYp    
       real,allocatable,dimension(:,:,:,:):: fillRecvZm, fillRecvZp
+      integer,allocatable,dimension(:,:,:):: ifill
+      type(fill_node), allocatable,dimension(:):: fill_mym, fill_myp, fill_mzm, fill_mzp
 
       !Macroscopic variable arrays
       real,allocatable,dimension(:,:,:):: rho, rhop
