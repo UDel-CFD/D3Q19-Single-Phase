@@ -664,7 +664,8 @@
               if(.NOT. bfilled .AND. ibnodes(i,j,k) > 0)then
                 nbfill = nbfill + 1
                 if(nbfill.ge.maxbfill)then
-                  write(*,'(A44,I5,I4)') 'Number of fill node exceeded array size, maxbfill: ',maxbfill, myid, nbfill
+                  write(*,'(A44,I5,I4,I5)') 'Number of fill node exceeded array &
+                             size, maxbfill: ',maxbfill, myid, nbfill
                   stop
                 endif
 
@@ -678,6 +679,10 @@
                 xc = ypglbp(1,id)      
                 yc = ypglbp(2,id)    
                 zc = ypglbp(3,id)  
+                
+                !Use the nearest particle center instead of the real center
+                !if((xc - xpnt) > dfloat(nxh)) xc = xc - dfloat(nx)
+                !if((xc - xpnt) < -dfloat(nxh)) xc = xc + dfloat(nx)
 
                 if((yc - ypnt) > dfloat(nyh)) yc = yc - dfloat(ny)
                 if((yc - ypnt) < -dfloat(nyh)) yc = yc + dfloat(ny)
@@ -1059,35 +1064,8 @@
       !Determine if we need to request data from neighboring tasks
       !Follows similar scheme to parse_MPI_links
       !(1 = mym, 2 = myp, 3 = mzm, 4 = mzp, 5 = wall)
-      if(im1 < 1 .or. im1 > lx)then
-        ifill(-1,1,n) = 5
-        ifill(-2,1,n) = 5
-        ifill(-3,1,n) = 5
-        goto 117
-      endif
       
-      if(jm1 < 1)then
-        fill_mymc = fill_mymc + 1
-        fill_mym(fill_mymc) = fill_node(im1, jm1, km1)
-        ifill(-1,1,n) = 1
-        ifill(-1,2,n) = fill_mymc
-      elseif(jm1 > ly)then
-        fill_mypc = fill_mypc + 1
-        fill_myp(fill_mypc) = fill_node(im1, jm1-ly, km1)
-        ifill(-1,1,n) = 2
-        ifill(-1,2,n) = fill_mypc
-      elseif(km1 < 1)then
-        fill_mzmc = fill_mzmc + 1
-        fill_mzm(fill_mzmc) = fill_node(im1, jm1, km1)
-        ifill(-1,1,n) = 3
-        ifill(-1,2,n) = fill_mzmc
-      elseif(km1 > lz)then
-        fill_mzpc = fill_mzpc + 1
-        fill_mzp(fill_mzpc) = fill_node(im1, jm1, km1-lz)
-        ifill(-1,1,n) = 4
-        ifill(-1,2,n) = fill_mzpc
-      endif
-          
+      !Start with constrain velocity nodes
       do 118 ip = 1, npop-1
         imove = i + cix(ip)
         jmove = j + ciy(ip)
@@ -1097,10 +1075,7 @@
                 ifill(ip,1,n) = 5
                 goto 118
             endif
-            if(ip == ipi)then
-                ifill(ip,1,n) = ifill(-1,1,n)
-                ifill(ip,2,n) = ifill(-1,1,n)
-            endif
+            
             if(jmove < 1)then
                 fill_mymc = fill_mymc + 1
                 fill_mym(fill_mymc) = fill_node(imove, jmove, kmove)
@@ -1122,9 +1097,24 @@
                 ifill(ip,1,n) = 4
                 ifill(ip,2,n) = fill_mzpc
             endif
-        
+        else
+            ifill(ip,1,n) = 5
+            ifill(ip,2,n) = -1
         endif
 118     continue
+      
+      !Now parse extrapolation nodes
+      if(im1 < 1 .or. im1 > lx)then
+        ifill(-1,1,n) = 5
+        ifill(-2,1,n) = 5
+        ifill(-3,1,n) = 5
+        goto 117
+      endif
+      
+      !We already have the first point requested if needed from the
+      !constrained velocity section
+      ifill(-1,1,n) = ifill(ipopp(ipi),1,n)
+      ifill(-1,2,n) = ifill(ipopp(ipi),2,n)
       
       if(im2 < 1 .or. im2 > lx)then
         ifill(-2,1,n) = 5
@@ -2270,6 +2260,7 @@
         !Use the nearest particle center instead of the real center
         !if((xc - xpnt) > dfloat(nxh)) xc = xc - dfloat(nx)
         !if((xc - xpnt) < -dfloat(nxh)) xc = xc + dfloat(nx)
+        
         if((yc - ypnt) > dfloat(nyh)) yc = yc - dfloat(ny)
         if((yc - ypnt) < -dfloat(nyh)) yc = yc + dfloat(ny)
         
