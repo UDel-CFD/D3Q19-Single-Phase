@@ -2267,6 +2267,15 @@
         ypnt = dfloat(j) - 0.5d0 + globaly   
         zpnt = dfloat(k) - 0.5d0 + globalz
 
+        !Use the nearest particle center instead of the real center
+        !if((xc - xpnt) > dfloat(nxh)) xc = xc - dfloat(nx)
+        !if((xc - xpnt) < -dfloat(nxh)) xc = xc + dfloat(nx)
+        if((yc - ypnt) > dfloat(nyh)) yc = yc - dfloat(ny)
+        if((yc - ypnt) < -dfloat(nyh)) yc = yc + dfloat(ny)
+        
+        if((zc - zpnt) > dfloat(nzh)) zc = zc - dfloat(nz)
+        if((zc - zpnt) < -dfloat(nzh)) zc = zc + dfloat(nz)
+
         ipmx = ipbfill(n) !Give outward normal
 
         ix = cix(ipmx)
