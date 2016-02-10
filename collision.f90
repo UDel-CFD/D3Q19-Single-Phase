@@ -406,8 +406,8 @@
           id = isnodes(ix,iy,iz) 
 
           xpnt = real(ix) - 0.5
-          ypnt = real(iy) - 0.5 + real(indy*ly)
-          zpnt = real(iz) - 0.5 + real(indz*lz)
+          ypnt = real(iy) - 0.5 + globaly
+          zpnt = real(iz) - 0.5 + globalz
 
           xc = ypglb(1,id)
           yc = ypglb(2,id)
