@@ -4,14 +4,14 @@
 !      solid particles per local MPI task does not exceed the set maximum and
 !      all solid particles do not overlap.
 !=============================================================================
-      subroutine initpartpos
+     subroutine initpartpos
       use mpi
       use var_inc
       implicit none
 
-      integer ip,cnt
+      integer ip,ii,cnt
       integer npsflag, npsflagt, npst, ovlpcnt
-      real ranpp
+      real ranpp, xb, yb, zb, dist, hgap
       real radpgap
 
       radpgap = rad + mingap_w
@@ -26,9 +26,32 @@
         !For each solid particle that needs a new location generate new global position
          do ip = 1,npart
            if(ovlpflagt(ip) > 0)then
-             ypglb(1,ip) = radpgap +(real(nx)-2.0*radpgap)*ranpp(iseedp,iyp,ivp)
+50           ypglb(1,ip) = radpgap +(real(nx)-2.0*radpgap)*ranpp(iseedp,iyp,ivp)
              ypglb(2,ip) = real(ny)*ranpp(iseedp,iyp,ivp)
              ypglb(3,ip) = real(nz)*ranpp(iseedp,iyp,ivp)
+             
+             do ii =1,ip-1
+                xb = ypglb(1,ii)
+                yb = ypglb(2,ii)
+                zb = ypglb(3,ii)
+                !Get closest center with periodic boundaries
+                !if((xb - ypglb(1,ip)) > real(nxh)) xb = xb - real(nx)
+                !if((xb - ypglb(1,ip)) < -real(nxh)) xb = xb + real(nx)
+
+                if((yb - ypglb(2,ip)) > real(nyh)) yb = yb - real(ny)
+                if((yb - ypglb(2,ip)) < -real(nyh)) yb = yb + real(ny)
+
+                if((zb - ypglb(3,ip)) > real(nzh)) zb = zb - real(nz)
+                if((zb - ypglb(3,ip)) < -real(nzh)) zb = zb + real(nz)
+
+                dist = sqrt((ypglb(1,ip) - xb)**2 + (ypglb(2,ip) - yb)**2 + (ypglb(3,ip) -zb)**2)
+                hgap = dist - 2.0*rad
+                hgap = hgap - mingap
+
+                !If we have particle overlap find a new spot
+                if(hgap < 0.0)goto 50
+                    
+             enddo
            end if
          end do
         end if
