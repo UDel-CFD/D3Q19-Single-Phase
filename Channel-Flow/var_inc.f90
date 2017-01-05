@@ -48,7 +48,7 @@
       integer(kind = 8):: plan_RC, plan_CR, plan_F, plan_B  
       
       !Domain size paramters
-      integer,parameter:: nx7=200,nx = nx7-1, ny = nx7*2, nz = nx7
+      integer,parameter:: nx7=200,nx = nx7-1, ny = nx7, nz = nx7
       integer,parameter:: lx = nx
       integer,parameter:: lxh = lx/2, lyh = ny/2
       integer,parameter:: nxh = nx7/2, nyh = ny/2, nzh = nz/2

@@ -1101,10 +1101,10 @@
 
         !close(19)
         
-        i = nx/2
-         xx0 = dfloat(i) - 0.5d0
-         do k = 1,nz
-           zz0 = dfloat(k) - 0.5d0
+        k = nx/2
+         zz0 = dfloat(k) - 0.5d0
+         do i = 1,nx
+           xx0 = dfloat(i) - 0.5d0
            do j = 1,ny
               yy0 = dfloat(j) - 0.5d0
               write(20,120) yy0,zz0,rho9(i,j,k)/3.0

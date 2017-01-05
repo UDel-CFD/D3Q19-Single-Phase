@@ -68,7 +68,7 @@
       force_in_y = 2.*rho0*ustar*ustar/real(nx)
       ystar = visc/ustar
       force_mag = 1.0
-      ivel = .TRUE.
+      ivel = .true.
 
       !End time step of perturbatuon forcing
       !Not used in particle laden
@@ -80,6 +80,8 @@
       ustar = 0.05
       visc =  2.d0*ustar*real(nx)/Rstar
       force_in_y = 8.d0*visc*ustar/real(nx)**2
+      ystar = visc/ustar
+      force_mag = 1.0
       ivel = .false.
       
       ! not used
@@ -101,7 +103,7 @@
 !=======================================================
 ! Initialize MRT related constants
 !=======================================================
-      MRTtype = 1
+      MRTtype = 2
 
       s9 = 1.0/tau
       s13 = s9
@@ -208,7 +210,11 @@
       
       !Arrray used for swap collision
       ipswap=(/2,4,6,9,10,13,14,17,18/)
-      ipstay=(/0,1,3,5,7,8,11,12,15,16/) 
+      ipstay=(/0,1,3,5,7,8,11,12,15,16/)
+
+      !Velocity weights
+      wwp = (/ww1, ww1, ww1, ww1, ww1, ww1, ww2, ww2, ww2,           &
+                ww2, ww2, ww2, ww2, ww2, ww2, ww2, ww2, ww2/) 
 
 !=======================================================
 ! Create MPI topology
@@ -247,14 +253,7 @@
       !Distribute local mpi domain sizes to all processors
       CALL MPI_ALLGATHER(ly,1,MPI_INTEGER,mpily,1,MPI_INTEGER,MPI_COMM_WORLD,ierr)
       CALL MPI_ALLGATHER(lz,1,MPI_INTEGER,mpilz,1,MPI_INTEGER,MPI_COMM_WORLD,ierr)
-      
-      if(myid == 0)then
-        write(*,*)'MPI topology constructed, id,ly,lz:'
-        do i =0, nproc-1
-           write(*,*) i,mpily(i),mpilz(i)
-        enddo
-      endif
-      
+            
       !Define global position of local domain
       globaly = 0.0
       globalz = 0.0
@@ -333,7 +332,7 @@
 !=======================================================
 ! Particle related parameters
 !=======================================================
-      ipart = .true.
+      ipart = .false.
       released = .false.
 
       !Flag indicating node is inside solid particle
@@ -380,9 +379,6 @@
         ! 5 = avg number of vertexes a plane crosses in D3Q19
         maxlink = 5*msize*(4*pi*rad**2)
  
-        wwp = (/ww1, ww1, ww1, ww1, ww1, ww1, ww2, ww2, ww2,           &
-                ww2, ww2, ww2, ww2, ww2, ww2, ww2, ww2, ww2/) 
-
       end if
 !=======================================================
 ! Computing wave numbers and other values for the forcing
@@ -506,18 +502,6 @@
       isnodes = -1
 
       end if
-
-!bench marking
-      allocate (collision_MRT_bnch(nsteps))
-      allocate (streaming_bnch(nsteps))
-      allocate (macrovar_bnch(nsteps))
-
-      allocate (beads_collision_bnch(nsteps))
-      allocate (beads_lubforce_bnch(nsteps))
-      allocate (beads_move_bnch(nsteps))
-      allocate (beads_redistribute_bnch(nsteps))
-      allocate (beads_links_bnch(nsteps))
-      allocate (beads_filling_bnch(nsteps))
 
       end subroutine allocarray
 !=============================================================================

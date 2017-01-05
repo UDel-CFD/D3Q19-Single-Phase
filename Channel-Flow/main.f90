@@ -146,12 +146,12 @@
         endif
 
         !Update or shut off perturb forcing, not used in particle laden
-        if(istep .gt. npforcing)then
-        else if(istep .lt. npforcing)then
-         call FORCINGP
-        else if(istep .eq. npforcing)then
-         call FORCING
-        end if
+        !if(istep .gt. npforcing)then
+        !else if(istep .lt. npforcing)then
+        ! call FORCINGP
+        !else if(istep .eq. npforcing)then
+        ! call FORCING
+        !end if
 
         !@file collision.f90
         call collision_MRT
