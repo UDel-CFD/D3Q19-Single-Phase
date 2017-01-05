@@ -134,14 +134,6 @@
       ELSE !Load an existing flow
         if(myid == 0)write(*,*)'Loading flow...'
         call loadcntdflow !@file saveload.f90
-
-        if(ipart .and. istpload > irelease)then
-          call loadcntdpart  !@file saveload.f90
-          call beads_links !@file partlib.f90
-!          if(myid.eq.0)write(*,*)'Initial beads_link passed'
-          released = .TRUE.
-        end if
-
       END IF
 
       if(myid.eq.0)write(*,*)'Loading successful'
@@ -169,76 +161,20 @@
         	write(*,*) 'istep=',istep
         endif
 
-        ! Release partilces only after proper skewness (~ -0.5) has been established
-        ! Initialise particle center position and velocity
-        if(ipart .and. istep == irelease)then
-          istep00 = 0
-          if(myid.eq.0) write(*,*) 'Releasing beads'
-          
-          call initpartpos !@file partlib.f90
-          call initpartvel !@file partlib.f90
-          call initpartomg !@file partlib.f90
-          call beads_links !@file partlib.f90
-
-          istep00 = 1
-          released = .TRUE.
-        end if
-
         !Update or shut off perturb forcing, not used in particle laden
-        if(istep .gt. npforcing .or. ipart)then
+        if(istep .gt. npforcing)then
         else if(istep .lt. npforcing)then
          call FORCINGP
         else if(istep .eq. npforcing)then
          call FORCING
         end if
 
+        !@file collision.f90
         call collision_MRT
         
-        if(ipart .and. istep >= irelease)then !If we have solid particles in our flow
-          !Calculates interpolation bounce back for the fluid off the solid particles
-          !@file partlib.f90
-          !bnchstart = MPI_WTIME()
-          call beads_collision
-          !beads_collision_bnch(istep-istpload) = MPI_WTIME() - bnchstart
-
-          !Determine the lubrication forces acting on the solid particles
-          !@file partlib.f90
-          !bnchstart = MPI_WTIME()
-          call beads_lubforce
-          !beads_lubforce_bnch(istep-istpload) = MPI_WTIME() - bnchstart
-
-          !Update the position of the solid particles
-          !@file partlib.f90
-          !bnchstart = MPI_WTIME()
-          call beads_move
-          !beads_move_bnch(istep-istpload) = MPI_WTIME() - bnchstart
-
-          !Redistribute solid particles to their respective MPI task based on their global position
-          !@file partlib.f90
-          !bnchstart = MPI_WTIME()
-          call beads_redistribute
-          !beads_redistribute_bnch(istep-istpload) = MPI_WTIME() - bnchstart
-
-          !Determine which lattice links cross the fluid/ solid particle boundary,
-          !the position the boundary is located on the link, which nodes are inside a solid particle,
-          !and what data we will need from neighboring MPI tasks for interpolation bounce back
-          !@file partlib.f90
-          !bnchstart = MPI_WTIME()
-          call beads_links
-          !beads_links_bnch(istep-istpload) = MPI_WTIME() - bnchstart
-
-          !Repopulate nodes that previously existed inside a solid particle
-          !@file partlib.f90
-          !bnchstart = MPI_WTIME()
-          call beads_filling
-          !beads_filling_bnch(istep-istpload) = MPI_WTIME() - bnchstart
-        end if
-
         !Calculate macroscopic variables
         !@file collision.f90
-        !bnchstart = MPI_WTIME()
         call macrovar
-        !macrovar_bnch(istep-istpload) = MPI_WTIME() - bnchstart
 
         if(ipart .and. mod(istep,100) == 0)then
           !Remove average density to correct mass loss from interpolation
@@ -306,14 +242,6 @@
       !call savecntdflow
 !save param variables
 !      call input_outputf(2)
-!save bead positions
-      !if(ipart .and. istep > irelease) call savecntdpart    
-
-!Record Benchmarks
-!      call benchflow
-!      call benchbead
-!      call benchmatlab
-!      call benchtotal
 
 101   continue
 
