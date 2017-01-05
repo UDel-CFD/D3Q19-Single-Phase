@@ -1194,68 +1194,7 @@
 
 200   format(2x,8(1pe16.6))
 
-      end subroutine outputvort1      
-!===========================================================================
-
-      subroutine outputpart       
-      use mpi
-      use var_inc
-      implicit none
-
-      integer ip, id, ilen 
-      real, dimension(3,npart):: thglb0, thglb
-
-      integer istp1, istp2, istp3, istp4, istp5, istp6, istp7
-      character (len = 120):: fnm
-
-! prepare for thglb, the global thetap
-      thglb0 = 0.0
-
-      do ip = 1,nps
-        id = ipglb(ip)
-
-        thglb0(:,id) = thetap(:,ip)
-      end do 
-
-      ilen = 3*npart
-      call MPI_ALLREDUCE(thglb0,thglb,ilen,MPI_REAL8,MPI_SUM,           &
-                         MPI_COMM_WORLD,ierr)
-
-      if(myid == 0)then
-
-      istp1 = istep / 1000000
-      istp2 = mod(istep,1000000) / 100000
-      istp3 = mod(istep,100000) / 10000
-      istp4 = mod(istep,10000) / 1000
-      istp5 = mod(istep,1000) / 100
-      istp6 = mod(istep,100) / 10
-      istp7 = mod(istep,10)
-
-        fnm = trim(dirpartout)//'partS1'                                 &
-            //char(istp1 + 48)//char(istp2 + 48)//char(istp3 + 48)  &
-            //char(istp4 + 48)//char(istp5 + 48)//char(istp6 + 48)  &
-            //char(istp7 + 48)//'.dat' 
-
-        open(22, file = trim(fnm), status = 'unknown',                 &
-                 form = 'formatted')
-
-        do id = 1,npart
-          write(22,220) id, ypglb(1,id), ypglb(2,id), ypglb(3,id),     &
-                            thglb(1,id), thglb(2,id), thglb(3,id),     &
-                            wp(1,id), wp(2,id), wp(3,id),              &
-                            omgp(1,id), omgp(2,id), omgp(3,id),        &
-                            fHIp(1,id), fHIp(2,id), fHIp(3,id),        &
-                            flubp(1,id), flubp(2,id), flubp(3,id),     &
-                            torqp(1,id), torqp(2,id), torqp(3,id)
-        end do
-
-        close(22)
-      
-      end if
-
-220   format(2x,i5,21(1pe16.6))
-
-      end subroutine outputpart    
+      end subroutine outputvort1
 !===========================================================================
 ! to compute kinetic energy spectrum, dissipation rate spectrum
 ! also the skewness and flatness
@@ -3726,17 +3665,6 @@
       END IF
 
       end subroutine sijstat
-
-  !===========================================================================
-! This subroutine is for debugging overlap problem and can be deleted after
-      subroutine writepartpair 
-      use mpi
-      use var_inc
-      implicit none
-      end subroutine writepartpair
-!===========================================================================
-
-
 !==========================================================================
 ! This subroutine is for writing out a slice of the instantaneous flow field
       subroutine writeflowfieldstart

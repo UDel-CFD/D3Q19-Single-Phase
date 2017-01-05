@@ -28,9 +28,13 @@
       call MPI_COMM_SIZE(MPI_COMM_WORLD,nproc,ierr)      
 
       !Liscense Text
-      write(*,*)'University of Delaware LBM D3Q19 Channel Flow Copyright (C) 2017 Lian-Ping Wang'
-      write(*,*)'This program comes with ABSOLUTELY NO WARRANTY; See GNU-LISCENSE file for details.'
-      write(*,*)'This is free software, and you are welcome to redistribute it under certain conditions'
+      if(myid==0)then
+        write(*,*)'================'
+        write(*,'(2X, A79)')'University of Delaware LBM D3Q19 Channel Flow Copyright (C) 2017 Lian-Ping Wang'
+        write(*,'(2X, A81)')'This program comes with ABSOLUTELY NO WARRANTY; See LICENSE.txt file for details.'
+        write(*,'(2X, A86)')'This is free software, and you are welcome to redistribute it under certain conditions'
+        write(*,*)'================'
+      endif
 
       !Initialize all variables used
       !@file para.f90
@@ -55,10 +59,6 @@
           ! Calculate forcing values used in collision_MRT
           !@file collision.f90
           call FORCING
-
-          ux = 0.0
-          uy = 0.0
-          uz = 0.0
 
           !Initialize particle populations on each node
           !@file partlib.f90
@@ -182,8 +182,6 @@
         !if(mod(istep,nstat) == 0) call statistc3
 
         if(mod(istep,nflowout) == 0) call outputflow !@file saveload.f90
-
-        if(ipart .and. istep >= irelease .and. mod(istep,npartout) == 0)call outputpart !@file saveload.f90
 
 !       if(ipart .and. istep >= irelease .and. mod(istep,nmovieout) == 0) then
 !          call moviedata

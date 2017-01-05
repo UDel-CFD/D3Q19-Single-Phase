@@ -56,7 +56,7 @@
 
       !Diagnostic and data output paramters
       integer,parameter:: ndiag = 250, nstat = 1000  , nspec=1000
-      integer,parameter:: nflowout = 1000, npartout = nflowout, ntime = 10000
+      integer,parameter:: nflowout = 100, npartout = nflowout, ntime = 10000
       integer,parameter:: nmovieout = 20000000, nsij = 100    
 
       !Other fluid/ particle related parameters
@@ -68,6 +68,8 @@
       integer,parameter:: irelease = 10
       integer,parameter:: iprocrate = 2  
       real,parameter:: et0 = 2.354998E+01 
+      real,parameter:: pi = 4.0*atan(1.0) 
+      real,parameter:: pi2 = 2.0*pi
 
       !MPI, input/output, and runtime related variables
       integer ierr, myid, nproc
@@ -77,11 +79,11 @@
       integer indy, indz, myp, mym, mypzp, mypzm, mymzp, mymzm
       integer fill_type
       integer iseedp, msize, nps, iyp, kpeak
-      logical newrun, ipart, newinitflow, released
+      logical newrun, ipart, ivel, newinitflow, released
 
       !General LBM variables and constants
       real force_in_y,ustar,Rstar,ystar,force_mag
-      real pi, pi2, anu, visc, tau, u0in 
+      real anu, visc, tau, u0in 
       real vscale, escale, dscale, tscale 
       real omegepsl, omegepslj, omegxx 
       real s1, s2, s4, s9, s10, s13, s16

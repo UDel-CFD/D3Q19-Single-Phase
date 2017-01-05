@@ -18,31 +18,54 @@
 
 # Makefile for compiling with personal F90 and
 # link with MPI libraries
-# To compile and link write simply "make"
-#
+# Updated by Nicholas Geneva June 01, 2016
+# make: normal compiling
+# make debug: compile with various debugging flags (no optimization)
+# make clean: remove object and module files along with error logs
+# make fullclean: clean + remove main executable
+
 SHELL = /bin/bash
 FFLAG = -O3 -w -r8
 FCOMP = mpif90 -c ${FFLAG}
 LINK = mpif90 
 LIBS = -lm
+
+#Bin Folder Location (or where the object files get placed)
+OBJDIR =./bin
 #List of files needed to compile
-OBJ = var_inc.o main.o para.o collision.o initial.o partlib.o saveload.o
+OBJNAMES = var_inc.o main.o para.o collision.o initial.o saveload.o
+MODS = var_inc.mod #Modules used in the program
+OBJ = $(addprefix $(OBJDIR)/,${OBJNAMES}) #Add on bin folder to directory
+
 #Defines file siffixes we'll use
 .SUFFIXES: .o .f90
 
-.f90.o:
-	${FCOMP} $*.f90 ${LIBS}
-main: ${OBJ}
+#Check if bin directory exists, create if needed
+main ${OBJ}: | $(OBJDIR) #Make having the directory a prereq for the objest files
+$(OBJDIR):
+	mkdir -p ${OBJDIR}
+
+#Compile module seperately to force entire program to recompile
+${MODS} : ${MODS:.mod=.f90}
+	${FCOMP} $< ${LIBS} -o $@
+	
+#Compile object files into bin
+${OBJDIR}/%.o : %.f90 ${MODS}
+	${FCOMP} $< ${LIBS} -o $@
+
+#Create executable
+main : ${OBJ}
 	${LINK} ${FFLAG} ${OBJ} ${LIBS} -o main
-#Optional auto clean object files
-	rm -rf *.o *.mod
+
 # Debug build changes flags to assist in program debugging
+.PHONY: debug
 debug: FFLAG = -g -r8 -C -CB -check uninit -traceback -debug all -fp-model precise -fpe0 -fp-stack-check
 debug: main
 #Remove Old Object files, useful when recompiling
+.PHONY: clean
 clean:
-	rm -rf *.o *.mod core*
+	rm -rf bin/*.o *.mod *.o core*
 #Type make clean to clean all object and program files
+.PHONY: fullclean
 fullclean:
 	rm -rf *.o *.mod main core*
-

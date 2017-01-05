@@ -56,32 +56,31 @@
 !=======================================================
 ! Physical constants and parameters
 !=======================================================
-      pi = 4.0*atan(1.0) 
-      pi2 = 2.0*pi
-      
 !====================================      
       ! Turbulent channel flow
 !==================================== 
       ! specify the force magnitude
-!     visc = 0.0032
-!     Rstar = 200.0
+      visc = 0.0032
+      Rstar = 200.0
       visc = 0.0036
       Rstar = 180.0
       ustar = 2.0*Rstar*visc/real(nx)
       force_in_y = 2.*rho0*ustar*ustar/real(nx)
       ystar = visc/ustar
       force_mag = 1.0
+      ivel = .TRUE.
 
       !End time step of perturbatuon forcing
       !Not used in particle laden
       npforcing = 0
 !==================================== 
-     !Laminar channel flow
+     !Laminar channel flow parameters
 !==================================== 
-      !Rstar = 20
-      !ustar = 0.05
-      !visc =  2.d0*ustar*real(nx)/Rstar
-      !force_in_y = 8.d0*visc*ustar/real(nx)**2
+      Rstar = 20
+      ustar = 0.05
+      visc =  2.d0*ustar*real(nx)/Rstar
+      force_in_y = 8.d0*visc*ustar/real(nx)**2
+      ivel = .false.
       
       ! not used
       kpeak = 4         ! It does not matter. Starting from stagnant flow
