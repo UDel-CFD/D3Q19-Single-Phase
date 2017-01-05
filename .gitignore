@@ -26,10 +26,10 @@
 *.a
 *.lib
 
-# Executables
+# Executables/Console Outputs
 *.exe
 *.out
-*.app
+*.err
 
 #RUN LSF batch files
 RUN
