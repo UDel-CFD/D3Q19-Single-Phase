@@ -1,40 +1,19 @@
 !=============================================================================
-!       MPI F90 Code for Simulating 3D Decaying Homogeneous Isotropic 
-!       Turbulence (DHIT) with finite-size freely-moving particles 
-!       embedded in the cube.
-!
-!       Using LBM D3Q19 MRT Model.
-!
-!       MPI version is designed to operate on NCAR's Yellowstone
-!
-!       The DHIT code was originally written by Dr. Lian-Ping Wang, June 2000.
-!
-!       The particle part of the code was implemented by Hui Gao, Jan. 2010.
-!       The original DHIT code was re-structured as well, using Dr. Yan Peng's
-!       code as a reference.
-!
-!           x   y   z
-!       {   0   0   0   }      rest
-!
-!       {   +   0   0   }      dir  1
-!       {   -   0   0   }      dir  2
-!       {   0   +   0   }      dir  3
-!       {   0   -   0   }      dir  4
-!       {   0   0   +   }      dir  5
-!       {   0   0   -   }      dir  6
-!
-!       {   +   +   0   }      dir  7
-!       {   -   +   0   }      dir  8
-!       {   +   -   0   }      dir  9
-!       {   -   -   0   }      dir  10
-!       {   +   0   +   }      dir  11
-!       {   -   0   +   }      dir  12
-!       {   +   0   -   }      dir  13
-!       {   -   0   -   }      dir  14
-!       {   0   +   +   }      dir  15
-!       {   0   -   +   }      dir  16
-!       {   0   +   -   }      dir  17
-!       {   0   -   -   }      dir  18
+!University of Delaware LBM D3Q19 Single Phase Simulation 
+!Copyright (C) 2017 Lian-Ping Wang
+
+!This program is free software: you can redistribute it and/or modify
+!it under the terms of the GNU General Public License as published by
+!the Free Software Foundation, either version 3 of the License, or
+!(at your option) any later version.
+
+!This program is distributed in the hope that it will be useful,
+!but WITHOUT ANY WARRANTY; without even the implied warranty of
+!MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!GNU General Public License for more details.
+
+!You should have received a copy of the GNU General Public License
+!along with this program.  If not, see <http://www.gnu.org/licenses/>.
 !=============================================================================
       PROGRAM main
       use mpi
@@ -47,6 +26,11 @@
       call MPI_INIT(ierr)
       call MPI_COMM_RANK(MPI_COMM_WORLD,myid,ierr)
       call MPI_COMM_SIZE(MPI_COMM_WORLD,nproc,ierr)      
+
+      !Liscense Text
+      write(*,*)'University of Delaware LBM D3Q19 Channel Flow Copyright (C) 2017 Lian-Ping Wang'
+      write(*,*)'This program comes with ABSOLUTELY NO WARRANTY; See GNU-LISCENSE file for details.'
+      write(*,*)'This is free software, and you are welcome to redistribute it under certain conditions'
 
       !Initialize all variables used
       !@file para.f90

@@ -11,5 +11,4 @@ ___
 * [Git Cheat Sheet] [GitCheatSheet]
 * [NCAR Yellowstone Website] [NCAR]
 
-   [GitCheatSheet]: <https://training.github.com/kit/downloads/github-git-cheat-sheet.pdf>
    [NCAR]: <https://www2.cisl.ucar.edu/resources/yellowstone>
