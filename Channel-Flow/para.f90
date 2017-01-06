@@ -23,7 +23,7 @@
       use mpi
       implicit none
 
-      logical dirExist
+      logical dirExist, laminarFlow
       integer i,j,k
       real vmax
 !=======================================================
@@ -56,33 +56,36 @@
 !=======================================================
 ! Physical constants and parameters
 !=======================================================
-!====================================      
-      ! Turbulent channel flow
-!==================================== 
-      ! specify the force magnitude
-      visc = 0.0032
-      Rstar = 200.0
-      visc = 0.0036
-      Rstar = 180.0
-      ustar = 2.0*Rstar*visc/real(nx)
-      force_in_y = 2.*rho0*ustar*ustar/real(nx)
-      ystar = visc/ustar
-      force_mag = 1.0
-      ivel = .true.
+    laminarFlow = .TRUE.
+    if(.NOT. laminarFlow)then  
+        !Turbulent channel flow
+        visc = 0.0036
+        Rstar = 180.0
+        ustar = 2.0*Rstar*visc/real(nx)
+        force_in_y = 2.*rho0*ustar*ustar/real(nx) !specify the force magnitude
+        ystar = visc/ustar
+        force_mag = 1.0
+        
+        ivel = .true. !Create initial velocity profile
+        MRTtype = 1 !For numerical stability 
 
-      !End time step of perturbatuon forcing
-      !Not used in particle laden
-      npforcing = 0
-!==================================== 
-     !Laminar channel flow parameters
-!==================================== 
-      Rstar = 20
-      ustar = 0.05
-      visc =  2.d0*ustar*real(nx)/Rstar
-      force_in_y = 8.d0*visc*ustar/real(nx)**2
-      ystar = visc/ustar
-      force_mag = 1.0
-      ivel = .false.
+        !End time step of perturbatuon forcing
+        npforcing = 0
+      else
+        !Laminar channel flow
+        Rstar = 20
+        ustar = 0.05
+        visc =  2.d0*ustar*real(nx)/Rstar
+        force_in_y = 8.d0*visc*ustar/real(nx)**2 !specify the force magnitude
+        ystar = visc/ustar
+        force_mag = 1.0
+        
+        ivel = .false. !Start with stationary flow
+        MRTtype = 2 !Recover LBGK
+
+        !End time step of perturbatuon forcing
+        npforcing = 0
+      endif
       
       ! not used
       kpeak = 4         ! It does not matter. Starting from stagnant flow
@@ -96,15 +99,11 @@
       dscale = pi2/real(ny)/vscale**3
       tscale = pi2*vscale/real(ny)
 
-!     nek = nx/3
-      nek = int(nx7/2 - 1.5)
- 
-      tau = 3.0*visc + 0.5
+      nek = int(nx7/2 - 1.5) 
 !=======================================================
 ! Initialize MRT related constants
 !=======================================================
-      MRTtype = 2
-
+      tau = 3.0*visc + 0.5
       s9 = 1.0/tau
       s13 = s9
 
@@ -173,8 +172,6 @@
       ww0 = 1.0/3.0
       ww1 = 1.0/18.0
       ww2 = 1.0/36.0
-
-
 
 ! The order must be exactly as in D'Humieres et al (2002), (A1)
 !      Phil. Trans. R. Soc. Lond. A (2002) 360, 437-451
